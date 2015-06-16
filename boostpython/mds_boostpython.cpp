@@ -112,55 +112,69 @@ class mds::StressGridPython
     {   return stressgrid.GetStressType( );   }
 
     
-    void DistributeInteraction( int nAtom, boost::python::list  atomIDs, boost::python::list R, boost::python::list F)
+    void DistributeInteraction( int nAtom, boost::python::list R, boost::python::list F, boost::python::list  atomIDs = boost::python::list())
     {
         if ( nAtom > this->maxClust )
         {
             std::cout << "ERROR::StressGridPython: Distribute Interaction has been called with a number of atoms larger than the maximum cluster size previously set, nAtom=" << nAtom << " and maxClust=" << this->maxClust << "\n";
             return;
         }
-        
-        for (int i = 0; i < nAtom; i ++ )
+       
+        if ( atomIDs == boost::python::list() )
         {
-            
-            for (int j = 0; j < mds_ndim; j ++ )
+            for (int i = 0; i < nAtom; i ++ )
             {
-                this->R[i][j] = extract<double>(R[i][j]);
-                this->F[i][j] = extract<double>(F[i][j]);
+                
+                for (int j = 0; j < mds_ndim; j ++ )
+                {
+                    this->R[i][j] = extract<double>(R[i][j]);
+                    this->F[i][j] = extract<double>(F[i][j]);
+                }
             }
-            this->atomIDs[i] = extract<int>(atomIDs[i]);
-        }
-
-
-        this->stressgrid.DistributeInteraction( nAtom, this->atomIDs, this->R, this->F);
-    }
-    
-    void DistributeKinetic1     ( double mass, int atomID, boost::python::list x, boost::python::list v             )
-    {
-        darray x_;
-        darray v_;
-        
-        for (int j = 0; j < mds_ndim; j ++ )
-        {
-            x_[j] = extract<double>(x[j]);
-            v_[j] = extract<double>(v[j]);
-        }
             
-        stressgrid.DistributeKinetic( mass, atomID, x_, v_);
+            this->stressgrid.DistributeInteraction( nAtom, this->R, this->F);
+        }
+        else
+        {
+            for (int i = 0; i < nAtom; i ++ )
+            {
+                
+                for (int j = 0; j < mds_ndim; j ++ )
+                {
+                    this->R[i][j] = extract<double>(R[i][j]);
+                    this->F[i][j] = extract<double>(F[i][j]);
+                }
+                this->atomIDs[i] = extract<int>(atomIDs[i]);
+            }
+
+            this->stressgrid.DistributeInteraction( nAtom, this->atomIDs, this->R, this->F);
+        }
     }
-    void DistributeKinetic2     ( double mass, int atomID, boost::python::list x, boost::python::list va, boost::python::list vb )
+
+    void DistributeKinetic     ( double mass, int atomID, boost::python::list x, boost::python::list va, boost::python::list vb = boost::python::list() )
     {
         darray x_;
         darray va_,vb_;
         
-        for (int j = 0; j < mds_ndim; j ++ )
+        if ( vb == boost::python::list() )
         {
-            x_[j]  = extract<double>(x[j]);
-            va_[j] = extract<double>(va[j]);
-            vb_[j] = extract<double>(vb[j]);
+            for (int j = 0; j < mds_ndim; j ++ )
+            {
+                x_[j]  = extract<double>(x[j]);
+                va_[j] = extract<double>(va[j]);
+            }
+            stressgrid.DistributeKinetic( mass, atomID, x_, va_);
         }
-        
-        stressgrid.DistributeKinetic( mass, atomID, x_, va_, vb_);
+        else
+        {
+            for (int j = 0; j < mds_ndim; j ++ )
+            {
+                x_[j]  = extract<double>(x[j]);
+                va_[j] = extract<double>(va[j]);
+                vb_[j] = extract<double>(vb[j]);
+            }
+            stressgrid.DistributeKinetic( mass, atomID, x_, va_, vb_);
+        }
     }
 
     private:
@@ -177,9 +191,8 @@ BOOST_PYTHON_MODULE(libmdstresspy)
 {        
     
     class_<mds::StressGridPython>("StressGrid")
-    .def("distributeinteraction",   &mds::StressGridPython::DistributeInteraction)
-    .def("distributekinetic1",   &mds::StressGridPython::DistributeKinetic1)
-    .def("distributekinetic2",   &mds::StressGridPython::DistributeKinetic2)
+    .def("distributeinteraction", &mds::StressGridPython::DistributeInteraction,(boost::python::arg("natom"),boost::python::arg("R"), boost::python::arg("F"),boost::python::arg("atomid")=boost::python::list()))
+    .def("distributekinetic",     &mds::StressGridPython::DistributeKinetic, (boost::python::arg("mass"), boost::python::arg("atomid"), boost::python::arg("x"), boost::python::arg("va"), boost::python::arg("vb") = boost::python::list() ))
     .def("init",         &mds::StressGridPython::Init)
     .def("update",       &mds::StressGridPython::Update)
     .def("reset",        &mds::StressGridPython::Reset)
