@@ -1,0 +1,264 @@
+#!/usr/bin/env python
+
+#=========================================================================
+#
+#  Module    : LOCAL STRESS FROM GROMACS TRAJECTORIES
+#  File      : tensortools.py
+#  Authors   : A. Torres-Sanchez and J. M. Vanegas
+#  Modified  :
+#  Purpose   : Compute the local stress from precomputed trajectories in GROMACS
+#  Date      : 25/03/2015
+#  Version   :
+#  Changes   :
+#
+#     http://www.lacan.upc.edu/LocalStressFromMD
+#
+#     This software is distributed WITHOUT ANY WARRANTY; without even
+#     the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
+#     PURPOSE.  
+#
+#     Please, report any bug to either of us:
+#     juan.m.vanegas@gmail.com
+#     torres.sanchez.a@gmail.com
+#=========================================================================##!/usr/bin/env python
+#
+# References:
+#
+# Regarding this program:
+# [1] Manual (parent folder/manual)
+# [2] J. M. Vanegas; A. Torres-Sanchez; M. Arroyo; J. Chem. Theor. Comput. 10 (2), 691-702 (2014)
+# [3] O. H. S. Ollila; H.J. Risselada; M. Louhivouri; E. Lindahl; I. Vattulainen; S.J. Marrink; Phys. Rev Lett. 102, 078101 (2009)
+#
+# General IKN framework and Central Force Decomposition
+# [4] E. B. Tadmor; R. E. Miller; Modeling Materials: Continuum, Atomistic and Multiscale Techniques, Cambridge University Press (2011)
+# [5] N. C. Admal; E. B. Tadmor; J. Elast. 100, 63 (2010)
+#
+# Covariant Central Force Decomposition
+# [6] A. Torres-Sanchez; J. M. Vanegas; M. Arroyo; Submitted to PRL (2015)
+# [7] A. Torres-Sanchez; J. M. Vanegas; M. Arroyo; In preparation (2015)
+#
+# Goetz-Lipowsky Decomposition
+# [8] R. Goetz; R. Lipowsky; J. Chem. Phys. 108, 7397 (1998)
+#
+# Decomposition on geometric centers
+# [9] H. Heinz; W. Paul; K. Binder; Phys. Rev. E. 72 066704 (2005)
+
+
+try:
+    from LStensor import LStensor
+except:
+    print("LStensor not in the current directory nor in python path. Add the location of your GROMACSLS bin folder to the PYTHONPATH (for instance type: 'export PYTHONPATH=$PYTHONPATH:/path/to/your/gromacsls/bin')")
+    exit(10)
+
+
+import argparse
+
+
+def main():
+
+    parser = argparse.ArgumentParser(description='tensortools.py -- Swiss army knife of stress tensor and 3D density calculations',formatter_class=argparse.RawDescriptionHelpFormatter,epilog='''\
+Juan M. Vanegas and Alejandro Torres-Sanchez
+Please, report any bug to either of us:
+juan.m.vanegas@gmail.com  and/or torres.sanchez.a@gmail.com''')
+    # INPUT
+    parser.add_argument('-f',         nargs='+', required=True,              help='Single or multiple binary input files (must all have the same grid size)',metavar='[input.bin]')
+    parser.add_argument('-v',         nargs='?', const=True, default=False,  help='verbose',metavar='')
+    parser.add_argument('--irep',     nargs='?', default='spat',             help='Input data representation, values: spat (spatial stress/density distributed on a grid, default), atom (stress per atom)',metavar='spat')
+    parser.add_argument('--pdb',      nargs='?',                             help='PDB file with atom coordinates (FOR STRESS PER ATOM ONLY)',metavar='[structure.pdb]')
+    parser.add_argument('--itype',    nargs='?', default='stress',           help='Type of data such as density, stress tensor, or vector field: dens, stress (default), or vec', metavar='stress')
+
+    # PROCESSING DATA
+    parser.add_argument('--mif',      nargs='?', default='avg',              help='How to process multiple input files, values: avg (default) or sum',metavar='avg')
+    parser.add_argument('--sym',      nargs='?', const=True, default=False,  help='FOR STRESS ONLY. Separates the resultant stress in its symmetric and antisymmetric parts, and creates two outputs with the subscripts _sym and _asym respectively',metavar='')
+    parser.add_argument('--prof',                                            help='Output a profile along a given dimension, values: x, y, or z (default)',metavar='z')
+    parser.add_argument('--integ',                                           help='integrate out the stress profile along a given dimension, values: x, y, or z (default)',metavar='z')
+    parser.add_argument('--gf',                                              help='Process input through a gaussian filter of a given width (in units of the grid spacing, default=1.0)',metavar='1.0')
+    parser.add_argument('--gridsp', nargs=3,                                 help='(For atom to grid conversion) Grid spacing for atom 2 grid conversion (default 0.1, 0.1, 0.1 nm)',metavar=(0.1,0.1,0.1), default=(0.1,0.1,0.1))
+    
+    # OUTPUT
+    parser.add_argument('-o',         type=str, required=True,               help='Output file',metavar='output.bin')
+    parser.add_argument('--orep',     nargs='?', default='spat',             help='Output data representation, values: spat (spatial stress/density distributed on a grid, default), atom (stress per atom)',metavar='spat')
+    parser.add_argument('--oformat',  nargs='?', default='bin',              help='Output format, values: bin (i.e. binary .dat0, default), nc (NETCDF), txt, or pdb (stress per atom only - creates a separate file for each element in the tensor)',metavar='bin')
+
+    # Check input data
+    if ( check_args(parser) ):
+        return 1
+
+    args = parser.parse_args()
+    print(args)
+
+
+    # Load arguments
+    verbose    = args.v
+    itype      = args.itype
+    inputfiles = args.f
+    outputfile = args.o
+    irep       = args.irep
+    struct     = args.pdb
+    gridsp     = [float(x) for x in args.gridsp]
+
+    prof       = args.prof
+    integ      = args.integ
+    sym        = args.sym
+
+    orep       = args.orep
+    oformat    = args.oformat
+    
+    # Gaussian filter?
+    if (args.gf != None):
+        bGF = True
+        gf_sigma = float(args.gf)
+    else:
+        bGF = None
+
+    # Average or sum?
+    if (args.mif == 'avg'):
+        bAvg = True
+    else:
+        bAvg = False
+
+    # Type of data: density (order=0), vector (order=1), or stress (order=2)
+    if (itype == 'dens'):
+        order = 0
+    elif (itype == 'vec'):
+        order = 1
+    elif (itype == 'stress'):
+        order = 2
+
+    field = LStensor(order)
+
+    field.verbose = verbose
+
+    if (irep == 'spat'):
+        field.g_loaddata(inputfiles,bAvg)
+    if (irep == 'atom'):
+        field.a_loaddata(inputfiles,bAvg)
+
+    if (struct != None):
+        field.a_loadstr(struct)
+        if (orep == 'spat'):
+            field.a_2grid(gridsp)
+
+    if (prof != None):
+        field.g_prof(prof)
+
+    if (integ != None):
+        field.g_intout(integ)
+
+    # Apply Gaussian filter if necessary and overwrite data with it
+    if (bGF == True):
+        field.g_gfilt(gf_sigma)
+
+    #If sym options is active separate the symmetric and antisymmetric components (ONLY FOR STRESS)
+    if (sym):
+        field.g_symasym()
+    
+    # Write data to file
+    if(orep=='spat'):
+        if (not(sym)):
+            if (oformat == 'bin'):
+                field.g_savebin(outputfile)
+            elif (oformat == 'nc'):
+                field.g_savenc(outputfile)
+            elif (oformat == 'txt'):
+                field.g_savetxt(outputfile)
+        else:
+            outname, outext = outputfile.split('.')
+            namesym  = outname+'_sym.' +outext
+            nameasym = outname+'_asym.'+outext
+            if (oformat == 'bin'):
+                field.sym.g_savebin(namesym)
+                field.asym.g_savebin(nameasym)
+            elif (oformat == 'nc'):
+                field.sym.g_savenc(namesym)
+                field.asym.g_savenc(nameasym)
+            elif (oformat == 'txt'):
+                field.sym.g_savetxt(namesym)
+                field.asym.g_savetxt(nameasym)
+    else:
+        if (oformat == 'bin'):
+            field.a_savebin(outputfile)
+        elif (oformat == 'pdb'):
+            field.a_savepdb(outputfile)
+        elif (oformat == 'txt'):
+            field.a_savetxt(outputfile)
+
+    return 0
+
+def check_args(parser):
+
+    args = parser.parse_args()
+
+    if(args.irep == 'spat' and args.pdb != None):
+        print("INPUT ERROR: pdb files are only allowed for stress per atom but irep is set to 'spat'.")
+        parser.print_help()
+        return 1
+
+    if (args.oformat != 'bin' and args.oformat != 'nc' and args.oformat != 'txt' and args.oformat != 'pdb'):
+        print("INPUT ERROR: Output type must be either 'bin' or 'nc' or 'txt' or 'pdb'.")
+        parser.print_help()
+        return 1
+    elif((args.oformat == 'nc') and args.orep == 'atom'):
+        print("INPUT ERROR: Output type cannot be 'nc' when orep is 'atom")
+        parser.print_help()
+        return 1
+
+    if (args.mif != 'avg' and args.mif != 'sum'):
+        print("INPUT ERROR: Option for processing must be either avg (average) or sum.")
+        parser.print_help()
+        return 1
+
+    if (args.sym == True):
+        if(args.itype != 'stress'):
+            print("INPUT ERROR: The data type must be stress with the --sym option!")
+            parser.print_help()
+            return 1
+
+    if (args.prof != None):
+        if (args.prof != 'x' and args.prof != 'y' and args.prof != 'z'):
+            print("INPUT ERROR: The profile option is not 'x' 'y' or 'z'!")
+            parser.print_help()
+            return 1
+        if (args.integ != None):
+            print("INPUT ERROR: The options prof and integ are incompatible!")
+            parser.print_help()
+            return 1
+
+    if (args.integ != None):
+        if (args.integ != 'x' and args.integ != 'y' and args.integ != 'z'):
+            print("INPUT ERROR: The integration option is not 'x' 'y' or 'z'!")
+            parser.print_help()
+            return 1
+        
+    if (args.oformat == 'pdb'):
+        if (args.orep != 'atom'):
+            print("INPUT ERROR: PDB output is only compatible with atom output representation")
+            parser.print_help()
+            return 1
+        
+    if (args.orep == 'atom'):  
+        if(args.irep == 'spat'):
+            print("INPUT ERROR: Not conversion from grid data to atomic data is possible")
+            parser.print_help()
+            return 1
+        if(args.integ != None):
+            print("INPUT ERROR: Integration does not make sense for atomic data (orep == atom)")
+            parser.print_help()
+            return 1
+        if(args.prof != None):
+            print("INPUT ERROR: Profile does not make sense for atomic data (orep == atom)")   
+            parser.print_help()
+            return 1
+        if(args.gf != None):
+            print("INPUT ERROR: gaussian filter does not make sense for atomic data (orep == atom)")   
+            parser.print_help()
+            return 1
+        if(args.sym):
+            print("INPUT ERROR: sym not valid for atomic data (orep == atom)")   
+            parser.print_help()
+            return 1
+    return 0
+
+
+if __name__ == "__main__":
+    main()

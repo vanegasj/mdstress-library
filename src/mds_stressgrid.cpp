@@ -131,7 +131,7 @@ int StressGrid::CheckSettings()
     }
     else
     {
-        if ( this->nAtom <= 0 )
+        if ( this->nAtoms <= 0 )
         {
             std::cout << "ERROR::StressGrid: Number of atoms must > 0\n";
             return 6;
@@ -181,7 +181,7 @@ void StressGrid::Init()
             if(this->nz==0)  this->nz=1;
         }
         else
-            this->ncells = this->nAtom;
+            this->ncells = this->nAtoms;
 
         //Give size to current and sum grid
         this->sum_grid     = new dmatrix [this->ncells];
@@ -309,18 +309,18 @@ void StressGrid::Write ( )
 }
 
 //----------------------------------------------------------------------------------------
-// DistributeStress
+// DistributeInteraction
 //
 // ROOT OF ALL EVIL
-// This function reads the number of atoms, the atoms' labels and their
-// respective positions and forces, and calls the functions in charge of distributing the stress
+// This function reads the number of atoms, their
+// respective positions and forces, and the atom IDs, and calls the functions in charge of distributing the stress
 // on the grid depending on the local stress flags and the kind of interaction
 // Requires:
-// nAtom   -> number of atoms of the contribution
-// atomIDs -> labels of the atoms
+// nAtoms  -> number of atoms of the contribution
 // R       -> positions of the atoms
 // F       -> forces on the atoms
-void StressGrid::DistributeInteraction(int nAtom, int *atomIDs, darraylist R, darraylist F)
+// atomIDs -> labels of the atoms
+void StressGrid::DistributeInteraction(int nAtoms, darraylist R, darraylist F, int *atomIDs = NULL)
 {
     int    n;
     int    i,j;
@@ -328,9 +328,9 @@ void StressGrid::DistributeInteraction(int nAtom, int *atomIDs, darraylist R, da
 
     dmatrix stress;
 
-    if ( nAtom > this->maxClust )
+    if ( nAtoms > this->maxClust )
     {
-        std::cout << "ERROR::StressGrid: Distribute Interaction has been called with a number of atoms larger than the maximum cluster size previously set, nAtom=" << nAtom << " and maxClust=" << this->maxClust << "\n";
+        std::cout << "ERROR::StressGrid: Distribute Interaction has been called with a number of atoms larger than the maximum cluster size previously set, nAtoms=" << nAtoms << " and maxClust=" << this->maxClust << "\n";
         this->ierr = 8;
     }
     
@@ -339,8 +339,8 @@ void StressGrid::DistributeInteraction(int nAtom, int *atomIDs, darraylist R, da
         // If spatatom==mds_spat distribute the stress spatially following Noll's procedure
         if (this->spatatom == mds_spat)
         {
-            // Depending on the number of atoms, call a different gmxLS_spread function
-            switch (nAtom)
+            // Depending on the number of atoms, call a different function
+            switch (nAtoms)
             {
 
                 case 2:
@@ -364,7 +364,7 @@ void StressGrid::DistributeInteraction(int nAtom, int *atomIDs, darraylist R, da
                     break;
 
                 default:
-                    this->DistributeNBody( nAtom, R, F );
+                    this->DistributeNBody( nAtoms, R, F );
                     break;
             }
 
@@ -372,14 +372,20 @@ void StressGrid::DistributeInteraction(int nAtom, int *atomIDs, darraylist R, da
         // If spatatom==mds_atom, distributes the stress per atom using the atomic stress definition
         else if (this->spatatom == mds_atom)
         {
-            // This is because SETTLE calls the function with nAtom=-3
-            if (nAtom < 0) nAtom = -nAtom;
+            // This is because SETTLE calls the function with nAtoms=-3
+            if (nAtoms < 0) nAtoms = -nAtoms;
 
-            for (n = 0; n < nAtom; n++ )
+            if (atomIDs == NULL)
             {
-                if ( atomIDs[n] >= this->nAtom )
+                std::cout << "ERROR:: the atomIDs array is NULL. Cannot calculate the stress/atom.";
+                return;
+            }
+
+            for (n = 0; n < nAtoms; n++ )
+            {
+                if ( atomIDs[n] >= this->nAtoms )
                 {
-                    std::cout << "ERROR:: the atom label" << atomIDs[n] << "is equal or larger than the total number of atoms" << this->nAtom;
+                    std::cout << "ERROR:: the atom label" << atomIDs[n] << "is equal or larger than the total number of atoms" << this->nAtoms;
                     return;
                 }
             }
@@ -397,86 +403,28 @@ void StressGrid::DistributeInteraction(int nAtom, int *atomIDs, darraylist R, da
 
 
             //Calculate the stress
-            for( n = 0; n < nAtom; n++ )
+            for( n = 0; n < nAtoms; n++ )
             {
                 for( i = 0; i< mds_ndim; i++ )
                 {
-                    temp = -(F[n][i] * R[n][i])/nAtom;
+                    temp = -(F[n][i] * R[n][i])/nAtoms;
                     stress[i][i] += temp;
                     for( j=i+1; j< mds_ndim; j++ )
                     {
-                        temp = -(F[n][i] * R[n][j])/nAtom;
+                        temp = -(F[n][i] * R[n][j])/nAtoms;
                         stress[i][j] += temp;
                         stress[j][i] += temp;
                     }
                 }
             }
 
-            for ( n = 0; n < nAtom; n++ )
+            for ( n = 0; n < nAtoms; n++ )
             {
-                AddStressToGrid(atomIDs[n], stress);
+                AddAtomStressToGrid(atomIDs[n], stress);
             }
         }
     }
-    
-    return;
-}
 
-void StressGrid::DistributeInteraction(int nAtom, darraylist R, darraylist F)
-{
-    int    n;
-    int    i,j;
-    double temp;
-
-    dmatrix stress;
-
-    if ( nAtom > this->maxClust )
-    {
-        std::cout << "ERROR::StressGrid: Distribute Interaction has been called with a number of atoms larger than the maximum cluster size previously set, nAtom=" << nAtom << " and maxClust=" << this->maxClust << "\n";
-        this->ierr = 8;
-    }
-    
-    if ( !ierr )
-    {
-        // If spatatom==mds_spat distribute the stress spatially following Noll's procedure
-        if (this->spatatom == mds_spat)
-        {
-            // Depending on the number of atoms, call a different gmxLS_spread function
-            switch (nAtom)
-            {
-
-                case 2:
-                    this->DistributePairInteraction( R[0], R[1], F[0] );
-                    break;
-
-                case 3:
-                    this->DistributeN3( R[0], R[1], R[2],F[0], F[1], F[2] );
-                    break;
-
-                case -3:
-                    this->DistributeSettle( R[0], R[1], R[2],F[0], F[1], F[2] );
-                    break;
-
-                case 4:
-                    this->DistributeN4( R[0], R[1], R[2], R[3], F[0], F[1], F[2], F[3] );
-                    break;
-
-                case 5:
-                    this->DistributeN5( R[0], R[1], R[2], R[3], R[4], F[0], F[1], F[2], F[3], F[4] );
-                    break;
-
-                default:
-                    this->DistributeNBody( nAtom, R, F );
-                    break;
-            }
-
-        }
-        // If spatatom==mds_atom, distributes the stress per atom using the atomic stress definition
-        else if (this->spatatom == mds_atom)
-            std::cout << "ERROR::StressGrid: DistributeInteraction has been called without particles' labels but type of stress is set to atomistic\n";
-
-    }
-    
     return;
 }
 
@@ -662,31 +610,51 @@ void StressGrid::DistributePairInteraction( darray xi, darray xj, darray F )
 //----------------------------------------------------------------------------------------
 // DistributeKinetic
 //
-// Distributes interactions onto the grid
+// Distributes kinetic contributions onto the grid
 // Requires:
 // mass       -> mass of the particle
-// atomID     -> ID of the atom
 // x          -> position of the atom
-// (*) v      -> velocity of the particle (Euler/Verlet)
-// (*) va, vb -> velocities from the leap-frog method (we use the average velocity as the one in the middle point)
-// (*) means either one or the other
-void StressGrid::DistributeKinetic(double mass, int atomID, darray x, darray v)
+// va         -> velocity of the particle at time t for Vel-verlet, or t-dt/2 for leapfrog integrators
+// vb         -> velocity of the particle at t+dt/2 (for leapfrog integrators only)
+// atomID     -> ID of the atom
+//
+// For leapfrog integrators we know va(t-dt/2) and vb(t+dt/2), but we want the contribution at v(t) which we don't know.
+// So we take the average kinetic contribution from the velocities at each half step -m*(va(t-dt/2)^2 + vb(t+dt/2)^2)/2
+// Warning! this is not the same as simply taking the average of the half-step velocities, which would be incorrect.
+//
+// For velocity-verlet integrators we know v at the same time step, t, as the positions so the contribution is -m*va(t)*va(t)
+
+void StressGrid::DistributeKinetic(double mass, darray x, darray va, darray vb = NULL, int atomID = -1)
 {
 
     dmatrix stress;
 
-    if ( ierr != 0 )
+    if (ierr != 0)
     {
-        stress[0][0] = -mass*v[0]*v[0];
-        stress[0][1] = -mass*v[0]*v[1];
-        stress[0][2] = -mass*v[0]*v[2];
-        stress[1][0] = -mass*v[1]*v[0];
-        stress[1][1] = -mass*v[1]*v[1];
-        stress[1][2] = -mass*v[1]*v[2];
-        stress[2][0] = -mass*v[2]*v[0];
-        stress[2][1] = -mass*v[2]*v[1];
-        stress[2][2] = -mass*v[2]*v[2];
-
+        if (vb == NULL)
+        {
+            stress[0][0] = -mass*va[0]*va[0];
+            stress[0][1] = -mass*va[0]*va[1];
+            stress[0][2] = -mass*va[0]*va[2];
+            stress[1][0] = -mass*va[1]*va[0];
+            stress[1][1] = -mass*va[1]*va[1];
+            stress[1][2] = -mass*va[1]*va[2];
+            stress[2][0] = -mass*va[2]*va[0];
+            stress[2][1] = -mass*va[2]*va[1];
+            stress[2][2] = -mass*va[2]*va[2];
+        }
+        else
+        {
+            stress[0][0] = -mass*(va[0]*va[0] + vb[0]*vb[0])/2;
+            stress[0][1] = -mass*(va[0]*va[1] + vb[0]*vb[1])/2;
+            stress[0][2] = -mass*(va[0]*va[2] + vb[0]*vb[2])/2;
+            stress[1][0] = -mass*(va[1]*va[0] + vb[1]*vb[0])/2;
+            stress[1][1] = -mass*(va[1]*va[1] + vb[1]*vb[1])/2;
+            stress[1][2] = -mass*(va[1]*va[2] + vb[1]*vb[2])/2;
+            stress[2][0] = -mass*(va[2]*va[0] + vb[2]*vb[0])/2;
+            stress[2][1] = -mass*(va[2]*va[1] + vb[2]*vb[1])/2;
+            stress[2][2] = -mass*(va[2]*va[2] + vb[2]*vb[2])/2;
+        }
         // If spatatom==mds_spat distribute the stress spatially following Noll's procedure
         if (this->spatatom == mds_spat)
         {
@@ -694,19 +662,19 @@ void StressGrid::DistributeKinetic(double mass, int atomID, darray x, darray v)
         }
         else if (this->spatatom == mds_atom)
         {
-            AddStressToGrid(atomID,stress);
+            if (atomID == -1)
+            {
+                std::cout << "ERROR:: Unknown atomID for kinetic contribution. Cannot calculate the stress/atom.";
+                return;
+            }
+            else
+            {
+                AddAtomStressToGrid(atomID,stress);
+            }
         }
     }
 }
-void StressGrid::DistributeKinetic(double mass, int atomID, darray x, darray va, darray vb)
-{
-    darray v;
-    
-    scalearray ( va, 1.0/sqrt(2), v);
-    this->DistributeKinetic(mass, atomID, x, v);
-    scalearray ( vb, 1.0/sqrt(2), v);
-    this->DistributeKinetic(mass, atomID, x, v);
-}
+
 //----------------------------------------------------------------------------------------
 // SpreadLineSource
 //
@@ -770,7 +738,7 @@ void StressGrid::SpreadLineSource(darray a, darray b, double t1, double t2, iarr
     
                 gridcell = modulo(ii,nx)*nz*ny+modulo(jj,ny)*nz+modulo(kk,nz);
                 
-                this->AddStressToGrid (gridcell, partial_stress);
+                this->AddAtomStressToGrid (gridcell, partial_stress);
             }
         }
     }
@@ -816,7 +784,7 @@ void StressGrid::SpreadPointSource( darray pt, dmatrix stress )
                 factor = dummy2 * k * (pt[2]-(kk+0.5*(1-k))*gridsp[2]);
                 scalematrix(stress,factor,part_stress);
                 gridcell = modulo(iii,nx)*nz*ny+modulo(jjj,ny)*nz+modulo(kkk,nz);
-                this->AddStressToGrid( gridcell,part_stress );
+                this->AddAtomStressToGrid( gridcell,part_stress );
             }
         }
     }
@@ -1432,7 +1400,7 @@ void StressGrid::DistributeNBody ( int nPart, darraylist R, darraylist F )
 //AUXILIARY FUNCTIONS
 
 //Sum the stress to the current_grid
-void StressGrid::AddStressToGrid(int n, dmatrix stress)
+void StressGrid::AddAtomStressToGrid(int n, dmatrix stress)
 {
     summatrix (this->current_grid[n],stress,this->current_grid[n]);
     return;

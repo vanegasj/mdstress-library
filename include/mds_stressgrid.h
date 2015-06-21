@@ -29,7 +29,7 @@
 * to distribute N-body interactions between particles and kinetic contributions respectively.
 * 
 * \b INPUT: 
-* \param [in] nAtom     Number of atoms
+* \param [in] nAtoms    Number of atoms
 * \param [in] nx        Number of grid cells in the x direction
 * \param [in] ny        Number of grid cells in the y direction
 * \param [in] nz        Number of grid cells in the z direction
@@ -55,7 +55,7 @@
 * \param [out] invbox       Inverse of the box
 * \param [out] gridsp       grid spacing
 * \param [out] invgridsp    inverse of grid spacing
-* \param [out] current_grid Grid (either nx*ny*nz or nAtom)
+* \param [out] current_grid Grid (either nx*ny*nz or nAtoms)
 * \param [out] sum_grid     Sum Grid
 * \n
 * 
@@ -85,9 +85,9 @@ class  mds::StressGrid
         /** Set/Get number of atoms: */
         //@{
         void SetNumberOfAtoms(int n)
-        {   this->nAtom = n;    }
+        {   this->nAtoms = n;    }
         int  GetNumberOfAtoms( )
-        {   return this->nAtom; }
+        {   return this->nAtoms; }
         //@}
         
         /** Set/Get number of grid cells in each direction: */
@@ -194,26 +194,30 @@ class  mds::StressGrid
          * respective positions and forces, and calls the functions in charge of distributing the stress
          * on the grid depending on the local stress flags and the kind of interaction
          * Requires:
-         * nAtom   -> number of atoms of the contribution
-         * atomIDs -> labels of the atoms
+         * nAtoms  -> number of atoms of the contribution
          * R       -> positions of the atoms
-         * F       -> forces on the atoms */
-        void DistributeInteraction ( int nAtom, int *atomIDs, darraylist R, darraylist F   );
-        void DistributeInteraction ( int nAtom, darraylist R, darraylist F   );
+         * F       -> forces on the atoms
+         * atomIDs -> labels of the atoms (optional, only needed if calculating stress/atom) */
+        void DistributeInteraction ( int nAtoms, darraylist R, darraylist F, int *atomIDs );
         
         /** DistributeKinetic
          *
          * Distributes interactions onto the grid
          * Requires:
          * mass       -> mass of the particle
-         * atomID     -> ID of the atom
          * x          -> position of the atom
-         * (*) v      -> velocity of the particle (Euler/Verlet)
-         * (*) va, vb -> velocities from the leap-frog method (we use the average velocity as the one in the middle point)
-         * (*) means either one or the other */
+         * va         -> velocity of the particle at time t for vel-verlet, or at t-dt/2 for leapfrog integrators
+         * vb         -> velocity of the particle at time t+dt/2. This value is optional and only needed for leapfrog integrators
+         * atomID     -> ID of the atom (optional, only needed if calculating stress/atom)
+         *
+         * For leapfrog integrators we know va(t-dt/2) and vb(t+dt/2), but we want the contribution at v(t) which we don't know.
+         * So we take the average kinetic contribution from the velocities at each half step -m*(va(t-dt/2)^2 + vb(t+dt/2)^2)/2
+         * Warning! this is not the same as simply taking the average of the half-step velocities, which would be incorrect.
+         *
+         * For velocity-verlet integrators we know va at the same time step, t, as the positions so the contribution is -m*va(t)*va(t)
+         * */
         //@{
-        void DistributeKinetic     ( double mass, int atomID, darray x, darray v             );
-        void DistributeKinetic     ( double mass, int atomID, darray x, darray va, darray vb );
+        void DistributeKinetic   ( double mass, darray x, darray va, darray vb, int atomID  );
         //@}
         
         /** Constructor */
@@ -225,7 +229,7 @@ class  mds::StressGrid
     private:
         /** @name Inputs*/
         //@{
-        int           nAtom;          ///< Number of atoms
+        int           nAtoms;         ///< Number of atoms
         int           nx;             ///< Number of grid cells in the x direction
         int           ny;             ///< Number of grid cells in the y direction
         int           nz;             ///< Number of grid cells in the z direction
@@ -253,7 +257,7 @@ class  mds::StressGrid
         dmatrix    invbox;       ///< Inverse of the box
         darray     gridsp;       ///< grid spacing
         double     invgridsp;    ///< inverse of grid spacing
-        dmatrix   *current_grid; ///< Grid (either nx*ny*nz or nAtom)
+        dmatrix   *current_grid; ///< Grid (either nx*ny*nz or nAtoms)
         dmatrix   *sum_grid;     ///< Sum Grid
         //@}
 
@@ -309,7 +313,7 @@ class  mds::StressGrid
         //AUXILIARY FUNCTIONS
         
         /** Sum the stress to the current_grid */
-        void AddStressToGrid           (int i,  dmatrix stress);
+        void AddAtomStressToGrid       (int i,  dmatrix stress);
 
         /** Finds the indices on the grid for a given set of coordinates */
         void GridCoord(darray pt, int *i, int *j, int *k);
