@@ -72,13 +72,13 @@ juan.m.vanegas@gmail.com  and/or torres.sanchez.a@gmail.com''')
     parser.add_argument('--sym',      nargs='?', const=True, default=False,  help='FOR STRESS ONLY. Separates the resultant stress in its symmetric and antisymmetric parts, and creates two outputs with the subscripts _sym and _asym respectively',metavar='')
     parser.add_argument('--prof',                                            help='Output a profile along a given dimension, values: x, y, or z (default)',metavar='z')
     parser.add_argument('--integ',                                           help='integrate out the stress profile along a given dimension, values: x, y, or z (default)',metavar='z')
-    parser.add_argument('--gf',                                              help='Process input through a gaussian filter of a given width (in units of the grid spacing, default=1.0)',metavar='1.0')
+    parser.add_argument('--gf',                                              help='Process input through a gaussian filter of a given standard deviation (in units of the grid spacing, default=1.0)',metavar='1.0')
     parser.add_argument('--gridsp', nargs=3,                                 help='(For atom to grid conversion) Grid spacing for atom 2 grid conversion (default 0.1, 0.1, 0.1 nm)',metavar=(0.1,0.1,0.1), default=(0.1,0.1,0.1))
     
     # OUTPUT
-    parser.add_argument('-o',         type=str, required=True,               help='Output file',metavar='output.bin')
     parser.add_argument('--orep',     nargs='?', default='spat',             help='Output data representation, values: spat (spatial stress/density distributed on a grid, default), atom (stress per atom)',metavar='spat')
-    parser.add_argument('--oformat',  nargs='?', default='bin',              help='Output format, values: bin (i.e. binary .dat0, default), nc (NETCDF), txt, or pdb (stress per atom only - creates a separate file for each element in the tensor)',metavar='bin')
+    parser.add_argument('--oformat',  nargs='?', default='bin',              help='Output format, values: bin (i.e. binary .dat0, default), nc (NETCDF), txt (default when using --prof), or pdb (stress per atom only, creates a separate file for each element in the tensor)',metavar='bin')
+    parser.add_argument('-o',         type=str, required=True,               help='Output file',metavar='output.bin')
 
     # Check input data
     if ( check_args(parser) ):
@@ -141,6 +141,7 @@ juan.m.vanegas@gmail.com  and/or torres.sanchez.a@gmail.com''')
 
     if (prof != None):
         field.g_prof(prof)
+        oformat = 'txt'
 
     if (integ != None):
         field.g_intout(integ)
