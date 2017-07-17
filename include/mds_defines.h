@@ -77,7 +77,9 @@ namespace mds
     
     
     typedef int     iarray[3];
+    typedef float   farray[3];
     typedef double  darray[3];
+    typedef float   fmatrix[3][3];
     typedef double  dmatrix[3][3];
     typedef darray* darraylist;
     

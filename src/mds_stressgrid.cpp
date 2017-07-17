@@ -623,7 +623,25 @@ void StressGrid::DistributePairInteraction( darray xi, darray xj, darray F )
 // Warning! this is not the same as simply taking the average of the half-step velocities, which would be incorrect.
 //
 // For velocity-verlet integrators we know v at the same time step, t, as the positions so the contribution is -m*va(t)*va(t)
+void StressGrid::DistributeKinetic(double mass, farray x, farray va, farray vb = NULL, int atomID = -1)
+{
+    // convert to doubles
+    darray dx;
+    dx[0] = (double)x[0];
+    dx[1] = (double)x[1];
+    dx[2] = (double)x[2];
+    darray dva;
+    dva[0] = (double)va[0];
+    dva[1] = (double)va[1];
+    dva[2] = (double)va[2];
+    darray dvb;
+    dvb[0] = (double)vb[0];
+    dvb[1] = (double)vb[1];
+    dvb[2] = (double)vb[2];
 
+    // call double version
+    DistributeKinetic(mass, dx, dva, dvb, atomID);
+}
 void StressGrid::DistributeKinetic(double mass, darray x, darray va, darray vb = NULL, int atomID = -1)
 {
 
