@@ -145,12 +145,6 @@ class  mds::StressGrid
         //@}
         
         /**Set box: */
-        void SetBox(fmatrix box)
-        {
-            for (int i = 0; i < mds_ndim; i++ )
-                for (int j = 0; j < mds_ndim; j++)
-                    this->box[i][j] = (double)box[i][j];
-        }
         void SetBox(dmatrix box)
         {   
             for (int i = 0; i < mds_ndim; i++ )
@@ -233,7 +227,6 @@ class  mds::StressGrid
          * */
         //@{
         void DistributeKinetic   ( double mass, darray x, darray va, darray vb, int atomID  );
-        void DistributeKinetic   ( double mass, farray x, farray va, farray vb, int atomID  );
         //@}
         
         /** Constructor */
