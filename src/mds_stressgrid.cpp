@@ -281,7 +281,10 @@ void StressGrid::Write ( )
         
         outnumber << this->nreset;
         
-        outname = this->filename + outnumber.str() + "." + mds_fileext;
+        //Change output format if the user specifies a filename with a .dat extension
+        outname = this->filename + outnumber.str();
+        if (outname.find(".dat") == std::string::npos)
+            outname = outname + "." + mds_fileext;
 
         outfile = fopen(outname.c_str(), "wb" );
         
