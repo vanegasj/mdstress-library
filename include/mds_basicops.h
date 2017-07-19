@@ -35,17 +35,19 @@ namespace mds
     void scalearray ( darray b, double a, darray c);
 
     double normarray ( darray a );
-    
+
+    void copymatrix ( dmatrix a, dmatrix b);
+
     void summatrix ( dmatrix a, dmatrix b, dmatrix c);
 
     void scalematrix ( dmatrix b, double a, dmatrix c);
-    
+
     void inversematrix ( dmatrix A, dmatrix iA);
 
     void zeromatrix ( dmatrix A );
-    
+
     bool iszeromatrix ( dmatrix A );
-    
+
     int modulo (int a, int b);
 }
 

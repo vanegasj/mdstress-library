@@ -55,6 +55,15 @@ void mds::summatrix ( dmatrix a, dmatrix b, dmatrix c)
     }
 }
 
+void mds::copymatrix ( dmatrix a, dmatrix b)
+{
+    for (int i = 0; i < mds_ndim; i++)
+    {
+        for (int j = 0; j < mds_ndim; j++)
+            b[i][j] = a[i][j];
+    }
+}
+
 void mds::scalematrix ( dmatrix b, double a, dmatrix c)
 {
     for (int i = 0; i < mds_ndim; i++)

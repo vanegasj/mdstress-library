@@ -43,8 +43,21 @@ class mds::StressGridPython
             this->F        = new darray [this->maxClust];
         }
     }
-    void Update ( )
-    {   this->stressgrid.Update(); }
+    void UpdateBoxSpacings ( boost::python::list box )
+    {
+        dmatrix box_;
+
+        for (int i = 0; i < 3; i ++ )
+        {
+            for (int j = 0; j < 3; j ++ )
+            {
+                box_[i][j] = extract<double>(box[i][j]);
+            }
+        }
+        stressgrid.UpdateBoxSpacings( box_ );
+    }
+    void SumGrid ( )
+    {   this->stressgrid.SumGrid(); }
     void Reset ( )
     {   this->stressgrid.Reset(); }
     void Write ( )
@@ -182,7 +195,8 @@ BOOST_PYTHON_MODULE(libmdstresspy)
     .def("distributeinteraction", &mds::StressGridPython::DistributeInteraction, (boost::python::arg("nAtoms"),boost::python::arg("R"), boost::python::arg("F"),boost::python::arg("atomid")=boost::python::list()))
     .def("distributekinetic",     &mds::StressGridPython::DistributeKinetic, (boost::python::arg("mass"), boost::python::arg("x"), boost::python::arg("va"), boost::python::arg("vb") = boost::python::list(), boost::python::arg("atomid")))
     .def("init",         &mds::StressGridPython::Init)
-    .def("update",       &mds::StressGridPython::Update)
+    .def("updateboxspacings",       &mds::StressGridPython::UpdateBoxSpacings)
+    .def("sumgrid",      &mds::StressGridPython::SumGrid)
     .def("reset",        &mds::StressGridPython::Reset)
     .def("write",        &mds::StressGridPython::Write)
     .def("writeandreset",&mds::StressGridPython::WriteAndReset)

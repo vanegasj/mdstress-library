@@ -138,7 +138,7 @@ class  mds::StressGrid
         
          /**Set/Get contrib type */
         //@{
-        void SetContribType ( int contrib)
+        void SetContribType ( int contrib )
         {   this->contrib = contrib;    }
         int GetContribType ( void ) const
         {   return this->contrib;   }
@@ -153,7 +153,7 @@ class  mds::StressGrid
         }
 
         /**Set the maximum cluster size (by default mds_maxpart) */
-        void SetMaxCluster (int maxClust )
+        void SetMaxCluster ( int maxClust )
         {   this->maxClust = maxClust;  }
         int GetMaxCluster ( ) const
         {   return this->maxClust;  }
@@ -179,11 +179,13 @@ class  mds::StressGrid
         
         /** This function initialize the grid depending on the settings. If the settings are incorrect, 
          * it throws an error */
-        void Init   ( );
+        void Init ( );
         
-        /** This function updates the box, sum the current grid to sum_grid and sets current_grid
-         * to zero. It also computes the new spacings */
-        void Update ( );
+        /** This function updates the box, invboxm and also computes the new spacings */
+        void UpdateBoxSpacings ( dmatrix box );
+        
+        /** This function sums current_grid to sum_grid and sets current_grid to 0. It also increases the frame counter */
+        void SumGrid ( );
         
         /** Set both sum_grid and current_grid to zero. Sum the number of resets (this is used for 
          * printing files) and set the number of frames to zero */

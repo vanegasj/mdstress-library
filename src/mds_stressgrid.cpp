@@ -216,35 +216,40 @@ void StressGrid::Init()
         // Finally, create the lapack object to deal with linear solvers and projections
         this->lapack = new Lapack (mds_ndim*this->maxClust,(this->maxClust*(this->maxClust-1))/2);
         
-        this->nframes = -1;
-        this->Update();
+        this->UpdateBoxSpacings( box );
     }
 }
 
-// This function updates the box, sum the current grid to sum_grid and sets current_grid
-// to zero. It also computes the new spacings.
-void StressGrid::Update ( )
+// This function updates the box, invbox and computes the new spacings.
+void StressGrid::UpdateBoxSpacings ( dmatrix box )
+{
+    if ( !ierr )
+    {
+        copymatrix( box, this->box);
+        inversematrix( this->box, this->invbox );
+
+        this->gridsp[0] = this->box[0][0]/static_cast<double>(this->nx);
+        this->gridsp[1] = this->box[1][1]/static_cast<double>(this->ny);
+        this->gridsp[2] = this->box[2][2]/static_cast<double>(this->nz);
+
+        this->invgridsp = 1.0/(this->gridsp[0]*this->gridsp[1]*this->gridsp[2]);
+
+        summatrix( this->box, this->sumbox, this->sumbox );
+    }
+}
+
+// This function sums the current grid to sum_grid and sets current_grid
+// to zero.
+void StressGrid::SumGrid ( )
 {
     if ( !ierr )
     {
         for( int i=0; i<this->ncells; i++ )
             summatrix( this->sum_grid[i], this->current_grid[i], this->sum_grid[i] );
 
-        // Update the inverse of the box
-        inversematrix( this->box, this->invbox );
-
-        this->gridsp[0] = this->box[0][0]/static_cast<double>(this->nx);
-        this->gridsp[1] = this->box[1][1]/static_cast<double>(this->ny);
-        this->gridsp[2] = this->box[2][2]/static_cast<double>(this->nz);
-        
-        this->invgridsp = 1.0/(this->gridsp[0]*this->gridsp[1]*this->gridsp[2]);
-        
-        summatrix( this->box, this->sumbox, this->sumbox );
-
-        // Set the current grid to 0
         for( int i=0; i<this->ncells; i++ )
             zeromatrix ( this->current_grid[i] );
-        
+
         this->nframes ++;
     }
 }
