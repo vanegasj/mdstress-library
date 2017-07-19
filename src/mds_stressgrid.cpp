@@ -636,7 +636,7 @@ void StressGrid::DistributeKinetic(double mass, darray x, darray va, darray vb =
 
     dmatrix stress;
 
-    if (ierr != 0)
+    if ( !ierr )
     {
         if (vb == NULL)
         {
@@ -743,7 +743,8 @@ void StressGrid::SpreadLineSource(darray a, darray b, double t1, double t2, iarr
                 
                 scalematrix(stress,factor,partial_stress);
     
-                gridcell = modulo(ii,nx)*nz*ny+modulo(jj,ny)*nz+modulo(kk,nz);
+                gridcell = modulo(ii,this->nx)*this->nz*this->ny
+                    + modulo(jj,this->ny)*this->nz+modulo(kk,this->nz);
                 
                 this->AddAtomStressToGrid (gridcell, partial_stress);
             }
@@ -765,7 +766,7 @@ void StressGrid::SpreadPointSource( darray pt, dmatrix stress )
 
     // Spreads the velocity in one point
 
-    int i, j, k, ii, jj, kk, iii, jjj, kkk, nx, ny, nz;
+    int i, j, k, ii, jj, kk, iii, jjj, kkk;
     dmatrix part_stress;
     double factor, invgridsp, dummy1, dummy2;
     int gridcell;
@@ -790,7 +791,8 @@ void StressGrid::SpreadPointSource( darray pt, dmatrix stress )
                 kkk+=k;
                 factor = dummy2 * k * (pt[2]-(kk+0.5*(1-k))*gridsp[2]);
                 scalematrix(stress,factor,part_stress);
-                gridcell = modulo(iii,nx)*nz*ny+modulo(jjj,ny)*nz+modulo(kkk,nz);
+                gridcell = modulo(iii,this->nx)*this->nz*this->ny
+                    + modulo(jjj,this->ny)*this->nz+modulo(kkk,this->nz);
                 this->AddAtomStressToGrid( gridcell,part_stress );
             }
         }
