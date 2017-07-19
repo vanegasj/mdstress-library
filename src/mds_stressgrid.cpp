@@ -768,7 +768,7 @@ void StressGrid::SpreadPointSource( darray pt, dmatrix stress )
 
     int i, j, k, ii, jj, kk, iii, jjj, kkk;
     dmatrix part_stress;
-    double factor, invgridsp, dummy1, dummy2;
+    double factor, dummy1, dummy2;
     int gridcell;
     
     // Get the coordinates of the point in the grid
@@ -781,7 +781,7 @@ void StressGrid::SpreadPointSource( darray pt, dmatrix stress )
     for(i=1;i>=-1;i-=2)
     {
         iii+=i;
-        dummy1 = i * invgridsp * invgridsp * (pt[0]-(ii+0.5*(1-i))*gridsp[0]);
+        dummy1 = i * this->invgridsp * this->invgridsp * (pt[0]-(ii+0.5*(1-i))*gridsp[0]);
         for(j=1;j>=-1;j-=2)
         {
             jjj+=j;
