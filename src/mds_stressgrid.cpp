@@ -216,7 +216,7 @@ void StressGrid::Init()
         // Finally, create the lapack object to deal with linear solvers and projections
         this->lapack = new Lapack (mds_ndim*this->maxClust,(this->maxClust*(this->maxClust-1))/2);
         
-        this->UpdateBoxSpacings( box );
+        //this->UpdateBoxSpacings( box );
     }
 }
 
