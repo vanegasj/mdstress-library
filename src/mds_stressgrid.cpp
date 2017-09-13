@@ -254,6 +254,15 @@ void StressGrid::SumGrid ( )
     }
 }
 
+void StressGrid::ShiftGrid (double shift)
+{
+    for(int i = 0; i < this->ncells; i++)
+    {
+        for(int m = 0; m < 3; m++)
+            this->current_grid[i][m][m] += shift/this->ncells;
+    }
+}
+
 //Set both sum_grid and current_grid to zero. Sum the number of resets (this is used for 
 //printing files) and set the number of frames to zero
 void StressGrid::Reset ( )

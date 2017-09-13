@@ -187,6 +187,9 @@ class  mds::StressGrid
         /** This function sums current_grid to sum_grid and sets current_grid to 0. It also increases the frame counter */
         void SumGrid ( );
         
+        /** This function shifts current_grid by shift/ngrid */
+        void ShiftGrid ( double shift );
+        
         /** Set both sum_grid and current_grid to zero. Sum the number of resets (this is used for 
          * printing files) and set the number of frames to zero */
         void Reset  ( );
