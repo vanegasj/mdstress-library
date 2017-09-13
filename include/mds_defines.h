@@ -61,6 +61,7 @@ namespace mds
     #define mds_kin     13
     #define mds_nr      14
     #define mds_cmp     15
+    #define mds_dio     16
 
     #define mds_nrow3    9
     #define mds_ncol3    3
