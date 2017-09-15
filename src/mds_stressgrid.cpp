@@ -65,6 +65,7 @@ StressGrid::StressGrid()
     this->AmatT          = NULL;
     this->bvec           = NULL;
     this->R_ij           = NULL;
+    this->nodispcor      = false;
 }
 
 //Destructor
@@ -254,12 +255,15 @@ void StressGrid::SumGrid ( )
     }
 }
 
-void StressGrid::ShiftGrid (double shift)
+void StressGrid::DispersionCorrection (double shift)
 {
-    for(int i = 0; i < this->ncells; i++)
+    if (this->nodispcor == false)
     {
-        for(int m = 0; m < 3; m++)
-            this->current_grid[i][m][m] += shift/this->ncells;
+        for(int i = 0; i < this->ncells; i++)
+        {
+            for(int m = 0; m < 3; m++)
+                this->current_grid[i][m][m] += shift/this->ncells;
+        }
     }
 }
 

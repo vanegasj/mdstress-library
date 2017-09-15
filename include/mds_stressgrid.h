@@ -161,6 +161,10 @@ class  mds::StressGrid
         /**Set name of the files (extension .mds and numbered by resets) */
         void SetFileName ( const char *filename )
         {   this->filename.assign(filename); }
+
+        void DisableDispersionCorrection()
+        {   this->nodispcor = true; }
+
         
         /** Returns the kind of error produced by the class. Values:
          * 0: No error
@@ -188,7 +192,7 @@ class  mds::StressGrid
         void SumGrid ( );
         
         /** This function shifts current_grid by shift/ngrid */
-        void ShiftGrid ( double shift );
+        void DispersionCorrection (double shift);
         
         /** Set both sum_grid and current_grid to zero. Sum the number of resets (this is used for 
          * printing files) and set the number of frames to zero */
@@ -255,6 +259,7 @@ class  mds::StressGrid
         int           fdecomp;        ///< which force decomposition
         int           contrib;        ///< which contribution
         std::string   filename;       ///< body of the filename where the stress is stored
+        bool          nodispcor;      ///< disables dispersion correction if set to true
         //@}
     
         /** @name Outputs*/
