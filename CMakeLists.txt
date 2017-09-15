@@ -4,7 +4,6 @@ find_package(PythonInterp 2.7 REQUIRED )
 
 enable_language(C)
 enable_language(CXX)
-enable_language(Fortran)
 
 set(CMAKE_BUILD_TYPE Release)
 
