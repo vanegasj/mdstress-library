@@ -640,9 +640,9 @@ class LStensor:
         Write stress per atom data to txt file
         '''
         
-        if (self.atStr == False):
-            print("ERROR: LStensor: a_savetxt: atom structure undefined\n")
-            return 1
+        #if (self.atStr == False):
+        #    print("ERROR: LStensor: a_savetxt: atom structure undefined\n")
+        #    return 1
         
         fp = open(outputfile, 'w')
 

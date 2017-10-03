@@ -312,10 +312,16 @@ void StressGrid::Write ( )
         scalematrix( this->sumbox, 1.0/this->nframes, avgbox);
 
         fwrite(avgbox, sizeof(dmatrix), 1, outfile);
-
-        fwrite(&this->nx, sizeof(this->nx), 1, outfile);
-        fwrite(&this->ny, sizeof(this->ny), 1, outfile);
-        fwrite(&this->nz, sizeof(this->nz), 1, outfile);
+        if (this->spatatom == mds_spat)
+        {
+            fwrite(&this->nx, sizeof(this->nx), 1, outfile);
+            fwrite(&this->ny, sizeof(this->ny), 1, outfile);
+            fwrite(&this->nz, sizeof(this->nz), 1, outfile);
+        }
+        else
+        {
+            fwrite(&this->ncells, sizeof(int), 1, outfile);
+        }
 
         factor = mds_units/this->nframes;
         
