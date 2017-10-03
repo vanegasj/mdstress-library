@@ -138,7 +138,7 @@ int StressGrid::CheckSettings()
             return 6;
         }
     }
-    if (  this->contrib < mds_sl || this->contrib > mds_cmp )
+    if (  this->contrib < mds_sl || this->contrib > mds_ewal )
     {
         std::cout << "ERROR::StressGrid: Contribution label should be between " << mds_sl << " and " << mds_cmp << "\n";
         return 7;
