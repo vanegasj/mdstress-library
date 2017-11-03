@@ -262,7 +262,7 @@ void StressGrid::DispersionCorrection (double shift)
         for(int i = 0; i < this->ncells; i++)
         {
             for(int m = 0; m < 3; m++)
-                this->current_grid[i][m][m] += shift/this->ncells;
+                this->current_grid[i][m][m] += shift;
         }
     }
 }
