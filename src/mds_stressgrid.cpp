@@ -392,19 +392,6 @@ void StressGrid::SumGrid ( )
                         }
                     }
                     
-                    std::cout
-                        << this_molecule << std::endl
-                        << pid << std::endl
-                        << last_pid << std::endl
-                        << last_volume << std::endl
-                        << std::endl;
-
-                    std::cout
-                        << this->current_grid[pid][0][0] << "," << this->current_grid[pid][0][1] << "," << this->current_grid[pid][0][2] << std::endl
-                        << this->current_grid[pid][1][0] << "," << this->current_grid[pid][1][1] << "," << this->current_grid[pid][1][2] << std::endl
-                        << this->current_grid[pid][2][0] << "," << this->current_grid[pid][2][1] << "," << this->current_grid[pid][2][2] << std::endl
-                        << std::endl;
-
                     // always increment the particle count
                     pid += 1;
                 }while(pid < this->ncells && !this->ierr);
