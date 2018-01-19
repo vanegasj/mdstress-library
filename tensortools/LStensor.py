@@ -503,6 +503,7 @@ class LStensor:
         Rescale data per atom
         '''
         self.data_atom *= value
+        self.data_volume *= value
 
     def a_loaddata (self, files, bAvg = True):
         '''
@@ -510,21 +511,23 @@ class LStensor:
         '''
 
         # Read first input file
-        self.data_atom,self.box,self.nAtom = self.__readAtombin__(files[0])
+        self.data_atom,self.box,self.nAtom,self.data_volume = self.__readAtombin__(files[0])
 
         # Read subsequent input files if necessary
         nfiles = len(files)
 
         # Average or sum data from the rest of the files
         for i in range(1, nfiles):
-            tdata, tbox, nAtom = self.__readAtombin__(files[i])
+            tdata, tbox, nAtom,tvolume = self.__readAtombin__(files[i])
             self.box += tbox
             self.data_atom += tdata
+            self.data_volume += tvolume
 
         self.box /= nfiles
 
         if (bAvg):
             self.data_atom /= nfiles
+            self.data_volume /= nfiles
 
         return 0
 
@@ -647,7 +650,7 @@ class LStensor:
         fp = open(outputfile, 'w')
 
         fp.write("# Stress per atom data \n")
-        fp.write("# Atom No.\tSxx\tSxy\tSxz\tSyx\tSyy\tSyz\tSzx\tSzy\tSzz\n")
+        fp.write("# Atom No.\tSxx\tSxy\tSxz\tSyx\tSyy\tSyz\tSzx\tSzy\tSzz\tVav\n")
 
         if(self.verbose):
             print("Writing data on grid in txt format to {0}...".format(outputfile))
@@ -656,6 +659,7 @@ class LStensor:
             fp.write(str(i)+'\t')
             for d in range(self.dsize):
                 fp.write(str(self.data_atom[i,d])+'\t')
+            fp.write(str(self.data_volume[i])+'\t')
             fp.write('\n')
 
         fp.close()
@@ -905,6 +909,7 @@ class LStensor:
         ntot = nAtom
 
         data = np.array(struct.unpack(str(self.dsize*ntot)+'d', fp.read(self.dsize*ntot*self.__sizeofdouble__)))
+        volume_data = np.array(struct.unpack(str(ntot)+'d', fp.read(ntot*self.__sizeofdouble__)))
 
         if(self.verbose):
             print("DONE!\n")
@@ -913,6 +918,6 @@ class LStensor:
 
         data = data.reshape((ntot,self.dsize))
 
-        return data,box,nAtom
+        return data,box,nAtom,volume_data
 
     ####################################################################################################################

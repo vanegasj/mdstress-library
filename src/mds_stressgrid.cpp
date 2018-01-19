@@ -65,6 +65,7 @@ StressGrid::StressGrid()
     this->R_ij           = NULL;
     this->current_grid   = NULL;
     this->sum_grid       = NULL;
+    this->sum_volume     = NULL;
     this->molecule_id    = NULL;
     this->radii          = NULL;
     this->vorcon         = NULL;
@@ -92,6 +93,7 @@ void StressGrid::Clear()
     if (this->R_ij         != NULL ) delete [] this->R_ij;
     if (this->current_grid != NULL ) delete [] this->current_grid;
     if (this->sum_grid     != NULL ) delete [] this->sum_grid;
+    if (this->sum_volume   != NULL ) delete [] this->sum_volume;
     if (this->molecule_id  != NULL ) delete [] this->molecule_id;
     if (this->radii        != NULL ) delete [] this->radii;
     if (this->vorcon       != NULL ) delete    this->vorcon;
@@ -206,12 +208,14 @@ void StressGrid::Init()
             
             // create the radii array
             this->radii = new double[this->ncells];
+            this->sum_volume = new double[this->ncells];
 
             // set them to defaults
             for ( int i=0; i < this->ncells; ++i )
             {
                 this->molecule_id[i] = 0;
                 this->radii[i] = 1.0;
+                this->sum_volume[i] = 0.0;
             }
         }
 
@@ -367,6 +371,9 @@ void StressGrid::SumGrid ( )
 
                             scalematrix( this->current_grid[pid], 1.0/last_volume, this->current_grid[pid] );
                             summatrix( this->sum_grid[pid], this->current_grid[pid], this->sum_grid[pid] );
+                        
+                            // add the volume
+                            this->sum_volume[pid] += last_volume;
                         }
                         else
                         {
@@ -404,7 +411,7 @@ void StressGrid::SumGrid ( )
                 }
             }
 
-            // have to clear the voronoi state
+            // have to clear the voronoi state in case we aren't resetting with Init_Voronoi
             this->vorcon->clear();
 
             // note that we don't have to reset the particle_order class
@@ -441,12 +448,17 @@ void StressGrid::Reset ( )
             zeromatrix ( this->sum_grid[i]     );
             zeromatrix ( this->current_grid[i] );
         }
+        
+        if (this->spatatom == mds_atom)
+        {
+            if (this->vorcon != NULL)
+                this->vorcon->clear();
+            for( int i=0; i<this->ncells; i++ )
+                sum_volume[i] = 0.0;
+        }
         this->nframes = 0;
         
         this->nreset ++;
-        
-        if (this->vorcon != NULL)
-            this->vorcon->clear();
     }
 }
 
@@ -492,9 +504,19 @@ void StressGrid::Write ( )
         factor = mds_units/this->nframes;
         
         for ( int i = 0; i < this->ncells; i++ )
+        {
             scalematrix(this->sum_grid[i], factor, this->sum_grid[i]);
+        }
         
         fwrite(this->sum_grid, sizeof(dmatrix), this->ncells, outfile);
+
+        // append the volume data
+        if (this->spatatom == mds_atom)
+        {
+            for ( int i = 0; i < this->ncells; i++ )
+                this->sum_volume[i] /= this->nframes;
+            fwrite(this->sum_volume, sizeof(double), this->ncells, outfile);
+        }
         
         fclose(outfile);
         

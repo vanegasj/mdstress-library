@@ -325,8 +325,9 @@ class  mds::StressGrid
         double     invgridsp;    ///< inverse of grid spacing
         dmatrix   *current_grid; ///< Grid (either nx*ny*nz or nAtoms)
         dmatrix   *sum_grid;     ///< Sum Grid
-        double    *radii;       ///< the radius of an atomic site
-        int       *molecule_id; ///< The molecule an atomic site belongs to
+        double    *sum_volume;   ///< Sum of volumes when using mds_atom
+        double    *radii;        ///< the radius of an atomic site
+        int       *molecule_id;  ///< The molecule an atomic site belongs to
         voro::container_poly *vorcon; ///< Voronoi container
         voro::particle_order *vorpo;  ///< Voronoi particle order
         //@}
