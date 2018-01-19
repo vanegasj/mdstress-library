@@ -203,6 +203,12 @@ class  mds::StressGrid
          * it throws an error */
         void Init ( );
         
+        /** This function initialize the voronoi state, must be called after all
+         * SetVoronoiRadius calls have been completed, but before AddVoronoiParticle
+         * calls are made */
+        void Init_Voronoi();
+
+        
         /** This function updates the box, invboxm and also computes the new spacings */
         void UpdateBoxSpacings ( dmatrix box );
         
@@ -222,6 +228,14 @@ class  mds::StressGrid
         /**Writes and resets*/
         void WriteAndReset ( )
         {   this->Write();  this->Reset();  }
+        
+        /** AddVoronoiRadius
+         *
+         * Adds a particle radius and all calls must be completed before calling voronoi init
+         * Requires:
+         * radius  -> radius of the atom
+         * atomID  -> label of the atom */
+        void SetVoronoiRadius(double radius, int atomID);
 
         /** AddVoronoiAtom
          *
@@ -231,8 +245,9 @@ class  mds::StressGrid
          * py      -> position in the y dimension
          * pz      -> position in the z dimension
          * radius  -> radius of the atom
-         * atomID  -> label of the atom */
-        void AddVoronoiAtom(double px, double py, double pz, double radius, int atomID);
+         * atomID  -> label of the atom
+         * moleID  -> label of the molecule this atom belongs to */
+        void AddVoronoiAtom(double px, double py, double pz, int atomID, int moleID);
 
         /** DistributeStress
          *
@@ -310,6 +325,8 @@ class  mds::StressGrid
         double     invgridsp;    ///< inverse of grid spacing
         dmatrix   *current_grid; ///< Grid (either nx*ny*nz or nAtoms)
         dmatrix   *sum_grid;     ///< Sum Grid
+        double    *radii;       ///< the radius of an atomic site
+        int       *molecule_id; ///< The molecule an atomic site belongs to
         voro::container_poly *vorcon; ///< Voronoi container
         voro::particle_order *vorpo;  ///< Voronoi particle order
         //@}

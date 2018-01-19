@@ -65,6 +65,8 @@ StressGrid::StressGrid()
     this->R_ij           = NULL;
     this->current_grid   = NULL;
     this->sum_grid       = NULL;
+    this->molecule_id    = NULL;
+    this->radii          = NULL;
     this->vorcon         = NULL;
     this->vorpo          = NULL;
     
@@ -90,6 +92,8 @@ void StressGrid::Clear()
     if (this->R_ij         != NULL ) delete [] this->R_ij;
     if (this->current_grid != NULL ) delete [] this->current_grid;
     if (this->sum_grid     != NULL ) delete [] this->sum_grid;
+    if (this->molecule_id  != NULL ) delete [] this->molecule_id;
+    if (this->radii        != NULL ) delete [] this->radii;
     if (this->vorcon       != NULL ) delete    this->vorcon;
     if (this->vorpo        != NULL ) delete    this->vorpo;
 
@@ -100,6 +104,8 @@ void StressGrid::Clear()
     this->R_ij         = NULL;
     this->current_grid = NULL; 
     this->sum_grid     = NULL;
+    this->molecule_id  = NULL;
+    this->radii        = NULL;
     this->vorcon       = NULL;
     this->vorpo        = NULL;
 }
@@ -195,30 +201,18 @@ void StressGrid::Init()
         {
             this->ncells = this->nAtoms;
 
-            double vor_box[3];
-            vor_box[0] = this->box[0][0];
-            vor_box[1] = this->box[1][1];
-            vor_box[2] = this->box[2][2];
+            // create the molecule_id array
+            this->molecule_id = new int[this->ncells];
             
-            double gfxy,gfxz;
-            gfxy = vor_box[1]/vor_box[0];
-            gfxz = vor_box[2]/vor_box[0];
+            // create the radii array
+            this->radii = new double[this->ncells];
 
-            int gridn[3];
-            gridn[0] = pow(this->nAtoms/(3*gfxy*gfxz), 1/3.0);
-            gridn[1] = gridn[0]*gfxy;
-            gridn[2] = gridn[0]*gfxz;
-
-            // create the voronoi objects
-            this->vorcon = new voro::container_poly(
-                    0.0, vor_box[0],
-                    0.0, vor_box[1],
-                    0.0, vor_box[2],
-                    gridn[0], gridn[1], gridn[2],
-                    this->xper, this->yper, this->zper,
-                    8);
-            this->vorpo = new voro::particle_order(
-                    this->nAtoms);
+            // set them to defaults
+            for ( int i=0; i < this->ncells; ++i )
+            {
+                this->molecule_id[i] = 0;
+                this->radii[i] = 1.0;
+            }
         }
 
         //Give size to current and sum grid
@@ -253,6 +247,59 @@ void StressGrid::Init()
         
         // Finally, create the lapack object to deal with linear solvers and projections
         this->lapack = new Lapack (mds_ndim*this->maxClust,(this->maxClust*(this->maxClust-1))/2);
+    }
+}
+        
+// This function initialize the voronoi state, must be called after all
+// SetVoronoiRadius calls have been completed and Init has been called, but
+// before AddVoronoiParticle calls are made
+void StressGrid::Init_Voronoi()
+{
+    // only called when using mds_atom
+    if (this->spatatom != mds_atom)
+    {
+        this->ierr = 14;
+        std::cout << "ERROR:: called Init_Voronoi but spatatom != mds_atom" << std::endl;
+    }
+    
+    if ( !ierr )
+    {
+        // if it has already been initialized, we delete it
+        if (this->vorcon       != NULL ) delete    this->vorcon;
+        if (this->vorpo        != NULL ) delete    this->vorpo;
+
+        double vor_box[3];
+        vor_box[0] = this->box[0][0];
+        vor_box[1] = this->box[1][1];
+        vor_box[2] = this->box[2][2];
+        
+        double gfxy,gfxz;
+        gfxy = vor_box[1]/vor_box[0];
+        gfxz = vor_box[2]/vor_box[0];
+
+        // need to count the number of sites without radius 0.0
+        int vcells = 0;
+        for (int i = 0; i < this->ncells; ++i)
+        {
+            if (this->radii[i] != 0.0)
+                vcells += 1;
+        }
+
+        int gridn[3];
+        gridn[0] = pow(vcells/(3*gfxy*gfxz), 1/3.0);
+        gridn[1] = gridn[0]*gfxy;
+        gridn[2] = gridn[0]*gfxz;
+
+        // create the voronoi objects
+        this->vorcon = new voro::container_poly(
+                0.0, vor_box[0],
+                0.0, vor_box[1],
+                0.0, vor_box[2],
+                gridn[0], gridn[1], gridn[2],
+                this->xper, this->yper, this->zper,
+                8);
+        this->vorpo = new voro::particle_order(
+                vcells);
     }
 }
 
@@ -290,25 +337,83 @@ void StressGrid::SumGrid ( )
             voro::voronoicell c;
             voro::c_loop_order vl(*this->vorcon, *this->vorpo);
 
-            int i = 0;
+            // the particle/cell id
+            int pid = 0;
 
+            // track the particle/cell id of atom with largest volume in this molecule
+            int this_molecule = molecule_id[pid];
+            int last_pid = 0;
+            double last_volume = 0.0;
             if (vl.start())
             {
+                bool vl_inc = true;
                 do{
-                    if (this->vorcon->compute_cell(c,vl))
+                    if (this->radii[pid] != 0.0)
                     {
-                        scalematrix( this->current_grid[i], 1.0/c.volume(), this->current_grid[i] );
-                        summatrix( this->sum_grid[i], this->current_grid[i], this->sum_grid[i] );
-                    }
+                        if (vl_inc == false)
+                        {
+                            this->ierr = 15;
+                            std::cout << "ERROR:: radius not equal to zero and no voronoi cells remain" << std::endl;
+                        }
+                        else
+                        if (this->vorcon->compute_cell(c,vl))
+                        {
+                            // get the volume of this cell
+                            last_volume = c.volume();
+                            last_pid = pid;
 
-                    i += 1;
-                }while(vl.inc() && !this->ierr);
+                            // mark the last volume encountered
+                            this_molecule = molecule_id[pid];
+
+                            scalematrix( this->current_grid[pid], 1.0/last_volume, this->current_grid[pid] );
+                            summatrix( this->sum_grid[pid], this->current_grid[pid], this->sum_grid[pid] );
+                        }
+                        else
+                        {
+                            this->ierr = 14;
+                            std::cout << "ERROR:: radius not zero, yet voronoi compute_cell returned false" << std::endl;
+                        }
+
+                        // increment the voronoi loop
+                        vl_inc = vl.inc();
+                    }
+                    else
+                    {
+                        // check that we are working on the same molecule
+                        if (this_molecule != molecule_id[pid])
+                        {
+                            this->ierr = 13;
+                            std::cout << "ERROR:: radius of zero encountered, but last atom molecule was not this molecule" << std::endl;
+                        }
+                        else
+                        {
+                            scalematrix( this->current_grid[pid], 1.0/last_volume, this->current_grid[pid] );
+                            summatrix( this->sum_grid[last_pid], this->current_grid[pid], this->sum_grid[last_pid] );
+                        }
+                    }
+                    
+                    std::cout
+                        << this_molecule << std::endl
+                        << pid << std::endl
+                        << last_pid << std::endl
+                        << last_volume << std::endl
+                        << std::endl;
+
+                    std::cout
+                        << this->current_grid[pid][0][0] << "," << this->current_grid[pid][0][1] << "," << this->current_grid[pid][0][2] << std::endl
+                        << this->current_grid[pid][1][0] << "," << this->current_grid[pid][1][1] << "," << this->current_grid[pid][1][2] << std::endl
+                        << this->current_grid[pid][2][0] << "," << this->current_grid[pid][2][1] << "," << this->current_grid[pid][2][2] << std::endl
+                        << std::endl;
+
+                    // always increment the particle count
+                    pid += 1;
+                }while(pid < this->ncells && !this->ierr);
 
                 // should do an error check here
-                if (i != this->nAtoms)
+                if (pid != this->nAtoms)
                 {
                     this->ierr = 11;
-                    std::cout << "ERROR:: number of atoms does not match number of sites" << std::endl;
+                    std::cout << "ERROR:: number of atoms processed does not match number of sites" << std::endl;
                 }
             }
 
@@ -408,6 +513,29 @@ void StressGrid::Write ( )
         
     }
 }
+
+//----------------------------------------------------------------------------------------
+// SetVoronoiRadius
+//
+// Adds a particle position to the voronoi container
+// Requires:
+// radius  -> radius of the atom
+// atomID  -> label of the atom
+void StressGrid::SetVoronoiRadius(double radius, int atomID)
+{
+    // quick check if we have the correct number of atoms
+    if (atomID > this->ncells)
+    {
+        this->ierr = 12;
+        std::cout << "ERROR:: atomID is greater than number of cells" << std::endl;
+    }
+
+    if (!ierr)
+    {
+        // setup the molecule id
+        this->radii[atomID] = radius;
+    }
+}
         
 //----------------------------------------------------------------------------------------
 // AddVoronoiAtom
@@ -419,18 +547,25 @@ void StressGrid::Write ( )
 // pz      -> position in the z dimension
 // radius  -> radius of the atom
 // atomID  -> label of the atom
-void StressGrid::AddVoronoiAtom(double px, double py, double pz, double radius, int atomID)
+// moleID  -> label of the molecule this atom belongs to
+void StressGrid::AddVoronoiAtom(double px, double py, double pz,
+        int atomID, int moleID)
 {
     // quick check if we have the correct number of atoms
-    if (atomID > this->nAtoms)
+    if (atomID > this->ncells)
     {
         this->ierr = 12;
-        std::cout << "ERROR:: atomID is greater than number of atoms" << std::endl;
+        std::cout << "ERROR:: atomID is greater than number of cells" << std::endl;
     }
 
     if (!ierr)
     {
-        this->vorcon->put(*this->vorpo, atomID, px, py, pz, radius);
+        // put it in the container if the radius is not 0.0
+        if (this->radii[atomID] != 0.0)
+            this->vorcon->put(*this->vorpo, atomID, px, py, pz, this->radii[atomID]);
+
+        // set
+        this->molecule_id[atomID] = moleID;
     }
 }
 
