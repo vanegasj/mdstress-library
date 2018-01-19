@@ -58,14 +58,20 @@ StressGrid::StressGrid()
 
     this->invgridsp = 0.0;
 
-    this->current_grid   = NULL;
-    this->sum_grid       = NULL;
     this->lapack         = NULL;
     this->Amat           = NULL;
     this->AmatT          = NULL;
     this->bvec           = NULL;
     this->R_ij           = NULL;
+    this->current_grid   = NULL;
+    this->sum_grid       = NULL;
+    this->vorcon         = NULL;
+    this->vorpo          = NULL;
+    
     this->nodispcor      = false;
+    this->xper           = false;
+    this->yper           = false;
+    this->zper           = false;
 }
 
 //Destructor
@@ -77,21 +83,25 @@ StressGrid::~StressGrid()
 // Method to delete the preallocated member variables
 void StressGrid::Clear()
 {
-    if (this->current_grid != NULL ) delete [] this->current_grid;
-    if (this->sum_grid     != NULL ) delete [] this->sum_grid;
+    if (this->lapack       != NULL ) delete    this->lapack;
     if (this->Amat         != NULL ) delete [] this->Amat;
     if (this->AmatT        != NULL ) delete [] this->AmatT;
     if (this->bvec         != NULL ) delete [] this->bvec;
     if (this->R_ij         != NULL ) delete [] this->R_ij;
-    if (this->lapack       != NULL ) delete    this->lapack;
+    if (this->current_grid != NULL ) delete [] this->current_grid;
+    if (this->sum_grid     != NULL ) delete [] this->sum_grid;
+    if (this->vorcon       != NULL ) delete    this->vorcon;
+    if (this->vorpo        != NULL ) delete    this->vorpo;
 
-    this->current_grid = NULL; 
-    this->sum_grid     = NULL;
+    this->lapack       = NULL;
     this->Amat         = NULL;
     this->AmatT        = NULL;
     this->bvec         = NULL;
     this->R_ij         = NULL;
-    this->lapack       = NULL;
+    this->current_grid = NULL; 
+    this->sum_grid     = NULL;
+    this->vorcon       = NULL;
+    this->vorpo        = NULL;
 }
 
 // This function is provided to identify bad settings
@@ -182,7 +192,34 @@ void StressGrid::Init()
             if(this->nz==0)  this->nz=1;
         }
         else
+        {
             this->ncells = this->nAtoms;
+
+            double vor_box[3];
+            vor_box[0] = this->box[0][0];
+            vor_box[1] = this->box[1][1];
+            vor_box[2] = this->box[2][2];
+            
+            double gfxy,gfxz;
+            gfxy = vor_box[1]/vor_box[0];
+            gfxz = vor_box[2]/vor_box[0];
+
+            int gridn[3];
+            gridn[0] = pow(this->nAtoms/(3*gfxy*gfxz), 1/3.0);
+            gridn[1] = gridn[0]*gfxy;
+            gridn[2] = gridn[0]*gfxz;
+
+            // create the voronoi objects
+            this->vorcon = new voro::container_poly(
+                    0.0, vor_box[0],
+                    0.0, vor_box[1],
+                    0.0, vor_box[2],
+                    gridn[0], gridn[1], gridn[2],
+                    this->xper, this->yper, this->zper,
+                    8);
+            this->vorpo = new voro::particle_order(
+                    this->nAtoms);
+        }
 
         //Give size to current and sum grid
         this->sum_grid     = new dmatrix [this->ncells];
@@ -216,8 +253,6 @@ void StressGrid::Init()
         
         // Finally, create the lapack object to deal with linear solvers and projections
         this->lapack = new Lapack (mds_ndim*this->maxClust,(this->maxClust*(this->maxClust-1))/2);
-        
-        //this->UpdateBoxSpacings( box );
     }
 }
 
@@ -245,8 +280,44 @@ void StressGrid::SumGrid ( )
 {
     if ( !ierr )
     {
-        for( int i=0; i<this->ncells; i++ )
-            summatrix( this->sum_grid[i], this->current_grid[i], this->sum_grid[i] );
+        if (this->spatatom == mds_spat)
+        {
+            for( int i=0; i<this->ncells; i++ )
+                summatrix( this->sum_grid[i], this->current_grid[i], this->sum_grid[i] );
+        }
+        else
+        {
+            voro::voronoicell c;
+            voro::c_loop_order vl(*this->vorcon, *this->vorpo);
+
+            int i = 0;
+
+            if (vl.start())
+            {
+                do{
+                    if (this->vorcon->compute_cell(c,vl))
+                    {
+                        scalematrix( this->current_grid[i], 1.0/c.volume(), this->current_grid[i] );
+                        summatrix( this->sum_grid[i], this->current_grid[i], this->sum_grid[i] );
+                    }
+
+                    i += 1;
+                }while(vl.inc() && !this->ierr);
+
+                // should do an error check here
+                if (i != this->nAtoms)
+                {
+                    this->ierr = 11;
+                    std::cout << "ERROR:: number of atoms does not match number of sites" << std::endl;
+                }
+            }
+
+            // have to clear the voronoi state
+            this->vorcon->clear();
+
+            // note that we don't have to reset the particle_order class
+            // since it is simply a map which will be overwritten
+        }
 
         for( int i=0; i<this->ncells; i++ )
             zeromatrix ( this->current_grid[i] );
@@ -281,6 +352,9 @@ void StressGrid::Reset ( )
         this->nframes = 0;
         
         this->nreset ++;
+        
+        if (this->vorcon != NULL)
+            this->vorcon->clear();
     }
 }
 
@@ -332,6 +406,31 @@ void StressGrid::Write ( )
         
         fclose(outfile);
         
+    }
+}
+        
+//----------------------------------------------------------------------------------------
+// AddVoronoiAtom
+//
+// Adds a particle position to the voronoi container
+// Requires:
+// px      -> position in the x dimension
+// py      -> position in the y dimension
+// pz      -> position in the z dimension
+// radius  -> radius of the atom
+// atomID  -> label of the atom
+void StressGrid::AddVoronoiAtom(double px, double py, double pz, double radius, int atomID)
+{
+    // quick check if we have the correct number of atoms
+    if (atomID > this->nAtoms)
+    {
+        this->ierr = 12;
+        std::cout << "ERROR:: atomID is greater than number of atoms" << std::endl;
+    }
+
+    if (!ierr)
+    {
+        this->vorcon->put(*this->vorpo, atomID, px, py, pz, radius);
     }
 }
 

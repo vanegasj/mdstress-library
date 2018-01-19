@@ -73,6 +73,8 @@
 #include "mds_cmenger.h"
 #include "mds_lapack.h"
 
+#include "voro++.hh"
+
 class  mds::StressGrid
 {
 
@@ -88,6 +90,22 @@ class  mds::StressGrid
         {   this->nAtoms = n;    }
         int  GetNumberOfAtoms( )
         {   return this->nAtoms; }
+        //@}
+        
+        /** Set/Get periodic boundary conditions: */
+        //@{
+        void SetPeriodicBoundaries(bool x, bool y, bool z)
+        { 
+            this->xper = x;
+            this->yper = y;
+            this->zper = z;
+        }
+        void  GetPeriodicBoundaries(bool & x, bool & y, bool & z)
+        { 
+            x = this->xper;
+            y = this->yper;
+            z = this->zper;
+        }
         //@}
         
         /** Set/Get number of grid cells in each direction: */
@@ -164,7 +182,6 @@ class  mds::StressGrid
 
         void DisableDispersionCorrection()
         {   this->nodispcor = true; }
-
         
         /** Returns the kind of error produced by the class. Values:
          * 0: No error
@@ -177,7 +194,8 @@ class  mds::StressGrid
          * 7: the contribution is not correct
          * 8: the filename is not set
          * 9: DistributeInteraction has been called with an incorrect number of atoms 
-         * 10: Lapack failed */
+         * 10: Lapack failed 
+         * 11: Voronoi cell count did not match natoms */
         int GetError ( )
         {   return this->ierr;  }
         
@@ -204,6 +222,17 @@ class  mds::StressGrid
         /**Writes and resets*/
         void WriteAndReset ( )
         {   this->Write();  this->Reset();  }
+
+        /** AddVoronoiAtom
+         *
+         * Adds a particle position to the voronoi container
+         * Requires:
+         * px      -> position in the x dimension
+         * py      -> position in the y dimension
+         * pz      -> position in the z dimension
+         * radius  -> radius of the atom
+         * atomID  -> label of the atom */
+        void AddVoronoiAtom(double px, double py, double pz, double radius, int atomID);
 
         /** DistributeStress
          *
@@ -260,6 +289,9 @@ class  mds::StressGrid
         int           contrib;        ///< which contribution
         std::string   filename;       ///< body of the filename where the stress is stored
         bool          nodispcor;      ///< disables dispersion correction if set to true
+        bool          xper;           ///< set x dimension as periodic
+        bool          yper;           ///< set y dimension as periodic
+        bool          zper;           ///< set z dimension as periodic
         //@}
     
         /** @name Outputs*/
@@ -278,6 +310,8 @@ class  mds::StressGrid
         double     invgridsp;    ///< inverse of grid spacing
         dmatrix   *current_grid; ///< Grid (either nx*ny*nz or nAtoms)
         dmatrix   *sum_grid;     ///< Sum Grid
+        voro::container_poly *vorcon; ///< Voronoi container
+        voro::particle_order *vorpo;  ///< Voronoi particle order
         //@}
 
         /** Method to delete the preallocated member variables */
