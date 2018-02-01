@@ -257,13 +257,6 @@ void StressGrid::Init()
     }
 }
         
-// This function initialize the voronoi state, must be called after all
-// SetVoronoiRadius calls have been completed and Init has been called, but
-// before AddVoronoiParticle calls are made
-void StressGrid::Init_Voronoi()
-{
-}
-
 // This function updates the box, invbox and computes the new spacings.
 void StressGrid::UpdateBoxSpacings ( dmatrix box )
 {

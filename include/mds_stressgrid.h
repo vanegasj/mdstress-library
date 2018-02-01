@@ -201,12 +201,6 @@ class  mds::StressGrid
          * it throws an error */
         void Init ( );
         
-        /** This function initialize the voronoi state, must be called after all
-         * SetVoronoiRadius calls have been completed, but before AddVoronoiParticle
-         * calls are made */
-        void Init_Voronoi();
-
-        
         /** This function updates the box, invboxm and also computes the new spacings */
         void UpdateBoxSpacings ( dmatrix box );
         
