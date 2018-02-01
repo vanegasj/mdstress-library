@@ -73,8 +73,6 @@
 #include "mds_cmenger.h"
 #include "mds_lapack.h"
 
-#include "voro++.hh"
-
 class  mds::StressGrid
 {
 
@@ -327,9 +325,8 @@ class  mds::StressGrid
         dmatrix   *sum_grid;     ///< Sum Grid
         double    *sum_volume;   ///< Sum of volumes when using mds_atom
         double    *radii;        ///< the radius of an atomic site
+        double    *positions;    ///< the position of an atomic site
         int       *molecule_id;  ///< The molecule an atomic site belongs to
-        voro::container_poly *vorcon; ///< Voronoi container
-        voro::particle_order *vorpo;  ///< Voronoi particle order
         //@}
 
         /** Method to delete the preallocated member variables */
