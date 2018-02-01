@@ -289,7 +289,10 @@ class LStensor:
             print("Writing data on grid in binary format to {0}...".format(outputfile))
 
         fp = open(outputfile, 'wb')
-        fp.write(struct.pack('i',1))
+        if (self.order == 1)
+            fp.write(struct.pack('i',3))
+        else
+            fp.write(struct.pack('i',1))
 
         # Write the box vectors
         fp.write(struct.pack('9d',*(self.box.ravel())))
@@ -599,7 +602,7 @@ class LStensor:
             print("Writing data on atoms in binary format to {0}...".format(outputfile))
 
         fp = open(outputfile, 'wb')
-        fp.write(struct.pack('i',1))
+        fp.write(struct.pack('i',2))
 
         # Write the box vectors
         fp.write(struct.pack('9d',*(self.box.ravel())))
@@ -867,7 +870,7 @@ class LStensor:
     def __readGridbin__(self,inputfile):
 
         fp = open(inputfile, 'rb')
-        bdouble = struct.unpack('i', fp.read(1*self.__sizeofint__))[0]
+        dtype = struct.unpack('i', fp.read(1*self.__sizeofint__))[0]
         box = np.array(struct.unpack('9d', fp.read(9*self.__sizeofdouble__)))
         box = np.reshape(box, (3,3))
 
@@ -895,7 +898,7 @@ class LStensor:
     def __readAtombin__(self,inputfile):
 
         fp = open(inputfile, 'rb')
-        bdouble = struct.unpack('i', fp.read(1*self.__sizeofint__))[0]
+        dtype = struct.unpack('i', fp.read(1*self.__sizeofint__))[0]
         box = np.array(struct.unpack('9d', fp.read(9*self.__sizeofdouble__)))
         box = np.reshape(box, (3,3))
 

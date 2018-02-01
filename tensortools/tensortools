@@ -56,16 +56,16 @@ import argparse
 
 def main():
 
-    parser = argparse.ArgumentParser(description='tensortools.py -- Swiss army knife of stress tensor and 3D density calculations',formatter_class=argparse.RawDescriptionHelpFormatter,epilog='''\
+    parser = argparse.ArgumentParser(description='Tensortools.py -- Swiss army knife of stress tensor and 3D density calculations',formatter_class=argparse.RawDescriptionHelpFormatter,epilog='''\
 Juan M. Vanegas and Alejandro Torres-Sanchez
 Please, report any bug to either of us:
 juan.m.vanegas@gmail.com  and/or torres.sanchez.a@gmail.com''')
     # INPUT
     parser.add_argument('-f',         nargs='+', required=True,              help='Single or multiple binary input files (must all have the same grid size)',metavar='[input.bin]')
     parser.add_argument('-v',         nargs='?', const=True, default=False,  help='verbose',metavar='')
-    parser.add_argument('--irep',     nargs='?', default='spat',             help='Input data representation, values: spat (spatial stress/density distributed on a grid, default), atom (stress per atom)',metavar='spat')
+    parser.add_argument('--irep',     nargs='?', default='spat_d',             help='Input data representation, values: spat (spatial stress/density distributed on a grid, default), atom (stress per atom)',metavar='spat')
     parser.add_argument('--pdb',      nargs='?',                             help='PDB file with atom coordinates (FOR STRESS PER ATOM ONLY)',metavar='[structure.pdb]')
-    parser.add_argument('--itype',    nargs='?', default='stress',           help='Type of data such as density, stress tensor, or vector field: dens, stress (default), or vec', metavar='stress')
+    parser.add_argument('--itype',    nargs='?', default='stress_d',           help='Type of data such as density, stress tensor, or vector field: dens, stress (default), or vec', metavar='stress')
 
     # PROCESSING DATA
     parser.add_argument('--mif',      nargs='?', default='avg',              help='How to process multiple input files, values: avg (default) or sum',metavar='avg')
@@ -76,7 +76,7 @@ juan.m.vanegas@gmail.com  and/or torres.sanchez.a@gmail.com''')
     parser.add_argument('--gridsp', nargs=3,                                 help='(For atom to grid conversion) Grid spacing for atom 2 grid conversion (default 0.1, 0.1, 0.1 nm)',metavar=(0.1,0.1,0.1), default=(0.1,0.1,0.1))
     
     # OUTPUT
-    parser.add_argument('--orep',     nargs='?', default='spat',             help='Output data representation, values: spat (spatial stress/density distributed on a grid, default), atom (stress per atom)',metavar='spat')
+    parser.add_argument('--orep',     nargs='?', default='spat_d',             help='Output data representation, values: spat (spatial stress/density distributed on a grid, default), atom (stress per atom)',metavar='spat')
     parser.add_argument('--oformat',  nargs='?', default='bin',              help='Output format, values: bin (i.e. binary .dat0, default), nc (NETCDF), txt (default when using --prof), or pdb (stress per atom only, creates a separate file for each element in the tensor)',metavar='bin')
     parser.add_argument('-o',         type=str, required=True,               help='Output file',metavar='output.bin')
 
@@ -89,11 +89,35 @@ juan.m.vanegas@gmail.com  and/or torres.sanchez.a@gmail.com''')
 
 
     # Load arguments
-    verbose    = args.v
-    itype      = args.itype
     inputfiles = args.f
+    verbose    = args.v
+
+    #Tensortools input is always a binary file, so lets use the first integer bit to automagically determine the input file type: spatial stress tensor = 1, atom stress tensor = 2, and density = 3
+    fp = open(inputfiles[0], 'rb')
+    dtype = struct.unpack('i', fp.read(1*self.__sizeofint__))[0]
+
+    if (args.itype == 'stress_d' and dtype == 3):
+        itype = 'dens'
+    elif (args.itype == 'stress_d'):
+        itype = 'stress'
+    else:
+        itype = args.itype
+
+    if (args.irep == 'spat_d' and dtype == 2):
+        irep = 'atom'
+    elif (args.irep == 'spat_d'):
+        irep = 'spat'
+    else:
+        irep = args.irep
+
+    if (args.orep == 'spat_d' and irep == 'atom'):
+        orep = 'atom'
+    elif (args.orep == 'spat_d'):
+        orep = 'spat'
+    else:
+        orep = args.orep
+
     outputfile = args.o
-    irep       = args.irep
     struct     = args.pdb
     gridsp     = [float(x) for x in args.gridsp]
 
@@ -101,7 +125,6 @@ juan.m.vanegas@gmail.com  and/or torres.sanchez.a@gmail.com''')
     integ      = args.integ
     sym        = args.sym
 
-    orep       = args.orep
     oformat    = args.oformat
     
     # Gaussian filter?

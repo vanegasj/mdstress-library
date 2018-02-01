@@ -312,15 +312,8 @@ void StressGrid::SumGrid ( )
             gridn[2] = gridn[0]*gfxz;
 
             // create the voronoi objects
-            voro::particle_order vorpo = voro::particle_order(
-                    ncells);
-            voro::container_poly vorcon = voro::container_poly(
-                    0.0, vor_box[0],
-                    0.0, vor_box[1],
-                    0.0, vor_box[2],
-                    gridn[0], gridn[1], gridn[2],
-                    this->xper, this->yper, this->zper,
-                    8);
+            voro::particle_order vorpo = voro::particle_order(ncells);
+            voro::container_poly vorcon = voro::container_poly(0.0, vor_box[0], 0.0, vor_box[1], 0.0, vor_box[2], gridn[0], gridn[1], gridn[2], this->xper, this->yper, this->zper, 8);
             // fill the container
             int voro_cells = 0;
             for (int i = 0; i < this->ncells; ++i)
@@ -332,13 +325,10 @@ void StressGrid::SumGrid ( )
                     double py = this->positions[3*i+1];
                     double pz = this->positions[3*i+2];
 
-                    // we are scaling the radii down to 1/100th the size here:
-                    // this forces voro++ to use vcells, where vcells is the number
-                    // of atoms with non-zero radii
-                    // the reason for this has to do with the bond length of atoms
-                    // within molecules being shorter than the radii calculated from
-                    // the vdw coefficients... voronoi puts any two particles with
-                    // overlapping radius into the same cell, it seems
+                    // we are scaling the radii down to 1/100th the size here so that the number of voronoi cells is the same as
+                    // the number of atoms with non-zero radii. This is because voro++ does a check and if two particles are within
+                    // a distance less than the sum of their radii, they are put in the same voronoi cell, which does not allow
+                    // the calculation of volumes of every particle in the system
                     vorcon.put(vorpo, i, px, py, pz, 0.01*this->radii[i]);
                 }
             }
@@ -403,7 +393,7 @@ void StressGrid::SumGrid ( )
                 }
             }
 
-            std::cout << "Cells computed this frame: " << cells_computed << std::endl;
+//            std::cout << "Cells computed this frame: " << cells_computed << std::endl;
         }
 
         for( int i=0; i<this->ncells; i++ )
@@ -454,7 +444,7 @@ void StressGrid::Write ( )
 {
     if ( !ierr )
     {
-        int                trash=1;
+        int                Dtype=1;
         dmatrix            avgbox;
         std::string        outname;
         std::ostringstream outnumber;
@@ -470,7 +460,12 @@ void StressGrid::Write ( )
 
         outfile = fopen(outname.c_str(), "wb" );
         
-        fwrite(&trash, sizeof(int), 1, outfile);
+        if (this->spatatom == mds_spat)
+            Dtype = 1;
+        else if (this->spatatom == mds_atom)
+            Dtype = 2;
+        
+        fwrite(&Dtype, sizeof(int), 1, outfile);
         
         //Divide sumbox with respect to the number of frames to get the avg
         scalematrix( this->sumbox, 1.0/this->nframes, avgbox);
@@ -543,8 +538,7 @@ void StressGrid::SetVoronoiRadius(double radius, int atomID)
 // radius  -> radius of the atom
 // atomID  -> label of the atom
 // moleID  -> label of the molecule this atom belongs to
-void StressGrid::AddVoronoiAtom(double px, double py, double pz,
-        int atomID, int moleID)
+void StressGrid::AddVoronoiAtom(double px, double py, double pz, int atomID, int moleID)
 {
     // quick check if we have the correct number of atoms
     if (atomID > this->ncells)
