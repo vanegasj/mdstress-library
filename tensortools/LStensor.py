@@ -289,9 +289,9 @@ class LStensor:
             print("Writing data on grid in binary format to {0}...".format(outputfile))
 
         fp = open(outputfile, 'wb')
-        if (self.order == 1)
+        if (self.order == 0):
             fp.write(struct.pack('i',3))
-        else
+        else:
             fp.write(struct.pack('i',1))
 
         # Write the box vectors
