@@ -612,7 +612,8 @@ class LStensor:
 
         ntot = self.nAtom
 
-        fp.write(struct.pack(str(self.dsize*ntot)+'d',*(self.data_grid.ravel())))
+        fp.write(struct.pack(str(self.dsize*ntot)+'d',*(self.data_atom.ravel())))
+        fp.write(struct.pack(str(ntot)+'d',*(self.data_volume.ravel())))
         fp.close()
 
         if(self.verbose):
@@ -634,7 +635,6 @@ class LStensor:
             return 1
 
         outname, outext = outputfile.split('.')
-        print('Natoms = {0} and dsize = {1}'.format(self.nAtom,self.dsize))
         for i in range(self.dsize):
             oname = outname+'_b{0}.'.format(i) +outext
             writePDB(oname,self.atoms,beta = self.data_atom[:,i])
@@ -664,6 +664,33 @@ class LStensor:
                 fp.write(str(self.data_atom[i,d])+'\t')
             fp.write(str(self.data_volume[i])+'\t')
             fp.write('\n')
+
+        fp.close()
+
+        if(self.verbose):
+            print("DONE!\n")
+
+        return
+
+    def a_savechiattr (self, outputfile):
+        '''
+        Write stress per atom data to chimera attribute txt file
+        '''
+        if (self.atStr == False):
+            print("ERROR: LStensor: a_savechiattr: atom structure undefined, please provide a valid PDB input file\n")
+            return 1
+
+        fp = open(outputfile, 'w')
+        fp.write("attribute: stress\n")
+        fp.write("match mode: 1-to-1\n")
+        fp.write("recipient: atoms\n")
+
+        if(self.verbose):
+            print("Writing data in chimera attribute txt format to {0}...".format(outputfile))
+        ResNumber = self.atoms.getResnums()
+        AtomNames = self.atoms.getNames()
+        for i in range(self.nAtom):
+            fp.write('\t:{0}@{1}\t{2}\n'.format(ResNumber[i], AtomNames[i], self.data_atom[i].reshape((3,3)).trace()))
 
         fp.close()
 

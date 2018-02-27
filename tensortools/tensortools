@@ -78,7 +78,7 @@ juan.m.vanegas@gmail.com  and/or torres.sanchez.a@gmail.com''')
     
     # OUTPUT
     parser.add_argument('--orep',     nargs='?', default='spat_d',             help='Output data representation, values: spat (spatial stress/density distributed on a grid, default), atom (stress per atom)',metavar='spat')
-    parser.add_argument('--oformat',  nargs='?', default='bin_d',              help='Output format, values: bin (i.e. binary .dat0, default), nc (NETCDF), txt (default when using --prof), or pdb (stress per atom only, creates a separate file for each element in the tensor)',metavar='bin')
+    parser.add_argument('--oformat',  nargs='?', default='bin_d',              help='Output format, values: bin (i.e. binary .dat0, default), nc (NETCDF), txt (default when using --prof), chi (chimera attribute file), or pdb (stress per atom only, creates a separate file for each element in the tensor)',metavar='bin')
     parser.add_argument('-o',         type=str, required=True,               help='Output file',metavar='output.bin')
 
     
@@ -121,6 +121,8 @@ juan.m.vanegas@gmail.com  and/or torres.sanchez.a@gmail.com''')
         oformat = 'bin'
     elif ((oext == '.txt' or oext == '.xvg') and args.oformat == 'bin_d'):
         oformat = 'txt'
+    elif ((oext == '.chi') and args.oformat == 'bin_d'):
+        oformat = 'chi'
     elif (oext == '.nc' and args.oformat == 'bin_d'):
         oformat = 'nc'
     elif (oext == 'bin_d'):
@@ -219,6 +221,8 @@ juan.m.vanegas@gmail.com  and/or torres.sanchez.a@gmail.com''')
             field.a_savepdb(outputfile)
         elif (oformat == 'txt'):
             field.a_savetxt(outputfile)
+        elif (oformat == 'chi'):
+            field.a_savechiattr(outputfile)
 
     return 0
 
@@ -231,7 +235,7 @@ def check_args(irep, orep, oformat, itype, parser):
         parser.print_help()
         return 1
 
-    if (oformat != 'bin' and oformat != 'nc' and oformat != 'txt' and oformat != 'pdb'):
+    if (oformat != 'bin' and oformat != 'nc' and oformat != 'txt' and oformat != 'pdb' and oformat != 'chi'):
         print("INPUT ERROR: Output type must be either 'bin' or 'nc' or 'txt' or 'pdb'.")
         parser.print_help()
         return 1
