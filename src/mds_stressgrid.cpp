@@ -998,9 +998,11 @@ void StressGrid::SpreadLineSource(darray a, darray b, double t1, double t2, iarr
                 *sumfactor=*sumfactor+factor;
                 
                 scalematrix(stress,factor,partial_stress);
-    
-                gridcell = modulo(ii,this->nx)*this->nz*this->ny
-                    + modulo(jj,this->ny)*this->nz+modulo(kk,this->nz);
+
+                gridcell
+                    = ((ii + this->nx) % this->nx)*this->ny*this->nz
+                    + ((jj + this->ny) % this->ny)*this->nz
+                    + ((kk + this->nz) % this->nz);
                 
                 this->AddAtomStressToGrid (gridcell, partial_stress);
             }
