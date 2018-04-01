@@ -984,41 +984,76 @@ void StressGrid::SpreadLineSource(darray a, darray b, double t1, double t2, iarr
     for(i=1.0;i>=-1.0;i-=2.0)
     {
         ii+=(int)(i);
-        for(j=1.0;j>=-1.0;j-=2.0)
-        {
-            jj+=(int)j;
-            ij = i*j;
 
-            // lets reduce this calculation
-            f1 = Dz + i*Dxz + j*Dyz + ij*lxyz*dt1;
-            f2 = D + i*Dx + j*Dy +ij*Dxy;
+        // j == 1
+        j = 1.0;
+        jj+=(int)j;
+        ij = i*j;
 
-            // now use indices + composites
-            kk+=1;
-            factor = ij*C*(f1+f2);
-            *sumfactor=*sumfactor+factor;
-            scalematrix(stress,factor,partial_stress);
+        // lets reduce this calculation
+        f1 = Dz + i*Dxz + j*Dyz + ij*lxyz*dt1;
+        f2 = D + i*Dx + j*Dy +ij*Dxy;
 
-            gridcell
-                = ((ii + this->nx) % this->nx)*this->ny*this->nz
-                + ((jj + this->ny) % this->ny)*this->nz
-                + ((kk + this->nz) % this->nz);
+        // now use indices + composites
+        kk+=1;
+        factor = ij*C*(f1+f2);
+        *sumfactor=*sumfactor+factor;
+        scalematrix(stress,factor,partial_stress);
+
+        gridcell
+            = ((ii + this->nx) % this->nx)*this->ny*this->nz
+            + ((jj + this->ny) % this->ny)*this->nz
+            + ((kk + this->nz) % this->nz);
+        
+        this->AddAtomStressToGrid (gridcell, partial_stress);
             
-            this->AddAtomStressToGrid (gridcell, partial_stress);
-                
-            // now use indices + composites
-            kk-=1;
-            factor = ij*C*(f1-f2);
-            *sumfactor=*sumfactor+factor;
-            scalematrix(stress,factor,partial_stress);
+        // now use indices + composites
+        kk-=1;
+        factor = ij*C*(f1-f2);
+        *sumfactor=*sumfactor+factor;
+        scalematrix(stress,factor,partial_stress);
 
-            gridcell
-                = ((ii + this->nx) % this->nx)*this->ny*this->nz
-                + ((jj + this->ny) % this->ny)*this->nz
-                + ((kk + this->nz) % this->nz);
+        gridcell
+            = ((ii + this->nx) % this->nx)*this->ny*this->nz
+            + ((jj + this->ny) % this->ny)*this->nz
+            + ((kk + this->nz) % this->nz);
+        
+        this->AddAtomStressToGrid (gridcell, partial_stress);
+        
+        // j == -1
+        j = -1.0;
+        jj+=(int)j;
+        ij = i*j;
+
+        // lets reduce this calculation
+        f1 = Dz + i*Dxz + j*Dyz + ij*lxyz*dt1;
+        f2 = D + i*Dx + j*Dy +ij*Dxy;
+
+        // now use indices + composites
+        kk+=1;
+        factor = ij*C*(f1+f2);
+        *sumfactor=*sumfactor+factor;
+        scalematrix(stress,factor,partial_stress);
+
+        gridcell
+            = ((ii + this->nx) % this->nx)*this->ny*this->nz
+            + ((jj + this->ny) % this->ny)*this->nz
+            + ((kk + this->nz) % this->nz);
+        
+        this->AddAtomStressToGrid (gridcell, partial_stress);
             
-            this->AddAtomStressToGrid (gridcell, partial_stress);
-        }
+        // now use indices + composites
+        kk-=1;
+        factor = ij*C*(f1-f2);
+        *sumfactor=*sumfactor+factor;
+        scalematrix(stress,factor,partial_stress);
+
+        gridcell
+            = ((ii + this->nx) % this->nx)*this->ny*this->nz
+            + ((jj + this->ny) % this->ny)*this->nz
+            + ((kk + this->nz) % this->nz);
+        
+        this->AddAtomStressToGrid (gridcell, partial_stress);
     }
 }
 
