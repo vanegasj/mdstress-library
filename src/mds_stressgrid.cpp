@@ -987,25 +987,41 @@ void StressGrid::SpreadLineSource(darray a, darray b, double t1, double t2, iarr
         for(j=1.0;j>=-1.0;j-=2.0)
         {
             jj+=(int)j;
-            for(k=1.0;k>=-1.0;k-=2.0)
-            {
-                kk+=(int)k;
-                ijk = i*j*k;
+            k = 1.0;
+            kk+=(int)k;
+            ijk = i*j*k;
 
-                // now use indices + composites
-                factor = ijk*C*(D+i*Dx+j*Dy+k*Dz+i*j*Dxy+i*k*Dxz+j*k*Dyz+ijk*lxyz*dt1);
+            // now use indices + composites
+            factor = ijk*C*(D+i*Dx+j*Dy+k*Dz+i*j*Dxy+i*k*Dxz+j*k*Dyz+ijk*lxyz*dt1);
 
-                *sumfactor=*sumfactor+factor;
+            *sumfactor=*sumfactor+factor;
+            
+            scalematrix(stress,factor,partial_stress);
+
+            gridcell
+                = ((ii + this->nx) % this->nx)*this->ny*this->nz
+                + ((jj + this->ny) % this->ny)*this->nz
+                + ((kk + this->nz) % this->nz);
+            
+            this->AddAtomStressToGrid (gridcell, partial_stress);
                 
-                scalematrix(stress,factor,partial_stress);
+            k = -1.0;
+            kk+=(int)k;
+            ijk = i*j*k;
 
-                gridcell
-                    = ((ii + this->nx) % this->nx)*this->ny*this->nz
-                    + ((jj + this->ny) % this->ny)*this->nz
-                    + ((kk + this->nz) % this->nz);
-                
-                this->AddAtomStressToGrid (gridcell, partial_stress);
-            }
+            // now use indices + composites
+            factor = ijk*C*(D+i*Dx+j*Dy+k*Dz+i*j*Dxy+i*k*Dxz+j*k*Dyz+ijk*lxyz*dt1);
+
+            *sumfactor=*sumfactor+factor;
+            
+            scalematrix(stress,factor,partial_stress);
+
+            gridcell
+                = ((ii + this->nx) % this->nx)*this->ny*this->nz
+                + ((jj + this->ny) % this->ny)*this->nz
+                + ((kk + this->nz) % this->nz);
+            
+            this->AddAtomStressToGrid (gridcell, partial_stress);
         }
     }
 }
