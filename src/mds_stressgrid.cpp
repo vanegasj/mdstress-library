@@ -939,6 +939,77 @@ void StressGrid::DistributeKinetic(double mass, darray x, darray va, darray vb =
 // sumfactor -> (this is just for monitoring) part of the line source that has already been spread
 void StressGrid::SpreadLineSource(darray a, darray b, double t1, double t2, iarray x, dmatrix stress, double *sumfactor)
 {
+    double i,j,k,ijk;
+    int ii,jj,kk;
+    int gridcell;
+    double factor;
+    double t12,t22, dt1, dt2, dt3, dt4;
+    double axy, axz, ayz, axyz;
+    double bxy, bxz, byz, bxyz;
+    double lxy, lxz, lyz, lxyz;
+    double C, D, Dx, Dy, Dz, Dxy, Dxz, Dyz;
+
+    dmatrix partial_stress;
+
+    // work out the parametric time constants
+    t12 = t1*t1;
+    t22 = t2*t2;
+    dt1 = t2 - t1;
+    dt2 = t22 - t12;
+    dt3 = t22*t2 - t12*t1;
+    dt4 = t22*t22 - t12*t12;
+
+    // now the position/spatial constants
+    axy = a[0]*a[1]; axz = a[0]*a[2]; ayz = a[1]*a[2];
+    bxy = b[0]*b[1]; bxz = b[0]*b[2]; byz = b[1]*b[2];
+    lxy = this->gridsp[0]*this->gridsp[1];
+    lxz = this->gridsp[0]*this->gridsp[2];
+    lyz = this->gridsp[1]*this->gridsp[2];
+    axyz = a[0]*ayz; bxyz = b[0]*byz; lxyz = this->gridsp[0]*lyz;
+
+    // finally the composite constants in terms of i, j, k
+    C = 0.125*this->invgridsp*this->invgridsp;
+    D = 8.0*bxyz*dt1 + 4.0*(a[0]*byz+a[1]*bxz+a[2]*bxy)*dt2
+        + 2.0*(b[0]*ayz+b[1]*axz+b[2]*axy)*dt3 + 2.0*axyz*dt4;
+    Dx = this->gridsp[0]*(4.0*byz*dt1 + 2.0*(a[1]*b[2]+a[2]*b[1])*dt2 + ayz*dt3);
+    Dy = this->gridsp[1]*(4.0*bxz*dt1 + 2.0*(a[0]*b[2]+a[2]*b[0])*dt2 + axz*dt3);
+    Dz = this->gridsp[2]*(4.0*bxy*dt1 + 2.0*(a[0]*b[1]+a[1]*b[0])*dt2 + axy*dt3);
+    Dxy = lxy*(2.0*b[2]*dt1+a[2]*dt2);
+    Dxz = lxz*(2.0*b[1]*dt1+a[1]*dt2);
+    Dyz = lyz*(2.0*b[0]*dt1+a[0]*dt2);
+
+    // these indices are used to map into the spatial grid
+    ii=x[0]; jj=x[1]; kk=x[2];
+
+    for(i=1.0;i>=-1.0;i-=2.0)
+    {
+        ii+=(int)(i);
+        for(j=1.0;j>=-1.0;j-=2.0)
+        {
+            jj+=(int)j;
+            for(k=1.0;k>=-1.0;k-=2.0)
+            {
+                kk+=(int)k;
+                ijk = i*j*k;
+
+                // now use indices + composites
+                factor = ijk*C*(D+i*Dx+j*Dy+k*Dz+i*j*Dxy+i*k*Dxz+j*k*Dyz+ijk*lxyz*dt1);
+
+                *sumfactor=*sumfactor+factor;
+                
+                scalematrix(stress,factor,partial_stress);
+    
+                gridcell = modulo(ii,this->nx)*this->nz*this->ny
+                    + modulo(jj,this->ny)*this->nz+modulo(kk,this->nz);
+                
+                this->AddAtomStressToGrid (gridcell, partial_stress);
+            }
+        }
+    }
+}
+
+/*void StressGrid::SpreadLineSource(darray a, darray b, double t1, double t2, iarray x, dmatrix stress, double *sumfactor)
+{
     int i,j,k;
     int ii,jj,kk;
     int gridcell;
@@ -995,6 +1066,7 @@ void StressGrid::SpreadLineSource(darray a, darray b, double t1, double t2, iarr
     }
 
 }
+*/
 
 
 //----------------------------------------------------------------------------------------
