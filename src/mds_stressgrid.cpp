@@ -25,6 +25,18 @@
 
 using namespace mds;
 
+// a summatrix macro
+#define summatrixm(a,b,c) \
+c[0][0] = a[0][0] + b[0][0]; \
+c[0][1] = a[0][1] + b[0][1]; \
+c[0][2] = a[0][2] + b[0][2]; \
+c[1][0] = a[1][0] + b[1][0]; \
+c[1][1] = a[1][1] + b[1][1]; \
+c[1][2] = a[1][2] + b[1][2]; \
+c[2][0] = a[2][0] + b[2][0]; \
+c[2][1] = a[2][1] + b[2][1]; \
+c[2][2] = a[2][2] + b[2][2]
+
 //Constructor
 StressGrid::StressGrid()
 {
@@ -1005,7 +1017,7 @@ void StressGrid::SpreadLineSource(darray a, darray b, double t1, double t2, iarr
         + ((jj + this->ny) % this->ny)*this->nz
         + ((kk + this->nz) % this->nz);
     
-    this->AddAtomStressToGrid (gridcell, partial_stress);
+    summatrixm(this->current_grid[gridcell], partial_stress, this->current_grid[gridcell]);
         
     // now use indices + composites
     kk-=1;
@@ -1018,7 +1030,7 @@ void StressGrid::SpreadLineSource(darray a, darray b, double t1, double t2, iarr
         + ((jj + this->ny) % this->ny)*this->nz
         + ((kk + this->nz) % this->nz);
     
-    this->AddAtomStressToGrid (gridcell, partial_stress);
+    summatrixm(this->current_grid[gridcell], partial_stress, this->current_grid[gridcell]);
     
     // j == -1
     j = -1.0;
@@ -1040,7 +1052,7 @@ void StressGrid::SpreadLineSource(darray a, darray b, double t1, double t2, iarr
         + ((jj + this->ny) % this->ny)*this->nz
         + ((kk + this->nz) % this->nz);
     
-    this->AddAtomStressToGrid (gridcell, partial_stress);
+    summatrixm(this->current_grid[gridcell], partial_stress, this->current_grid[gridcell]);
         
     // now use indices + composites
     kk-=1;
@@ -1053,7 +1065,7 @@ void StressGrid::SpreadLineSource(darray a, darray b, double t1, double t2, iarr
         + ((jj + this->ny) % this->ny)*this->nz
         + ((kk + this->nz) % this->nz);
     
-    this->AddAtomStressToGrid (gridcell, partial_stress);
+    summatrixm(this->current_grid[gridcell], partial_stress, this->current_grid[gridcell]);
     // i == -1
     i = -1.0;
     ii+=(int)(i);
@@ -1078,7 +1090,7 @@ void StressGrid::SpreadLineSource(darray a, darray b, double t1, double t2, iarr
         + ((jj + this->ny) % this->ny)*this->nz
         + ((kk + this->nz) % this->nz);
     
-    this->AddAtomStressToGrid (gridcell, partial_stress);
+    summatrixm(this->current_grid[gridcell], partial_stress, this->current_grid[gridcell]);
         
     // now use indices + composites
     kk-=1;
@@ -1091,7 +1103,7 @@ void StressGrid::SpreadLineSource(darray a, darray b, double t1, double t2, iarr
         + ((jj + this->ny) % this->ny)*this->nz
         + ((kk + this->nz) % this->nz);
     
-    this->AddAtomStressToGrid (gridcell, partial_stress);
+    summatrixm(this->current_grid[gridcell], partial_stress, this->current_grid[gridcell]);
     
     // j == -1
     j = -1.0;
@@ -1113,7 +1125,7 @@ void StressGrid::SpreadLineSource(darray a, darray b, double t1, double t2, iarr
         + ((jj + this->ny) % this->ny)*this->nz
         + ((kk + this->nz) % this->nz);
     
-    this->AddAtomStressToGrid (gridcell, partial_stress);
+    summatrixm(this->current_grid[gridcell], partial_stress, this->current_grid[gridcell]);
         
     // now use indices + composites
     kk-=1;
@@ -1126,7 +1138,7 @@ void StressGrid::SpreadLineSource(darray a, darray b, double t1, double t2, iarr
         + ((jj + this->ny) % this->ny)*this->nz
         + ((kk + this->nz) % this->nz);
     
-    this->AddAtomStressToGrid (gridcell, partial_stress);
+    summatrixm(this->current_grid[gridcell], partial_stress, this->current_grid[gridcell]);
 }
 
 /*void StressGrid::SpreadLineSource(darray a, darray b, double t1, double t2, iarray x, dmatrix stress, double *sumfactor)
