@@ -951,17 +951,28 @@ void StressGrid::DistributeKinetic(double mass, darray x, darray va, darray vb =
 // sumfactor -> (this is just for monitoring) part of the line source that has already been spread
 void StressGrid::SpreadLineSource(darray a, darray b, double t1, double t2, iarray x, dmatrix stress, double *sumfactor)
 {
-    double i,j,ij;
-    int ii,jj,kk;
-    int gridcell;
-    double factor,f1,f2;
+    // attempt to auto-vectorize code
+    const double ijks[8][8] = {
+      // ijk,  i',  j',  k', ij', ik', jk', ijk'
+       { 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0,},
+       {-1.0,-1.0,-1.0, 1.0,-1.0, 1.0, 1.0, 1.0,},
+       {-1.0,-1.0, 1.0,-1.0, 1.0,-1.0, 1.0, 1.0,},
+       { 1.0, 1.0,-1.0,-1.0,-1.0,-1.0, 1.0, 1.0,},
+       {-1.0, 1.0,-1.0,-1.0, 1.0, 1.0,-1.0, 1.0,},
+       { 1.0,-1.0, 1.0,-1.0,-1.0, 1.0,-1.0, 1.0,},
+       { 1.0,-1.0,-1.0, 1.0, 1.0,-1.0,-1.0, 1.0,},
+       {-1.0, 1.0, 1.0, 1.0,-1.0,-1.0,-1.0, 1.0,},
+    };
+    // scalars used to prepare vectors
     double t12,t22, dt1, dt2, dt3, dt4;
     double axy, axz, ayz, axyz;
     double bxy, bxz, byz, bxyz;
     double lxy, lxz, lyz, lxyz;
-    double C, D, Dx, Dy, Dz, Dxy, Dxz, Dyz;
+    int iip1, iim1, jjp1, jjm1, kkp1, kkm1;
 
-    dmatrix partial_stress;
+    // vectors and a single coefficient
+    double C;
+    double D[8], factor[8];
 
     // work out the parametric time constants
     t12 = t1*t1;
@@ -979,158 +990,55 @@ void StressGrid::SpreadLineSource(darray a, darray b, double t1, double t2, iarr
     lyz = this->gridsp[1]*this->gridsp[2];
     axyz = a[0]*ayz; bxyz = b[0]*byz; lxyz = this->gridsp[0]*lyz;
 
-    // finally the composite constants in terms of i, j, k
+    // and the index constants
+    iip1 = ((x[0] + 1 + this->nx) % this->nx)*this->ny*this->nz;
+    jjp1 = ((x[1] + 1 + this->ny) % this->ny)*this->nz;
+    kkp1 = ((x[2] + 1 + this->nz) % this->nz);
+    iim1 = ((x[0] + this->nx) % this->nx)*this->ny*this->nz;
+    jjm1 = ((x[1] + this->ny) % this->ny)*this->nz;
+    kkm1 = ((x[2] + this->nz) % this->nz);
+
+    // the composite constants in terms of i, j, k
     C = 0.125*this->invgridsp*this->invgridsp;
-    D = 8.0*bxyz*dt1 + 4.0*(a[0]*byz+a[1]*bxz+a[2]*bxy)*dt2
+    D[0] = 8.0*bxyz*dt1 + 4.0*(a[0]*byz+a[1]*bxz+a[2]*bxy)*dt2
         + 2.0*(b[0]*ayz+b[1]*axz+b[2]*axy)*dt3 + 2.0*axyz*dt4;
-    Dx = this->gridsp[0]*(4.0*byz*dt1 + 2.0*(a[1]*b[2]+a[2]*b[1])*dt2 + ayz*dt3);
-    Dy = this->gridsp[1]*(4.0*bxz*dt1 + 2.0*(a[0]*b[2]+a[2]*b[0])*dt2 + axz*dt3);
-    Dz = this->gridsp[2]*(4.0*bxy*dt1 + 2.0*(a[0]*b[1]+a[1]*b[0])*dt2 + axy*dt3);
-    Dxy = lxy*(2.0*b[2]*dt1+a[2]*dt2);
-    Dxz = lxz*(2.0*b[1]*dt1+a[1]*dt2);
-    Dyz = lyz*(2.0*b[0]*dt1+a[0]*dt2);
+    D[1] = this->gridsp[0]*(4.0*byz*dt1 + 2.0*(a[1]*b[2]+a[2]*b[1])*dt2 + ayz*dt3);
+    D[2] = this->gridsp[1]*(4.0*bxz*dt1 + 2.0*(a[0]*b[2]+a[2]*b[0])*dt2 + axz*dt3);
+    D[3] = this->gridsp[2]*(4.0*bxy*dt1 + 2.0*(a[0]*b[1]+a[1]*b[0])*dt2 + axy*dt3);
+    D[4] = lxy*(2.0*b[2]*dt1+a[2]*dt2);
+    D[5] = lxz*(2.0*b[1]*dt1+a[1]*dt2);
+    D[6] = lyz*(2.0*b[0]*dt1+a[0]*dt2);
+    D[7] = lxyz*dt1;
 
-    // these indices are used to map into the spatial grid
-    ii=x[0]; jj=x[1]; kk=x[2];
+    factor[0] = C*(ijks[0][0]*D[0] + ijks[0][1]*D[1] + ijks[0][2]*D[2] + ijks[0][3]*D[3] + ijks[0][4]*D[4] + ijks[0][5]*D[5] + ijks[0][6]*D[6] + ijks[0][7]*D[7]);
+    factor[1] = C*(ijks[1][0]*D[0] + ijks[1][1]*D[1] + ijks[1][2]*D[2] + ijks[1][3]*D[3] + ijks[1][4]*D[4] + ijks[1][5]*D[5] + ijks[1][6]*D[6] + ijks[1][7]*D[7]);
+    factor[2] = C*(ijks[2][0]*D[0] + ijks[2][1]*D[1] + ijks[2][2]*D[2] + ijks[2][3]*D[3] + ijks[2][4]*D[4] + ijks[2][5]*D[5] + ijks[2][6]*D[6] + ijks[2][7]*D[7]);
+    factor[3] = C*(ijks[3][0]*D[0] + ijks[3][1]*D[1] + ijks[3][2]*D[2] + ijks[3][3]*D[3] + ijks[3][4]*D[4] + ijks[3][5]*D[5] + ijks[3][6]*D[6] + ijks[3][7]*D[7]);
+    factor[4] = C*(ijks[4][0]*D[0] + ijks[4][1]*D[1] + ijks[4][2]*D[2] + ijks[4][3]*D[3] + ijks[4][4]*D[4] + ijks[4][5]*D[5] + ijks[4][6]*D[6] + ijks[4][7]*D[7]);
+    factor[5] = C*(ijks[5][0]*D[0] + ijks[5][1]*D[1] + ijks[5][2]*D[2] + ijks[5][3]*D[3] + ijks[5][4]*D[4] + ijks[5][5]*D[5] + ijks[5][6]*D[6] + ijks[5][7]*D[7]);
+    factor[6] = C*(ijks[6][0]*D[0] + ijks[6][1]*D[1] + ijks[6][2]*D[2] + ijks[6][3]*D[3] + ijks[6][4]*D[4] + ijks[6][5]*D[5] + ijks[6][6]*D[6] + ijks[6][7]*D[7]);
+    factor[7] = C*(ijks[7][0]*D[0] + ijks[7][1]*D[1] + ijks[7][2]*D[2] + ijks[7][3]*D[3] + ijks[7][4]*D[4] + ijks[7][5]*D[5] + ijks[7][6]*D[6] + ijks[7][7]*D[7]);
 
-    // i == 1
-    i = 1.0;
-    ii+=(int)(i);
+    // perform the sums into the grid
+    ssmatm(factor[0], stress, this->current_grid[iip1 + jjp1 + kkp1]);
+    ssmatm(factor[1], stress, this->current_grid[iip1 + jjp1 + kkm1]);
+    ssmatm(factor[2], stress, this->current_grid[iip1 + jjm1 + kkp1]);
+    ssmatm(factor[3], stress, this->current_grid[iip1 + jjm1 + kkm1]);
+    ssmatm(factor[4], stress, this->current_grid[iim1 + jjp1 + kkp1]);
+    ssmatm(factor[5], stress, this->current_grid[iim1 + jjp1 + kkm1]);
+    ssmatm(factor[6], stress, this->current_grid[iim1 + jjm1 + kkp1]);
+    ssmatm(factor[7], stress, this->current_grid[iim1 + jjm1 + kkm1]);
 
-    // j == 1
-    j = 1.0;
-    jj+=(int)j;
-    ij = i*j;
-
-    // lets reduce this calculation
-    f1 = Dz + i*Dxz + j*Dyz + ij*lxyz*dt1;
-    f2 = D + i*Dx + j*Dy +ij*Dxy;
-
-    // now use indices + composites
-    kk+=1;
-    factor = ij*C*(f1+f2);
-    *sumfactor=*sumfactor+factor;
-
-    gridcell
-        = ((ii + this->nx) % this->nx)*this->ny*this->nz
-        + ((jj + this->ny) % this->ny)*this->nz
-        + ((kk + this->nz) % this->nz);
-    
-    ssmatm(factor, stress, this->current_grid[gridcell]);
-        
-    // now use indices + composites
-    kk-=1;
-    factor = ij*C*(f1-f2);
-    *sumfactor=*sumfactor+factor;
-
-    gridcell
-        = ((ii + this->nx) % this->nx)*this->ny*this->nz
-        + ((jj + this->ny) % this->ny)*this->nz
-        + ((kk + this->nz) % this->nz);
-    
-    ssmatm(factor, stress, this->current_grid[gridcell]);
-    
-    // j == -1
-    j = -1.0;
-    jj+=(int)j;
-    ij = i*j;
-
-    // lets reduce this calculation
-    f1 = Dz + i*Dxz + j*Dyz + ij*lxyz*dt1;
-    f2 = D + i*Dx + j*Dy +ij*Dxy;
-
-    // now use indices + composites
-    kk+=1;
-    factor = ij*C*(f1+f2);
-    *sumfactor=*sumfactor+factor;
-
-    gridcell
-        = ((ii + this->nx) % this->nx)*this->ny*this->nz
-        + ((jj + this->ny) % this->ny)*this->nz
-        + ((kk + this->nz) % this->nz);
-    
-    ssmatm(factor, stress, this->current_grid[gridcell]);
-        
-    // now use indices + composites
-    kk-=1;
-    factor = ij*C*(f1-f2);
-    *sumfactor=*sumfactor+factor;
-
-    gridcell
-        = ((ii + this->nx) % this->nx)*this->ny*this->nz
-        + ((jj + this->ny) % this->ny)*this->nz
-        + ((kk + this->nz) % this->nz);
-    
-    ssmatm(factor, stress, this->current_grid[gridcell]);
-    // i == -1
-    i = -1.0;
-    ii+=(int)(i);
-
-    // j == 1
-    j = 1.0;
-    jj+=(int)j;
-    ij = i*j;
-
-    // lets reduce this calculation
-    f1 = Dz + i*Dxz + j*Dyz + ij*lxyz*dt1;
-    f2 = D + i*Dx + j*Dy +ij*Dxy;
-
-    // now use indices + composites
-    kk+=1;
-    factor = ij*C*(f1+f2);
-    *sumfactor=*sumfactor+factor;
-
-    gridcell
-        = ((ii + this->nx) % this->nx)*this->ny*this->nz
-        + ((jj + this->ny) % this->ny)*this->nz
-        + ((kk + this->nz) % this->nz);
-    
-    ssmatm(factor, stress, this->current_grid[gridcell]);
-        
-    // now use indices + composites
-    kk-=1;
-    factor = ij*C*(f1-f2);
-    *sumfactor=*sumfactor+factor;
-
-    gridcell
-        = ((ii + this->nx) % this->nx)*this->ny*this->nz
-        + ((jj + this->ny) % this->ny)*this->nz
-        + ((kk + this->nz) % this->nz);
-    
-    ssmatm(factor, stress, this->current_grid[gridcell]);
-    
-    // j == -1
-    j = -1.0;
-    jj+=(int)j;
-    ij = i*j;
-
-    // lets reduce this calculation
-    f1 = Dz + i*Dxz + j*Dyz + ij*lxyz*dt1;
-    f2 = D + i*Dx + j*Dy +ij*Dxy;
-
-    // now use indices + composites
-    kk+=1;
-    factor = ij*C*(f1+f2);
-    *sumfactor=*sumfactor+factor;
-
-    gridcell
-        = ((ii + this->nx) % this->nx)*this->ny*this->nz
-        + ((jj + this->ny) % this->ny)*this->nz
-        + ((kk + this->nz) % this->nz);
-    
-    ssmatm(factor, stress, this->current_grid[gridcell]);
-        
-    // now use indices + composites
-    kk-=1;
-    factor = ij*C*(f1-f2);
-    *sumfactor=*sumfactor+factor;
-
-    gridcell
-        = ((ii + this->nx) % this->nx)*this->ny*this->nz
-        + ((jj + this->ny) % this->ny)*this->nz
-        + ((kk + this->nz) % this->nz);
-    
-    ssmatm(factor, stress, this->current_grid[gridcell]);
+    // add factors
+    //sumfactor[0] += factor[0] + factor[1] + factor[2] + factor[3] + factor[4] + factor[5] + factor[6] + factor[7];
+    *sumfactor=*sumfactor+factor[0];
+    *sumfactor=*sumfactor+factor[1];
+    *sumfactor=*sumfactor+factor[2];
+    *sumfactor=*sumfactor+factor[3];
+    *sumfactor=*sumfactor+factor[4];
+    *sumfactor=*sumfactor+factor[5];
+    *sumfactor=*sumfactor+factor[6];
+    *sumfactor=*sumfactor+factor[7];
 }
 
 /*void StressGrid::SpreadLineSource(darray a, darray b, double t1, double t2, iarray x, dmatrix stress, double *sumfactor)
