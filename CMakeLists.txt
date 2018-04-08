@@ -5,7 +5,13 @@ find_package(PythonInterp 2.7 REQUIRED )
 enable_language(C)
 enable_language(CXX)
 
-set(CMAKE_BUILD_TYPE Release)
+if(NOT CMAKE_BUILD_TYPE)
+  set(CMAKE_BUILD_TYPE "Release" CACHE STRING
+      "Choose the type of build, options are: Debug Release RelWithDebInfo MinSizeRel." FORCE)
+endif(NOT CMAKE_BUILD_TYPE)
+
+set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG -ffast-math -march=native" CACHE STRING
+    "Flags used by the compiler during release builds." FORCE)
 
 FILE(GLOB MDSTRESS_SOURCES_H   include/*.h)
 FILE(GLOB MDSTRESS_SOURCES_CPP src/*.cpp)
