@@ -979,7 +979,7 @@ void StressGrid::SpreadLineSource(darray a, darray b, double t1, double t2, iarr
     t22 = t2*t2;
     dt1 = t2 - t1;
     dt2 = t22 - t12;
-    dt3 = t22*t2 - t12*t1;
+    dt3 = 4.0*(t22*t2 - t12*t1)/3.0;
     dt4 = t22*t22 - t12*t12;
 
     // now the position/spatial constants
