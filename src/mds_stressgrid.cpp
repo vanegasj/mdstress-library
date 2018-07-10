@@ -213,7 +213,7 @@ void StressGrid::Init()
             for ( int i=0; i < this->ncells; ++i )
             {
                 this->molecule_id[i] = 0;
-                this->radii[i] = 1.0;
+                this->radii[i] = 0.001;
                 this->sum_volume[i] = 0.0;
         
                 this->positions[3*i] = 0.0;
@@ -523,7 +523,10 @@ void StressGrid::SetVoronoiRadius(double radius, int atomID)
     if (!ierr)
     {
         // setup the molecule id
-        this->radii[atomID] = radius;
+        if (radius > 0.001)
+            this->radii[atomID] = radius;
+        else
+            this->radii[atomID] = 0.001;
     }
 }
         
