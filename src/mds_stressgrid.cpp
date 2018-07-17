@@ -225,7 +225,7 @@ void StressGrid::Init()
             for ( int i=0; i < this->ncells; ++i )
             {
                 this->molecule_id[i] = 0;
-                this->radii[i] = 1.0;
+                this->radii[i] = 0.001;
                 this->sum_volume[i] = 0.0;
         
                 this->positions[3*i] = 0.0;
@@ -535,7 +535,7 @@ void StressGrid::SetVoronoiRadius(double radius, int atomID)
     if (!ierr)
     {
         // setup the molecule id
-        this->radii[atomID] = radius;
+        this->radii[atomID] = std::max(radius,0.001);
     }
 }
         
@@ -1041,6 +1041,66 @@ void StressGrid::SpreadLineSource(darray a, darray b, double t1, double t2, iarr
     *sumfactor=*sumfactor+factor[6];
     *sumfactor=*sumfactor+factor[7];
 }
+
+/* UNOPTIMIZED FUNCTION, FOR REFERENCE */
+/*void StressGrid::SpreadLineSource(darray a, darray b, double t1, double t2, iarray x, dmatrix stress, double *sumfactor)
+{
+    int i,j,k;
+    int ii,jj,kk;
+    int gridcell;
+    double factor;
+    double dummy1,dummy2,dummy3,dummy4,dummy5,dummy6,dummy7,dummy8,dummy9,dummy10,dummy11,dummy12;
+    double t12,t22,t13,t23;
+
+    dmatrix partial_stress;
+
+    t12 = t1*t1;
+    t13 = t12*t1;
+    t22 = t2*t2;
+    t23 = t22*t2;
+
+    ii=x[0]; jj=x[1]; kk=x[2];
+
+    dummy1 = -2*a[0]*a[1]*a[2]*t12*t12;
+    dummy2 =  2*a[0]*a[1]*a[2]*t22*t22;
+
+    for(i=1;i>=-1;i-=2)
+    {
+        ii+=i;
+        dummy3 = 2*b[0]+i*this->gridsp[0];
+        dummy7 = a[1]*a[2]*dummy3;
+
+        for(j=1;j>=-1;j-=2)
+        {
+            jj+=j;
+            dummy4 = 2*b[1]+j*this->gridsp[1];
+            dummy6 = dummy3*dummy4;
+            dummy8 = a[0]*a[2]*dummy4;
+            dummy10= a[2]*dummy3*dummy4;
+
+            for(k=1;k>=-1;k-=2)
+            {
+                kk+=k;
+                dummy5 = 2*b[2]+k*this->gridsp[2];
+                dummy9 = a[1]*a[0]*dummy5;
+                dummy11= a[1]*dummy3*dummy5;
+                dummy12= a[0]*dummy4*dummy5;
+                factor = i*j*k*0.125*this->invgridsp*this->invgridsp*(dummy1+dummy2+(t2-t1)*dummy6*dummy5+1.333333333333*(t23-t13)
+                            *(dummy7+dummy8+dummy9)+(t22-t12)*(dummy10+dummy11+dummy12));
+
+                *sumfactor=*sumfactor+factor;
+                
+                scalematrix(stress,factor,partial_stress);
+    
+                gridcell = modulo(ii,this->nx)*this->nz*this->ny
+                    + modulo(jj,this->ny)*this->nz+modulo(kk,this->nz);
+                
+                this->AddAtomStressToGrid (gridcell, partial_stress);
+            }
+        }
+    }
+
+}*/
 
 //----------------------------------------------------------------------------------------
 // SpreadPointSource
