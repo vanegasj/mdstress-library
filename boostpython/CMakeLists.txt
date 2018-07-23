@@ -1,3 +1,6 @@
+cmake_minimum_required(VERSION 2.8)
+find_package(PythonLibs 2.7 REQUIRED )
+find_package(PythonInterp 2.7 REQUIRED )
 
 FIND_PACKAGE(Boost COMPONENTS python REQUIRED)
 
