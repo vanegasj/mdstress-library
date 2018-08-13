@@ -35,15 +35,23 @@ void mds::diffarray ( darray a, darray b, darray c)
         c[i] = a[i]-b[i];
 }
 
-void mds::diffarray ( darray a, darray b, darray c, dmatrix box)
+void mds::diffarray ( darray a, darray b, darray c, dmatrix box, barray periodic)
 {
     for (int i = 0; i < mds_ndim; i++)
-    {
         c[i] = a[i]-b[i];
-        while (c[i] >   0.5*box[i][i])
-            c[i] -= box[i][i];
-        while (c[i] <= -0.5*box[i][i])
-            c[i] += box[i][i];
+
+    if (periodic[3] == true)
+    {
+        for (int i = 0; i < mds_ndim; i++)
+        {
+            if (periodic[i] == true)
+            {
+                while (c[i] >   0.5*box[i][i])
+                    c[i] -= box[i][i];
+                while (c[i] <= -0.5*box[i][i])
+                    c[i] += box[i][i];
+            }
+        }
     }
 }
 

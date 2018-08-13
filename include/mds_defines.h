@@ -78,6 +78,7 @@ namespace mds
     #define mds_fileext "mds"
     
     
+    typedef bool    barray[4];
     typedef int     iarray[3];
     typedef double  darray[3];
     typedef double  dmatrix[3][3];

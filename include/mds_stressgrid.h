@@ -94,17 +94,19 @@ class  mds::StressGrid
         
         /** Set/Get periodic boundary conditions: */
         //@{
-        void SetPeriodicBoundaries(bool x, bool y, bool z)
+        void SetPeriodicBoundaries(bool x, bool y, bool z, bool enforce)
         { 
-            this->xper = x;
-            this->yper = y;
-            this->zper = z;
+            this->periodic[0] = x;
+            this->periodic[1] = y;
+            this->periodic[2] = z;
+            this->periodic[3] = enforce;
         }
-        void  GetPeriodicBoundaries(bool & x, bool & y, bool & z)
+        void  GetPeriodicBoundaries(bool & x, bool & y, bool & z, bool enforce)
         { 
-            x = this->xper;
-            y = this->yper;
-            z = this->zper;
+            x = this->periodic[0];
+            y = this->periodic[1];
+            z = this->periodic[2];
+            enforce = this->periodic[3];
         }
         //@}
         
@@ -322,9 +324,7 @@ class  mds::StressGrid
         int           contrib;        ///< which contribution
         std::string   filename;       ///< body of the filename where the stress is stored
         bool          nodispcor;      ///< disables dispersion correction if set to true
-        bool          xper;           ///< set x dimension as periodic
-        bool          yper;           ///< set y dimension as periodic
-        bool          zper;           ///< set z dimension as periodic
+        barray        periodic;       ///< mark dimensions as periodic
         //@}
     
         /** @name Outputs*/

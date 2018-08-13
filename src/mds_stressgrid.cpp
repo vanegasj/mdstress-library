@@ -86,9 +86,9 @@ StressGrid::StressGrid()
     this->positions      = NULL;
     
     this->nodispcor      = false;
-    this->xper           = false;
-    this->yper           = false;
-    this->zper           = false;
+    this->periodic[0]    = false;
+    this->periodic[1]    = false;
+    this->periodic[2]    = false;
 }
 
 //Destructor
@@ -314,7 +314,7 @@ void StressGrid::SumGrid ( )
 
             // create the voronoi objects
             voro::particle_order vorpo = voro::particle_order(ncells);
-            voro::container_poly vorcon = voro::container_poly(0.0, vor_box[0], 0.0, vor_box[1], 0.0, vor_box[2], gridn[0], gridn[1], gridn[2], this->xper, this->yper, this->zper, 8);
+            voro::container_poly vorcon = voro::container_poly(0.0, vor_box[0], 0.0, vor_box[1], 0.0, vor_box[2], gridn[0], gridn[1], gridn[2], this->periodic[0], this->periodic[1], this->periodic[2], 8);
             // fill the container
             int voro_cells = 0;
             for (int i = 0; i < this->ncells; ++i)
@@ -732,7 +732,7 @@ void StressGrid::DistributePairInteraction( darray xi, darray xj, darray F )
     // Calculate the stress tensor
 
     // difference between xj and xi
-    diffarray ( xj, xi, diff);
+    diffarray ( xj, xi, diff, this->box, this->periodic);
 
     stress[0][0] = F[0]*diff[0];
     stress[1][0] = F[1]*diff[0];
@@ -1192,9 +1192,9 @@ void StressGrid::DistributeN3( darray Ra, darray Rb, darray Rc, darray Fa, darra
     // If the force decomposition is cCFD or CFD
     if(this->fdecomp == mds_ccfd || this->fdecomp == mds_ncfd)
     {
-        diffarray(Rb, Ra, AB);
-        diffarray(Rc, Ra, AC);
-        diffarray(Rc, Rb, BC);
+        diffarray(Rb, Ra, AB, this->box, this->periodic);
+        diffarray(Rc, Ra, AC, this->box, this->periodic);
+        diffarray(Rc, Rb, BC, this->box, this->periodic);
 
         normAB=normarray(AB);
         normAC=normarray(AC);
@@ -1287,9 +1287,9 @@ void StressGrid::DistributeSettle( darray Ra, darray Rb, darray Rc, darray Fa, d
 
     if (this->fdecomp == mds_ccfd || this->fdecomp == mds_ncfd || this->fdecomp == mds_gld )
     {
-        diffarray(Rb, Ra, AB);
-        diffarray(Rc, Ra, AC);
-        diffarray(Rc, Rb, BC);
+        diffarray(Rb, Ra, AB, this->box, this->periodic);
+        diffarray(Rc, Ra, AC, this->box, this->periodic);
+        diffarray(Rc, Rb, BC, this->box, this->periodic);
 
         normAB=normarray(AB);
         normAC=normarray(AC);
@@ -1373,12 +1373,12 @@ void StressGrid::DistributeN4( darray Ra, darray Rb, darray Rc, darray Rd, darra
     // If the force decomposition is cCFD or CFD
     if(this->fdecomp == mds_ccfd || this->fdecomp == mds_ncfd)
     {
-        diffarray(Rb, Ra, AB);
-        diffarray(Rc, Ra, AC);
-        diffarray(Rd, Ra, AD);
-        diffarray(Rc, Rb, BC);
-        diffarray(Rd, Rb, BD);
-        diffarray(Rd, Rc, CD);
+        diffarray(Rb, Ra, AB, this->box, this->periodic);
+        diffarray(Rc, Ra, AC, this->box, this->periodic);
+        diffarray(Rd, Ra, AD, this->box, this->periodic);
+        diffarray(Rc, Rb, BC, this->box, this->periodic);
+        diffarray(Rd, Rb, BD, this->box, this->periodic);
+        diffarray(Rd, Rc, CD, this->box, this->periodic);
 
         normAB=normarray(AB);
         normAC=normarray(AC);
@@ -1499,16 +1499,16 @@ void StressGrid::DistributeN5(darray Ra, darray Rb, darray Rc, darray Rd, darray
     // If the force decomposition is cCFD or CFD
     if(this->fdecomp == mds_ccfd || this->fdecomp == mds_ncfd)
     {
-        diffarray(Rb, Ra, AB);
-        diffarray(Rc, Ra, AC);
-        diffarray(Rd, Ra, AD);
-        diffarray(Re, Ra, AE);
-        diffarray(Rc, Rb, BC);
-        diffarray(Rd, Rb, BD);
-        diffarray(Re, Rb, BE);
-        diffarray(Rd, Rc, CD);
-        diffarray(Re, Rc, CE);
-        diffarray(Re, Rd, DE);
+        diffarray(Rb, Ra, AB, this->box, this->periodic);
+        diffarray(Rc, Ra, AC, this->box, this->periodic);
+        diffarray(Rd, Ra, AD, this->box, this->periodic);
+        diffarray(Re, Ra, AE, this->box, this->periodic);
+        diffarray(Rc, Rb, BC, this->box, this->periodic);
+        diffarray(Rd, Rb, BD, this->box, this->periodic);
+        diffarray(Re, Rb, BE, this->box, this->periodic);
+        diffarray(Rd, Rc, CD, this->box, this->periodic);
+        diffarray(Re, Rc, CE, this->box, this->periodic);
+        diffarray(Re, Rd, DE, this->box, this->periodic);
 
         normAB=normarray(AB);
         normAC=normarray(AC);
@@ -1723,7 +1723,7 @@ void StressGrid::DistributeNBody ( int nPart, darraylist R, darraylist F, bool d
                 L_ij[n][1] = i;
                 L_ij[n][2] = j;
 
-                diffarray(R[j], R[i], this->R_ij[n],this->box);
+                diffarray(R[j], R[i], this->R_ij[n], this->box, this->periodic);
                 n++;
             }
         }
