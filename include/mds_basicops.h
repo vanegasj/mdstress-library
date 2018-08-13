@@ -32,6 +32,8 @@ namespace mds
 
     void diffarray ( darray a, darray b, darray c);
 
+    void diffarray ( darray a, darray b, darray c, dmatrix box);
+
     void scalearray ( darray b, double a, darray c);
 
     double normarray ( darray a );

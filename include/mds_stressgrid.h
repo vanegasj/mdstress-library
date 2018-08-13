@@ -48,6 +48,8 @@
 * \param [out] AmatT        transpose of the matrix (used for projecting solution onto the shape space)
 * \param [out] bvec         vector for solving the linear system    
 * \param [out] R_ij         distance vectors
+* \param [out] F_ij         force vectors
+* \param [out] L_ij         particle labels
 * \param [out] ierr         error type: 0, 1, etc (See GetError() function)
 * \param [out] nframes      Number of frames
 * \param [out] nreset       Number of resets (for writing files)
@@ -160,6 +162,29 @@ class  mds::StressGrid
         {   return this->contrib;   }
         //@}
         
+        /** Distribute/Get decomposed forces: */
+        //@{
+        /** DistributeForce
+         *
+         * FORCE DECOMPOSITION
+         * This function reads the number of atoms, the atoms' labels and their
+         * respective positions and forces, and decomposes the NBody interaction into
+         * pairwise interactions.
+         * nAtoms  -> number of atoms of the contribution
+         * R       -> positions of the atoms
+         * F       -> forces on the atoms
+         * atomIDs -> labels of the atoms (optional, only needed if calculating stress/atom) */
+        void DistributeForce ( int nAtoms, darraylist R, darraylist F, int *atomIDs );
+
+
+        iarraylist GetForceLabels()
+        {   return this->L_ij;    }
+        darraylist GetForceMagnitudes()
+        {   return this->F_ij;    }
+        darraylist GetForceDirections()
+        {   return this->R_ij;    }
+        //@}
+        
         /**Set box: */
         void SetBox(dmatrix box)
         {   
@@ -216,6 +241,7 @@ class  mds::StressGrid
         
         /**Writes file with average stress to grid using the filename set by the user*/
         void Write  ( );
+        void WriteForceDecomposition ( );
         
         /**Writes and resets*/
         void WriteAndReset ( )
@@ -308,6 +334,8 @@ class  mds::StressGrid
         double    *AmatT;        ///< transpose of the matrix (used for projecting solution onto the shape space)
         double    *bvec;         ///< vector for solving the linear system    
         darraylist R_ij;         ///< distance vectors
+        darraylist F_ij;         ///< force vectors
+        iarraylist L_ij;         ///< label vectors
         int        ierr;         ///< error type: 0, 1, etc (See GetError() function)
         int        nframes;      ///< Number of frames
         int        nreset;       ///< Number of resets (for writing files)
@@ -351,7 +379,7 @@ class  mds::StressGrid
         void DistributeN5                  ( darray Ra, darray Rb, darray Rc, darray Rd, darray Re, darray Fa, darray Fb, darray Fc, darray Fd, darray Fe);
         
         /** General function to decompose N-body potentials (it can be used to compute higher order terms coming from EAM for instance) */
-        void DistributeNBody               ( int nPart, darraylist R, darraylist F );
+        void DistributeNBody               ( int nPart, darraylist R, darraylist F, bool distritube_stress = true);
         
         /** SpreadPointSource
          * Distributes "point sources" onto the grid

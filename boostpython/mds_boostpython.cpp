@@ -124,6 +124,76 @@ class mds::StressGridPython
     int  GetStressType ( )
     {   return stressgrid.GetStressType( );   }
 
+    boost::python::list GetForceLabels(int nAtoms)
+    {
+        boost::python::list pylabels;
+
+        iarraylist labels = stressgrid.GetForceLabels();
+        //darraylist directions = stressgrid.GetForceDirections();
+        //darraylist magnitides = stressgrid.GetForceMagnitudes();
+
+        int n = 0;
+        for (int i = 0; i < nAtoms; ++i)
+        {
+            for (int j = i+1; j < nAtoms; ++j)
+            {
+                boost::python::list components;
+                components.append(labels[n][0]);
+                components.append(labels[n][1]);
+                components.append(labels[n][2]);
+                pylabels.append(components);
+                n++;
+            }
+        }
+
+        return pylabels;
+    }
+    
+    boost::python::list GetForceMagnitudes(int nAtoms)
+    {
+        boost::python::list pylabels;
+
+        darraylist magnitudes = stressgrid.GetForceMagnitudes();
+
+        int n = 0;
+        for (int i = 0; i < nAtoms; ++i)
+        {
+            for (int j = i+1; j < nAtoms; ++j)
+            {
+                boost::python::list components;
+                components.append(magnitudes[n][0]);
+                components.append(magnitudes[n][1]);
+                components.append(magnitudes[n][2]);
+                pylabels.append(components);
+                n++;
+            }
+        }
+
+        return pylabels;
+    }
+    
+    boost::python::list GetForceDirections(int nAtoms)
+    {
+        boost::python::list pylabels;
+
+        darraylist directions = stressgrid.GetForceDirections();
+
+        int n = 0;
+        for (int i = 0; i < nAtoms; ++i)
+        {
+            for (int j = i+1; j < nAtoms; ++j)
+            {
+                boost::python::list components;
+                components.append(directions[n][0]);
+                components.append(directions[n][1]);
+                components.append(directions[n][2]);
+                pylabels.append(components);
+                n++;
+            }
+        }
+
+        return pylabels;
+    }
     
     void DistributeInteraction( int nAtoms, boost::python::list R, boost::python::list F, boost::python::list atomIDs = boost::python::list())
     {
@@ -143,13 +213,37 @@ class mds::StressGridPython
         }
 
         if ( atomIDs == boost::python::list() )
-        {
-            this->stressgrid.DistributeInteraction( nAtoms, this->R, this->F, NULL);
+        { this->stressgrid.DistributeInteraction( nAtoms, this->R, this->F, NULL);
         }
         else
         {
             this->stressgrid.DistributeInteraction( nAtoms, this->R, this->F, this->atomIDs);
         }
+    }
+    
+    void DistributeForce( int nAtoms, boost::python::list R, boost::python::list F, boost::python::list atomIDs = boost::python::list())
+    {
+        if ( nAtoms > this->maxClust )
+        {
+            std::cout << "ERROR::StressGridPython: Distribute Interaction has been called with a number of atoms larger than the maximum cluster size previously set, nAtoms=" << nAtoms << " and maxClust=" << this->maxClust << "\n";
+            return;
+        }
+
+        for (int i = 0; i < nAtoms; i ++ )
+        {
+            for (int j = 0; j < mds_ndim; j ++ )
+            {
+                this->R[i][j] = extract<double>(R[i][j]);
+                this->F[i][j] = extract<double>(F[i][j]);
+            }
+        }
+
+        if ( atomIDs == boost::python::list() )
+        {
+            this->stressgrid.DistributeForce( nAtoms, this->R, this->F, NULL);
+        }
+        else
+        { this->stressgrid.DistributeForce( nAtoms, this->R, this->F, this->atomIDs); }
     }
 
     void DistributeKinetic( double mass, boost::python::list x, boost::python::list va, boost::python::list vb = boost::python::list(), int atomID = -1)
@@ -227,6 +321,11 @@ BOOST_PYTHON_MODULE(libmdstresspy)
     .def("getsttype",    &mds::StressGridPython::GetStressType)
         
     .def("setbox",       &mds::StressGridPython::SetBox)
+    
+    .def("distributeforce", &mds::StressGridPython::DistributeForce, (boost::python::arg("nAtoms"),boost::python::arg("R"), boost::python::arg("F"),boost::python::arg("atomid")=boost::python::list()))
+    .def("getforcelabels",  &mds::StressGridPython::GetForceLabels)
+    .def("getforcemagnitudes",  &mds::StressGridPython::GetForceMagnitudes)
+    .def("getforcedirections",  &mds::StressGridPython::GetForceDirections)
      
     ;
 }

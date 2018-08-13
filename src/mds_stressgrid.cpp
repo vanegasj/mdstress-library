@@ -76,6 +76,8 @@ StressGrid::StressGrid()
     this->AmatT          = NULL;
     this->bvec           = NULL;
     this->R_ij           = NULL;
+    this->F_ij           = NULL;
+    this->L_ij           = NULL;
     this->current_grid   = NULL;
     this->sum_grid       = NULL;
     this->sum_volume     = NULL;
@@ -103,6 +105,8 @@ void StressGrid::Clear()
     if (this->AmatT        != NULL ) delete [] this->AmatT;
     if (this->bvec         != NULL ) delete [] this->bvec;
     if (this->R_ij         != NULL ) delete [] this->R_ij;
+    if (this->F_ij         != NULL ) delete [] this->F_ij;
+    if (this->L_ij         != NULL ) delete [] this->L_ij;
     if (this->current_grid != NULL ) delete [] this->current_grid;
     if (this->sum_grid     != NULL ) delete [] this->sum_grid;
     if (this->sum_volume   != NULL ) delete [] this->sum_volume;
@@ -115,6 +119,8 @@ void StressGrid::Clear()
     this->AmatT        = NULL;
     this->bvec         = NULL;
     this->R_ij         = NULL;
+    this->F_ij         = NULL;
+    this->L_ij         = NULL;
     this->current_grid = NULL; 
     this->sum_grid     = NULL;
     this->molecule_id  = NULL;
@@ -246,23 +252,6 @@ void StressGrid::Init()
         }
 
         this->nframes = 0;
-        
-        //If the maximum cluster is larger than 5 we need special structures. Create them:
-        if (this->maxClust > 5 )
-        {
-            int maxrows, maxcols;
-            maxrows = mds_ndim*this->maxClust;
-            maxcols = (this->maxClust*(this->maxClust-1))/2;
-            
-            this->Amat  = new double [maxrows*maxcols];
-            
-            if ( this->fdecomp == mds_ccfd )
-                this->AmatT = new double [maxrows*maxcols]; 
-            
-            this->bvec  = new double [mds_max(maxrows,maxcols)];
-            
-            this->R_ij  = new darray [maxrows];
-        }
         
         // Finally, create the lapack object to deal with linear solvers and projections
         this->lapack = new Lapack (mds_ndim*this->maxClust,(this->maxClust*(this->maxClust-1))/2);
@@ -689,6 +678,23 @@ void StressGrid::DistributeInteraction(int nAtoms, darraylist R, darraylist F, i
     }
 
     return;
+}
+
+//----------------------------------------------------------------------------------------
+// DistributeForce
+// 
+// FORCE DECOMPOSITION
+// This function reads the number of atoms, the atoms' labels and their
+// respective positions and forces, and decomposes the NBody interaction into
+// pairwise interactions.
+// nAtoms  -> number of atoms of the contribution
+// R       -> positions of the atoms
+// F       -> forces on the atoms
+// atomIDs -> labels of the atoms (optional, only needed if calculating stress/atom)
+void StressGrid::DistributeForce(int nAtoms, darraylist R, darraylist F, int *atomIDs = NULL)
+{
+    // fill the R_ij, L_ij and F_ij class arrays (disable the PairInteraction call: we only want force decomposition here)
+    this->DistributeNBody( nAtoms, R, F, false);
 }
 
 //----------------------------------------------------------------------------------------
@@ -1659,19 +1665,50 @@ void StressGrid::DistributeN5(darray Ra, darray Rb, darray Rc, darray Rd, darray
 }
 
 // General function to decompose N-body potentials (it can be used to compute higher order terms coming from EAM for instance)
-void StressGrid::DistributeNBody ( int nPart, darraylist R, darraylist F )
+void StressGrid::DistributeNBody ( int nPart, darraylist R, darraylist F, bool distribute_stress)
 {
     int i,j,k, iD, jD, n;
- 
-    darray F_ij;
+
+    // initialize arrays as necessary
+    if (this->Amat == NULL)
+    {
+        int maxrows, maxcols;
+        maxrows = mds_ndim*this->maxClust;
+        maxcols = (this->maxClust*(this->maxClust-1))/2;
+        
+        this->Amat  = new double [maxrows*maxcols];
+        
+        if ( this->fdecomp == mds_ccfd )
+            this->AmatT = new double [maxrows*maxcols]; 
+        
+        this->bvec  = new double [mds_max(maxrows,maxcols)];
+        
+        this->R_ij  = new darray [maxrows];
+        this->F_ij  = new darray [maxrows];
+        this->L_ij  = new iarray [maxrows];
+    }
+    
+    // always zero the force and direction arrays
+    n = 0;
+    for (int i = 0; i < mds_ndim*this->maxClust; ++i)
+    {
+        for (int j = i + 1; j < mds_ndim*this->maxClust; ++j)
+        {
+            R_ij[n][0] = R_ij[n][1] = R_ij[n][2] = 0.0;
+            F_ij[n][0] = F_ij[n][1] = F_ij[n][2] = 0.0;
+            L_ij[n][0] = L_ij[n][1] = L_ij[n][2] = 0;
+        }
+    }
     
     // If the force decomposition is cCFD or CFD
     if(this->fdecomp == mds_ccfd || this->fdecomp == mds_ncfd)
     {
-    
         //Number of rows and columns
         int nRow;
         int nCol;
+
+        //temp variable for normalized R_ij
+        darray R_ij_temp;
 
         nRow = 3 * nPart;
         nCol = (nPart * (nPart - 1)) / 2;
@@ -1681,8 +1718,12 @@ void StressGrid::DistributeNBody ( int nPart, darraylist R, darraylist F )
         {
             for ( j = i+1; j < nPart; j++ )
             {
-                diffarray(R[j], R[i], this->R_ij[n]);
-                scalearray(this->R_ij[n],1.0/normarray(this->R_ij[n]),this->R_ij[n]);
+                // set the labels
+                L_ij[n][0] = n;
+                L_ij[n][1] = i;
+                L_ij[n][2] = j;
+
+                diffarray(R[j], R[i], this->R_ij[n],this->box);
                 n++;
             }
         }
@@ -1700,12 +1741,13 @@ void StressGrid::DistributeNBody ( int nPart, darraylist R, darraylist F )
             for ( j = i+1; j < nPart; j++ )
             {
                 jD = mds_ndim * j;
+                scalearray(this->R_ij[n],1.0/normarray(this->R_ij[n]),R_ij_temp);
                 for ( k = 0; k < mds_ndim; k++ )
                 {
-                    this->Amat [nRow*n+(iD+k)] =  this->R_ij[n][k];
-                    this->Amat [nRow*n+(jD+k)] = -this->R_ij[n][k];
-                    this->AmatT[(iD+k)*nCol+n] =  this->R_ij[n][k];
-                    this->AmatT[(jD+k)*nCol+n] = -this->R_ij[n][k];
+                    this->Amat [nRow*n+(iD+k)] =  R_ij_temp[k];
+                    this->Amat [nRow*n+(jD+k)] = -R_ij_temp[k];
+                    this->AmatT[(iD+k)*nCol+n] =  R_ij_temp[k];
+                    this->AmatT[(jD+k)*nCol+n] = -R_ij_temp[k];
                 }
                 n++;
             }
@@ -1727,29 +1769,37 @@ void StressGrid::DistributeNBody ( int nPart, darraylist R, darraylist F )
         {
             for ( j = i+1; j < nPart; j++ )
             {
-                scalearray(this->R_ij[n],this->bvec[n], F_ij);
-                this->DistributePairInteraction(R[i], R[j], F_ij);
+                scalearray(this->R_ij[n],1.0/normarray(this->R_ij[n]),R_ij_temp);
+                scalearray(R_ij_temp, this->bvec[n], F_ij[n]);
+
+                if (distribute_stress)
+                    this->DistributePairInteraction(R[i], R[j], F_ij[n]);
+
                 n++;
             }
         }
     }
     else if(this->fdecomp == mds_gld)
     {
-
+        n = 0;
         for ( i = 0; i < nPart; i++ )
         {
-
             for ( j = i+1; j < nPart; j++ )
             {
+                // set the labels
+                L_ij[n][0] = n;
+                L_ij[n][1] = i;
+                L_ij[n][2] = j;
 
-                diffarray(F[i], F[j], F_ij );
-                scalearray(F_ij, 1.0/static_cast<double>(nPart), F_ij);
+                diffarray(F[i], F[j], F_ij[n] );
+                scalearray(F_ij[n], 1.0/static_cast<double>(nPart), F_ij[n]);
 
-                this->DistributePairInteraction(R[i], R[j], F_ij);
+                if (distribute_stress)
+                    this->DistributePairInteraction(R[i], R[j], F_ij[n]);
+                n++;
             }
         }
     }
-    
 }
 //----------------------------------------------------------------------------------------
 
