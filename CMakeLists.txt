@@ -5,6 +5,8 @@ find_package(PythonInterp 3.6 REQUIRED )
 enable_language(C)
 enable_language(CXX)
 
+option(MDS_BOOSTPYTHON "Enable Boost Python bindings" OFF)
+
 if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE "Release" CACHE STRING
       "Choose the type of build, options are: Debug Release RelWithDebInfo MinSizeRel." FORCE)
@@ -17,10 +19,9 @@ FILE(GLOB MDSTRESS_SOURCES_H   include/*.h)
 FILE(GLOB MDSTRESS_SOURCES_CPP src/*.cpp)
 
 # the voro++ sources, sans voro++.cc
-FILE(GLOB VORO_SOURCES_HH   contrib/voro++/*.hh)
+FILE(GLOB VORO_SOURCES_HH contrib/voro++/*.hh)
 FILE(GLOB VORO_SOURCES_CC contrib/voro++/*.cc)
 SET(MDSTRESS_SOURCES ${MDSTRESS_SOURCES_CPP} ${MDSTRESS_SOURCES_H} ${VORO_SOURCES_CC} ${VORO_SOURCES_HH})
-
 
 INCLUDE_DIRECTORIES(include/)
 INCLUDE_DIRECTORIES(contrib/voro++/)
@@ -37,5 +38,10 @@ INSTALL(TARGETS mdstress RUNTIME DESTINATION bin LIBRARY DESTINATION lib ARCHIVE
 
 INSTALL(FILES ${MDSTRESS_SOURCES_H} ${VORO_SOURCES_HH} DESTINATION include/mdstress)
 
-ADD_SUBDIRECTORY(boostpython)
+# only process python bindings if requested
+if(MDS_BOOSTPYTHON)
+    ADD_SUBDIRECTORY(boostpython)
+endif()
+
+# process tensortools
 ADD_SUBDIRECTORY(tensortools)
