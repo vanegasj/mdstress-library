@@ -4,6 +4,7 @@ find_package(PythonInterp 3.6 REQUIRED )
 
 enable_language(C)
 enable_language(CXX)
+include(${CMAKE_ROOT}/Modules/ExternalProject.cmake)
 
 option(MDS_BOOSTPYTHON "Enable Boost Python bindings" OFF)
 
@@ -18,10 +19,11 @@ set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG -ffast-math -march=native" CACHE STRIN
 FILE(GLOB MDSTRESS_SOURCES_H   include/*.h)
 FILE(GLOB MDSTRESS_SOURCES_CPP src/*.cpp)
 
-# the voro++ build process
-SET(VORO_URL http://math.lbl.gov/voro++/download/dir/voro++-0.4.6.tar.gz)
-SET(VORO_DOWNLOAD_PATH ${PROJECT_SOURCE_DIR}/contrib/voro++-0.4.6.tar.gz)
+# the voro++ build process: treats voro++ as header-only library
 if(NOT EXISTS ${PROJECT_SOURCE_DIR}/contrib/voro++-0.4.6)
+    SET(VORO_URL http://math.lbl.gov/voro++/download/dir/voro++-0.4.6.tar.gz)
+    SET(VORO_DOWNLOAD_PATH ${PROJECT_SOURCE_DIR}/contrib/voro++-0.4.6.tar.gz)
+    message("Downloading and extracting Voro++")
     FILE(DOWNLOAD ${VORO_URL} ${VORO_DOWNLOAD_PATH})
     EXECUTE_PROCESS(
         COMMAND tar xaf voro++-0.4.6.tar.gz
@@ -37,7 +39,20 @@ SET(MDSTRESS_SOURCES ${MDSTRESS_SOURCES_CPP} ${MDSTRESS_SOURCES_H} ${VORO_SOURCE
 INCLUDE_DIRECTORIES(include/)
 INCLUDE_DIRECTORIES(contrib/voro++-0.4.6/src)
 
+# attempt to find LAPACK library
 FIND_LIBRARY(LAPACK_LIBRARY NAMES lapack liblapack HINTS /usr/lib REQUIRED)
+if (LAPACK_LIBRARY-NOTFOUND)
+    # check to see if we need to download LAPACK
+    SET(LAPACK_URL http://www.netlib.org/lapack/lapack-3.8.0.tar.gz)
+    SET(LAPACK_DOWNLOAD_PATH ${PROJECT_SOURCE_DIR}/contrib/lapack-3.8.0.tar.gz)
+    FILE(DOWNLOAD ${LAPACK_URL} ${LAPACK_DOWNLOAD_PATH})
+    EXECUTE_PROCESS(
+        COMMAND tar xaf lapack-3.8.0.tar.gz
+        WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/contrib)
+    ADD_SUBDIRECTORY(contrib/lapack-3.8.0)
+endif()
+
+
 ADD_LIBRARY(mdstress SHARED ${MDSTRESS_SOURCES})
 
 TARGET_LINK_LIBRARIES(mdstress ${LAPACK_LIBRARY} ${PYTHON_LIBRARIES})
