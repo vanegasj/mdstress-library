@@ -7,7 +7,6 @@ enable_language(CXX)
 include(${CMAKE_ROOT}/Modules/ExternalProject.cmake)
 
 option(MDS_BOOSTPYTHON "Enable Boost Python bindings" OFF)
-option(MDS_STATIC "Build a statically linked library" OFF)
 
 if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE "Release" CACHE STRING
@@ -55,7 +54,9 @@ if (LAPACK_LIBRARY-NOTFOUND)
     ADD_SUBDIRECTORY(contrib/lapack-3.8.0)
 endif()
 
-if(MDS_STATIC)
+# detect if we have a parent and compile statically
+GET_DIRECTORY_PROPERTY(HAS_PARENT PARENT_DIRECTORY)
+if(HAS_PARENT)
     ADD_LIBRARY(mdstress STATIC ${MDSTRESS_SOURCES})
 else()
     ADD_LIBRARY(mdstress SHARED ${MDSTRESS_SOURCES})
