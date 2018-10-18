@@ -22,17 +22,17 @@ FILE(GLOB MDSTRESS_SOURCES_CPP src/*.cpp)
 # the voro++ build process: treats voro++ as header-only library
 if(NOT EXISTS ${PROJECT_SOURCE_DIR}/contrib/voro++-0.4.6)
     SET(VORO_URL http://math.lbl.gov/voro++/download/dir/voro++-0.4.6.tar.gz)
-    SET(VORO_DOWNLOAD_PATH ${PROJECT_SOURCE_DIR}/contrib/voro++-0.4.6.tar.gz)
+    SET(VORO_DOWNLOAD_PATH ${CMAKE_CURRENT_SOURCE_DIR}/contrib/voro++-0.4.6.tar.gz)
     message("Downloading and extracting Voro++")
     FILE(DOWNLOAD ${VORO_URL} ${VORO_DOWNLOAD_PATH})
     EXECUTE_PROCESS(
         COMMAND tar xaf voro++-0.4.6.tar.gz
-        WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/contrib)
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/contrib)
 endif()
 FILE(GLOB VORO_SOURCES_HH contrib/voro++-0.4.6/src/*.hh)
 FILE(GLOB VORO_SOURCES_CC contrib/voro++-0.4.6/src/*.cc)
-LIST(REMOVE_ITEM VORO_SOURCES_CC ${PROJECT_SOURCE_DIR}/contrib/voro++-0.4.6/src/voro++.cc)
-LIST(REMOVE_ITEM VORO_SOURCES_CC ${PROJECT_SOURCE_DIR}/contrib/voro++-0.4.6/src/v_base_wl.cc)
+LIST(REMOVE_ITEM VORO_SOURCES_CC ${CMAKE_CURRENT_SOURCE_DIR}/contrib/voro++-0.4.6/src/voro++.cc)
+LIST(REMOVE_ITEM VORO_SOURCES_CC ${CMAKE_CURRENT_SOURCE_DIR}/contrib/voro++-0.4.6/src/v_base_wl.cc)
 
 SET(MDSTRESS_SOURCES ${MDSTRESS_SOURCES_CPP} ${MDSTRESS_SOURCES_H} ${VORO_SOURCES_CC} ${VORO_SOURCES_HH})
 
@@ -44,11 +44,11 @@ FIND_LIBRARY(LAPACK_LIBRARY NAMES lapack liblapack HINTS /usr/lib REQUIRED)
 if (LAPACK_LIBRARY-NOTFOUND)
     # check to see if we need to download LAPACK
     SET(LAPACK_URL http://www.netlib.org/lapack/lapack-3.8.0.tar.gz)
-    SET(LAPACK_DOWNLOAD_PATH ${PROJECT_SOURCE_DIR}/contrib/lapack-3.8.0.tar.gz)
+    SET(LAPACK_DOWNLOAD_PATH ${CMAKE_CURRENT_SOURCE_DIR}/contrib/lapack-3.8.0.tar.gz)
     FILE(DOWNLOAD ${LAPACK_URL} ${LAPACK_DOWNLOAD_PATH})
     EXECUTE_PROCESS(
         COMMAND tar xaf lapack-3.8.0.tar.gz
-        WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/contrib)
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/contrib)
     ADD_SUBDIRECTORY(contrib/lapack-3.8.0)
 endif()
 
