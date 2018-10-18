@@ -16,7 +16,7 @@ endif(NOT CMAKE_BUILD_TYPE)
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG -ffast-math -march=native" CACHE STRING
     "Flags used by the compiler during release builds." FORCE)
 
-FILE(GLOB MDSTRESS_SOURCES_H   include/*.h)
+FILE(GLOB MDSTRESS_SOURCES_H   include/mdstress/*.h)
 FILE(GLOB MDSTRESS_SOURCES_CPP src/*.cpp)
 
 # the voro++ build process: treats voro++ as header-only library
@@ -36,7 +36,7 @@ LIST(REMOVE_ITEM VORO_SOURCES_CC ${CMAKE_CURRENT_SOURCE_DIR}/contrib/voro++-0.4.
 
 SET(MDSTRESS_SOURCES ${MDSTRESS_SOURCES_CPP} ${MDSTRESS_SOURCES_H} ${VORO_SOURCES_CC} ${VORO_SOURCES_HH})
 
-INCLUDE_DIRECTORIES(include/)
+INCLUDE_DIRECTORIES(include/mdstress)
 INCLUDE_DIRECTORIES(contrib/voro++-0.4.6/src)
 
 # attempt to find LAPACK library
