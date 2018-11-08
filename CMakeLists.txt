@@ -1,6 +1,4 @@
 cmake_minimum_required(VERSION 2.8)
-find_package(PythonLibs 3.6 REQUIRED )
-find_package(PythonInterp 3.6 REQUIRED )
 
 enable_language(C)
 enable_language(CXX)
@@ -42,8 +40,10 @@ INCLUDE_DIRECTORIES(include/mdstress)
 INCLUDE_DIRECTORIES(contrib/voro++-0.4.6/src)
 
 # attempt to find LAPACK library
-FIND_LIBRARY(LAPACK_LIBRARY NAMES lapack liblapack HINTS /usr/lib REQUIRED)
-if (LAPACK_LIBRARY-NOTFOUND)
+FIND_LIBRARY(LAPACK_LIBRARY_SYS NAMES lapack liblapack HINTS /usr/lib REQUIRED)
+if (NOT LAPACK_LIBRARY_SYS)
+    UNSET(LAPACK_LIBRARY_SYS-NOTFOUND)
+    UNSET(LAPACK_LIBRARY_SYS)
     # check to see if we need to download LAPACK
     SET(LAPACK_URL http://www.netlib.org/lapack/lapack-3.8.0.tar.gz)
     SET(LAPACK_DOWNLOAD_PATH ${CMAKE_CURRENT_SOURCE_DIR}/contrib/lapack-3.8.0.tar.gz)
@@ -52,6 +52,8 @@ if (LAPACK_LIBRARY-NOTFOUND)
         COMMAND tar xaf lapack-3.8.0.tar.gz
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/contrib)
     ADD_SUBDIRECTORY(contrib/lapack-3.8.0)
+else()
+    FIND_LIBRARY(LAPACK_LIBRARY NAMES lapack liblapack HINTS /usr/lib REQUIRED)
 endif()
 
 ADD_LIBRARY(mdstress SHARED ${MDSTRESS_SOURCES})
