@@ -11,7 +11,7 @@
 #  Version   :
 #  Changes   :
 #
-#     http://www.lacan.upc.edu/LocalStressFromMD
+#     http://mdstress.org
 #
 #     This software is distributed WITHOUT ANY WARRANTY; without even
 #     the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
@@ -20,7 +20,7 @@
 #     Please, report any bug to either of us:
 #     juan.m.vanegas@gmail.com
 #     torres.sanchez.a@gmail.com
-#=========================================================================##!/usr/bin/env python
+#=========================================================================
 #
 # References:
 #
@@ -40,8 +40,6 @@
 # Goetz-Lipowsky Decomposition
 # [8] R. Goetz; R. Lipowsky; J. Chem. Phys. 108, 7397 (1998)
 #
-# Decomposition on geometric centers
-# [9] H. Heinz; W. Paul; K. Binder; Phys. Rev. E. 72 066704 (2005)
 
 
 try:
@@ -69,7 +67,7 @@ juan.m.vanegas@gmail.com  and/or torres.sanchez.a@gmail.com''')
     parser.add_argument('--itype',    nargs='?', default='stress_d',           help='Type of data such as density, stress tensor, or vector field: dens, stress (default), or vec', metavar='stress')
 
     # PROCESSING DATA
-    parser.add_argument('--mif',      nargs='?', default='avg',              help='How to process multiple input files, values: avg (default) or sum',metavar='avg')
+    parser.add_argument('--mif',      nargs='?', default='avg',              help='How to process multiple input files, values: avg (default), sum, or delta (subtract second to last input files from the first file)',metavar='avg')
     parser.add_argument('--sym',      nargs='?', const=True, default=False,  help='FOR STRESS ONLY. Separates the resultant stress in its symmetric and antisymmetric parts, and creates two outputs with the subscripts _sym and _asym respectively',metavar='')
     parser.add_argument('--prof',                                            help='Output a profile along a given dimension, values: x, y, or z (default)',metavar='z')
     parser.add_argument('--integ',                                           help='integrate out the stress profile along a given dimension, values: x, y, or z (default)',metavar='z')
@@ -149,11 +147,8 @@ juan.m.vanegas@gmail.com  and/or torres.sanchez.a@gmail.com''')
     else:
         bGF = None
 
-    # Average or sum?
-    if (args.mif == 'avg'):
-        bAvg = True
-    else:
-        bAvg = False
+    # Average, sum, or delta?
+    bAvg = args.mif
 
     # Type of data: density (order=0), vector (order=1), or stress (order=2)
     if (itype == 'dens'):
@@ -245,8 +240,8 @@ def check_args(irep, orep, oformat, itype, parser):
         parser.print_help()
         return 1
 
-    if (args.mif != 'avg' and args.mif != 'sum'):
-        print("INPUT ERROR: Option for processing must be either avg (average) or sum.")
+    if (args.mif != 'avg' and args.mif != 'sum' and args.mif != 'delta'):
+        print("INPUT ERROR: Option for processing must be either avg (average), sum, or delta.")
         parser.print_help()
         return 1
 

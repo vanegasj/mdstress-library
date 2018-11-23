@@ -9,7 +9,7 @@
 #  Version   :
 #  Changes   :
 #
-#     http://www.lacan.upc.edu/LocalStressFromMD
+#     http://mdstress.org
 #
 #     This software is distributed WITHOUT ANY WARRANTY; without even
 #     the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
@@ -156,7 +156,7 @@ class LStensor:
         return 0
 
 
-    def g_loaddata (self, files, bAvg = True):
+    def g_loaddata (self, files, bAvg = 'avg'):
         '''
         Loads data (and grid) from a set of files. The bAvg flag indicates whether to return the average or the sum of the data from
         each file
@@ -168,22 +168,26 @@ class LStensor:
         nfiles = len(files)
 
         # Average or sum data from the rest of the files
+        if ((bAvg == 'sum') or (bAvg == 'avg')):
+            mult = 1
+        else:
+            mult = -1
         for i in range(1, nfiles):
             tdata,tbox,tx,ty,tz = self.__readGridbin__(files[i])
-            self.box += tbox
-            self.data_grid += tdata
+            self.data_grid = self.data_grid + mult*tdata
+            if (bAvg == 'avg'):
+                self.box += tbox
 
-        self.box /= nfiles
+        if (bAvg == 'avg'):
+            self.data_grid /= nfiles
+            self.box /= nfiles
 
         self.dx = self.box[0,0]/self.nx
         self.dy = self.box[1,1]/self.ny
         self.dz = self.box[2,2]/self.nz
 
-        if (bAvg):
-            self.data_grid /= nfiles
-
         self.gridFlag = True
-        
+
         return 0
 
     def g_rescale (self,value):
@@ -508,7 +512,7 @@ class LStensor:
         self.data_atom *= value
         self.data_volume *= value
 
-    def a_loaddata (self, files, bAvg = True):
+    def a_loaddata (self, files, bAvg = 'avg'):
         '''
         Load data per atom from files
         '''
@@ -520,17 +524,21 @@ class LStensor:
         nfiles = len(files)
 
         # Average or sum data from the rest of the files
+        if ((bAvg == 'sum') or (bAvg == 'avg')):
+            mult = 1
+        else:
+            mult = -1
         for i in range(1, nfiles):
-            tdata, tbox, nAtom,tvolume = self.__readAtombin__(files[i])
-            self.box += tbox
-            self.data_atom += tdata
-            self.data_volume += tvolume
+            tdata, tbox, nAtom, tvolume = self.__readAtombin__(files[i])
+            self.data_atom = self.data_atom + mult*tdata
+            if (bAvg == 'avg'):
+                self.box += tbox
+                self.data_volume += tvolume
 
-        self.box /= nfiles
-
-        if (bAvg):
+        if (bAvg == 'avg'):
             self.data_atom /= nfiles
             self.data_volume /= nfiles
+            self.box /= nfiles
 
         return 0
 
