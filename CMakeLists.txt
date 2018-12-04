@@ -18,7 +18,7 @@ FILE(GLOB MDSTRESS_SOURCES_H   include/mdstress/*.h)
 FILE(GLOB MDSTRESS_SOURCES_CPP src/*.cpp)
 
 # the voro++ build process: treats voro++ as header-only library
-if(NOT EXISTS ${PROJECT_SOURCE_DIR}/contrib/voro++-0.4.6)
+if(NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/contrib/voro++-0.4.6)
     SET(VORO_URL http://math.lbl.gov/voro++/download/dir/voro++-0.4.6.tar.gz)
     SET(VORO_DOWNLOAD_PATH ${CMAKE_CURRENT_SOURCE_DIR}/contrib/voro++-0.4.6.tar.gz)
     message("Downloading and extracting Voro++")

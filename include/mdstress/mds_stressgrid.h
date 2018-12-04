@@ -49,7 +49,6 @@
 * \param [out] bvec         vector for solving the linear system    
 * \param [out] R_ij         distance vectors
 * \param [out] F_ij         force vectors
-* \param [out] L_ij         particle labels
 * \param [out] ierr         error type: 0, 1, etc (See GetError() function)
 * \param [out] nframes      Number of frames
 * \param [out] nreset       Number of resets (for writing files)
@@ -164,29 +163,25 @@ class  mds::StressGrid
         {   return this->contrib;   }
         //@}
         
-        /** Distribute/Get decomposed forces: */
+        /** Compute N-body force decomposition: */
         //@{
-        /** DistributeForce
+        /** ComputeNbodyPairForces
          *
-         * FORCE DECOMPOSITION
          * This function reads the number of atoms, the atoms' labels and their
-         * respective positions and forces, and decomposes the NBody interaction into
-         * pairwise interactions.
+         * respective positions and forces, and computes the N-body pairwise forces and vectors
+         * without distributing the stress.
          * nAtoms  -> number of atoms of the contribution
          * R       -> positions of the atoms
          * F       -> forces on the atoms
          * atomIDs -> labels of the atoms (optional, only needed if calculating stress/atom) */
-        void DistributeForce ( int nAtoms, darraylist R, darraylist F, int *atomIDs );
+        void ComputeNbodyPairForces ( int nAtoms, darraylist R, darraylist F, int *atomIDs );
 
-
-        iarraylist GetForceLabels()
-        {   return this->L_ij;    }
-        darraylist GetForceMagnitudes()
+        darraylist GetNbodyDecompPairForces()
         {   return this->F_ij;    }
-        darraylist GetForceDirections()
+        darraylist GetNbodyDecompPairVectors()
         {   return this->R_ij;    }
         //@}
-        
+
         /**Set box: */
         void SetBox(dmatrix box)
         {   

@@ -124,77 +124,42 @@ class mds::StressGridPython
     int  GetStressType ( )
     {   return stressgrid.GetStressType( );   }
 
-    boost::python::list GetForceLabels(int nAtoms)
+    boost::python::list GetNbodyDecompPairForces(int nAtoms)
     {
         boost::python::list pylabels;
 
-        iarraylist labels = stressgrid.GetForceLabels();
-        //darraylist directions = stressgrid.GetForceDirections();
-        //darraylist magnitides = stressgrid.GetForceMagnitudes();
+        darraylist PairForces = stressgrid.GetNbodyDecompPairForces();
 
-        int n = 0;
-        for (int i = 0; i < nAtoms; ++i)
+        for (int i = 0; i < nAtoms*nAtoms; ++i)
         {
-            for (int j = i+1; j < nAtoms; ++j)
-            {
-                boost::python::list components;
-                components.append(labels[n][0]);
-                components.append(labels[n][1]);
-                components.append(labels[n][2]);
-                pylabels.append(components);
-                n++;
-            }
+            boost::python::list components;
+            components.append(PairForces[i][0]);
+            components.append(PairForces[i][1]);
+            components.append(PairForces[i][2]);
+            pylabels.append(components);
         }
 
         return pylabels;
     }
-    
-    boost::python::list GetForceMagnitudes(int nAtoms)
+
+    boost::python::list GetNbodyDecompPairVectors(int nAtoms)
     {
         boost::python::list pylabels;
 
-        darraylist magnitudes = stressgrid.GetForceMagnitudes();
+        darraylist PairVectors = stressgrid.GetNbodyDecompPairVectors();
 
-        int n = 0;
-        for (int i = 0; i < nAtoms; ++i)
+        for (int i = 0; i < nAtoms*nAtoms; ++i)
         {
-            for (int j = i+1; j < nAtoms; ++j)
-            {
-                boost::python::list components;
-                components.append(magnitudes[n][0]);
-                components.append(magnitudes[n][1]);
-                components.append(magnitudes[n][2]);
-                pylabels.append(components);
-                n++;
-            }
+            boost::python::list components;
+            components.append(PairVectors[i][0]);
+            components.append(PairVectors[i][1]);
+            components.append(PairVectors[i][2]);
+            pylabels.append(components);
         }
 
         return pylabels;
     }
-    
-    boost::python::list GetForceDirections(int nAtoms)
-    {
-        boost::python::list pylabels;
 
-        darraylist directions = stressgrid.GetForceDirections();
-
-        int n = 0;
-        for (int i = 0; i < nAtoms; ++i)
-        {
-            for (int j = i+1; j < nAtoms; ++j)
-            {
-                boost::python::list components;
-                components.append(directions[n][0]);
-                components.append(directions[n][1]);
-                components.append(directions[n][2]);
-                pylabels.append(components);
-                n++;
-            }
-        }
-
-        return pylabels;
-    }
-    
     void DistributeInteraction( int nAtoms, boost::python::list R, boost::python::list F, boost::python::list atomIDs = boost::python::list())
     {
         if ( nAtoms > this->maxClust )
@@ -221,7 +186,7 @@ class mds::StressGridPython
         }
     }
     
-    void DistributeForce( int nAtoms, boost::python::list R, boost::python::list F, boost::python::list atomIDs = boost::python::list())
+    void ComputeNbodyPairForces( int nAtoms, boost::python::list R, boost::python::list F, boost::python::list atomIDs = boost::python::list())
     {
         if ( nAtoms > this->maxClust )
         {
@@ -240,10 +205,10 @@ class mds::StressGridPython
 
         if ( atomIDs == boost::python::list() )
         {
-            this->stressgrid.DistributeForce( nAtoms, this->R, this->F, NULL);
+            this->stressgrid.ComputeNbodyPairForces( nAtoms, this->R, this->F, NULL);
         }
         else
-        { this->stressgrid.DistributeForce( nAtoms, this->R, this->F, this->atomIDs); }
+        { this->stressgrid.ComputeNbodyPairForces( nAtoms, this->R, this->F, this->atomIDs); }
     }
 
     void DistributeKinetic( double mass, boost::python::list x, boost::python::list va, boost::python::list vb = boost::python::list(), int atomID = -1)
@@ -322,10 +287,9 @@ BOOST_PYTHON_MODULE(libmdstresspy)
         
     .def("SetBox",       &mds::StressGridPython::SetBox)
     
-    .def("DistributeForce", &mds::StressGridPython::DistributeForce, (boost::python::arg("nAtoms"),boost::python::arg("R"), boost::python::arg("F"),boost::python::arg("atomid")=boost::python::list()))
-    .def("GetForceLabels",  &mds::StressGridPython::GetForceLabels)
-    .def("GetForceMagnitudes",  &mds::StressGridPython::GetForceMagnitudes)
-    .def("GetForceDirections",  &mds::StressGridPython::GetForceDirections)
+    .def("ComputeNbodyPairForces", &mds::StressGridPython::ComputeNbodyPairForces, (boost::python::arg("nAtoms"),boost::python::arg("R"), boost::python::arg("F"),boost::python::arg("atomid")=boost::python::list()))
+    .def("GetNbodyDecompPairForces",  &mds::StressGridPython::GetNbodyDecompPairForces)
+    .def("GetNbodyDecompPairVectors",  &mds::StressGridPython::GetNbodyDecompPairVectors)
      
     ;
 }

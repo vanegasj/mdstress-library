@@ -46,7 +46,7 @@ void mds::diffarray ( darray a, darray b, darray c, dmatrix box, barray periodic
         {
             if (periodic[i] == true)
             {
-                while (c[i] >   0.5*box[i][i])
+                while (c[i] > 0.5*box[i][i])
                     c[i] -= box[i][i];
                 while (c[i] <= -0.5*box[i][i])
                     c[i] += box[i][i];
@@ -64,6 +64,12 @@ void mds::scalearray ( darray b, double a, darray c)
 double mds::normarray ( darray a )
 {
     return sqrt(a[0]*a[0] + a[1]*a[1] + a[2]*a[2]);
+}
+
+void mds::copyarray ( darray a, darray b)
+{
+    for (int i = 0; i < mds_ndim; i++)
+        b[i] = a[i];
 }
 
 void mds::summatrix ( dmatrix a, dmatrix b, dmatrix c)

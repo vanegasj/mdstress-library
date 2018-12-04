@@ -38,6 +38,8 @@ namespace mds
 
     double normarray ( darray a );
 
+    void copyarray ( darray a, darray b);
+
     void copymatrix ( dmatrix a, dmatrix b);
 
     void summatrix ( dmatrix a, dmatrix b, dmatrix c);
