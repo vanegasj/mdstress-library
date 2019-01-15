@@ -1666,12 +1666,12 @@ void StressGrid::DistributeNBody ( int nPart, darraylist R, darraylist F, bool d
 
     this->AmatT = new double [maxrows*maxcols];
 
-    this->bvec  = new double [mds_max(maxrows,maxcols)];
+    this->bvec  = new double [maxcols];
 
     this->R_ij  = new darray [nPart*nPart];
     this->F_ij  = new darray [nPart*nPart];
 
-    darray R_ij_temp[nPart];
+    darray R_ij_temp[maxcols];
     darray F_ij_temp;
 
     // zero the pairwise force and pairwise position arrays
