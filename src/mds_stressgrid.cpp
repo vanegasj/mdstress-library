@@ -1657,25 +1657,22 @@ void StressGrid::DistributeN5(darray Ra, darray Rb, darray Rc, darray Rd, darray
 void StressGrid::DistributeNBody ( int nPart, darraylist R, darraylist F, bool distribute_stress)
 {
     int i,j,k, iD, jD, n;
+
+    int maxrows, maxcols;
+    maxrows = mds_ndim*nPart;
+    maxcols = (nPart*(nPart-1))/2;
+
+    this->Amat  = new double [maxrows*maxcols];
+
+    this->AmatT = new double [maxrows*maxcols];
+
+    this->bvec  = new double [mds_max(maxrows,maxcols)];
+
+    this->R_ij  = new darray [nPart*nPart];
+    this->F_ij  = new darray [nPart*nPart];
+
+    darray R_ij_temp[nPart];
     darray F_ij_temp;
-
-    // initialize arrays as necessary
-    if (this->Amat == NULL)
-    {
-        int maxrows, maxcols;
-        maxrows = mds_ndim*this->maxClust;
-        maxcols = (this->maxClust*(this->maxClust-1))/2;
-
-        this->Amat  = new double [maxrows*maxcols];
-
-        if ( this->fdecomp == mds_ccfd )
-            this->AmatT = new double [maxrows*maxcols];
-
-        this->bvec  = new double [mds_max(maxrows,maxcols)];
-
-        this->R_ij  = new darray [nPart*nPart];
-        this->F_ij  = new darray [nPart*nPart];
-    }
 
     // zero the pairwise force and pairwise position arrays
     for (int i = 0; i < nPart*nPart; ++i)
@@ -1684,15 +1681,25 @@ void StressGrid::DistributeNBody ( int nPart, darraylist R, darraylist F, bool d
         F_ij[i][0] = F_ij[i][1] = F_ij[i][2] = 0.0;
     }
 
+    n = 0;
+    for ( i = 0; i < nPart; i++ )
+    {
+        for ( j = i+1; j < nPart; j++ )
+        {
+            diffarray(R[j], R[i], R_ij_temp[n], this->box, this->periodic);
+            copyarray(R_ij_temp[n], this->R_ij[i*nPart+j]);
+            scalearray(R_ij_temp[n], -1.0, this->R_ij[j*nPart+i]);
+            scalearray(R_ij_temp[n],1.0/normarray(R_ij_temp[n]),R_ij_temp[n]);
+            n++;
+        }
+    }
+
     // If the force decomposition is cCFD or CFD
     if(this->fdecomp == mds_ccfd || this->fdecomp == mds_ncfd)
     {
         //Number of rows and columns
         int nRow;
         int nCol;
-
-        //temp variable for normalized R_ij
-        darray R_ij_temp;
 
         nRow = 3 * nPart;
         nCol = (nPart * (nPart - 1)) / 2;
@@ -1703,26 +1710,24 @@ void StressGrid::DistributeNBody ( int nPart, darraylist R, darraylist F, bool d
             this->AmatT[i] = 0.0;
         }
 
+        n = 0;
         for ( i = 0; i < nPart; i++ )
         {
             iD = mds_ndim * i;
             for ( j = i+1; j < nPart; j++ )
             {
-                diffarray(R[j], R[i], R_ij_temp, this->box, this->periodic);
-                copyarray(R_ij_temp, this->R_ij[i*nPart+j]);
-                scalearray(R_ij_temp, -1.0, this->R_ij[j*nPart+i]);
-                scalearray(R_ij_temp,1.0/normarray(R_ij_temp),R_ij_temp);
                 jD = mds_ndim * j;
                 for ( k = 0; k < mds_ndim; k++ )
                 {
-                    this->Amat [nRow*n+(iD+k)] =  R_ij_temp[k];
-                    this->Amat [nRow*n+(jD+k)] = -R_ij_temp[k];
-                    this->AmatT[(iD+k)*nCol+n] =  R_ij_temp[k];
-                    this->AmatT[(jD+k)*nCol+n] = -R_ij_temp[k];
+                    this->Amat [nRow*n+(iD+k)] =  R_ij_temp[n][k];
+                    this->Amat [nRow*n+(jD+k)] = -R_ij_temp[n][k];
+                    this->AmatT[(iD+k)*nCol+n] =  R_ij_temp[n][k];
+                    this->AmatT[(jD+k)*nCol+n] = -R_ij_temp[n][k];
                 }
+                n++;
             }
 
-            scalearray(F[i], 1.0, &this->bvec[iD]);
+            copyarray(F[i], &this->bvec[iD]);
         }
 
         if ( this->lapack->SolveMinNorm(nRow, nCol, this->Amat, this->bvec))
@@ -1739,9 +1744,7 @@ void StressGrid::DistributeNBody ( int nPart, darraylist R, darraylist F, bool d
         {
             for ( j = i+1; j < nPart; j++ )
             {
-                diffarray(R[j], R[i], R_ij_temp, this->box, this->periodic);
-                scalearray(R_ij_temp,1.0/normarray(R_ij_temp),R_ij_temp);
-                scalearray(R_ij_temp, this->bvec[n], F_ij_temp);
+                scalearray(R_ij_temp[n], this->bvec[n], F_ij_temp);
                 copyarray(F_ij_temp, F_ij[i*nPart+j]);
                 scalearray(F_ij_temp, -1.0, F_ij[j*nPart+i]);
 
@@ -1762,7 +1765,7 @@ void StressGrid::DistributeNBody ( int nPart, darraylist R, darraylist F, bool d
                 diffarray(F[i], F[j], F_ij_temp );
                 scalearray(F_ij_temp, 1.0/static_cast<double>(nPart), F_ij_temp);
                 copyarray(F_ij_temp, F_ij[i*nPart+j]);
-                copyarray(F_ij_temp, F_ij[j*nPart+i]);
+                scalearray(F_ij_temp, -1.0, F_ij[j*nPart+i]);
 
                 if (distribute_stress)
                     this->DistributePairInteraction(R[i], R[j], F_ij_temp);
