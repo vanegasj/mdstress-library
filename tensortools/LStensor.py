@@ -499,11 +499,44 @@ class LStensor:
         if(self.verbose):
             print("DONE!\n")
 
+    def g_translate (self, transax, transshift):
+        '''
+        Translate data along a given axis asumming periodic boundary conditions
+        '''
+
+        if (self.gridFlag == False):
+            print("ERROR: LStensor: g_translate: grid is not defined")
+            return 1
+
+        ax = []
+        shift = []
+        if (transax[0] == 1):
+            ax.append(0)
+            shift.append(transshift[0])
+
+        if (transax[1] == 1):
+            ax.append(1)
+            shift.append(transshift[1])
+
+        if (transax[2] == 1):
+            ax.append(2)
+            shift.append(transshift[2])
+
+        data_ = np.reshape(self.data_grid,(self.nx, self.ny, self.nz, self.dsize))
+
+        data_ = np.roll(data_, tuple(shift), axis=tuple(ax))
+
+        data_ = np.reshape(data_,(self.nx*self.ny*self.nz,self.dsize))
+
+        self.data_grid = data_
+
+        if (self.verbose):
+            print("DONE!\n")
+
         return
 
     ####################################################################################################################
     # ATOM:
-
 
     def a_rescale (self,value):
         '''
@@ -898,6 +931,7 @@ class LStensor:
             for i in range(self.nAtom):
                 #self.invariants_grid[i,2] = np.linalg.det(self.data_atom[i,:].reshape(3,3))
                 self.invariants_atom[i,2] = np.linalg.det(self.data_atom[i,[0,1,3,4]].reshape(2,2))
+
 
     ####################################################################################################################
     # LOAD DATA (PRIVATE):
