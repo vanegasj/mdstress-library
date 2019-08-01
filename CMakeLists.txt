@@ -18,26 +18,26 @@ FILE(GLOB MDSTRESS_SOURCES_H   include/mdstress/*.h)
 FILE(GLOB MDSTRESS_SOURCES_CPP src/*.cpp)
 
 # the voro++ build process: treats voro++ as header-only library
-if(NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/contrib/voro++-0.4.6)
-    SET(VORO_URL http://math.lbl.gov/voro++/download/dir/voro++-0.4.6.tar.gz)
-    SET(VORO_DOWNLOAD_PATH ${CMAKE_CURRENT_SOURCE_DIR}/contrib/voro++-0.4.6.tar.gz)
-    message("Downloading and extracting Voro++")
-    FILE(DOWNLOAD ${VORO_URL} ${VORO_DOWNLOAD_PATH})
-    EXECUTE_PROCESS(
-        COMMAND tar xaf voro++-0.4.6.tar.gz
-        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/contrib)
-endif()
-FILE(GLOB VORO_SOURCES_HH contrib/voro++-0.4.6/src/*.hh)
-FILE(GLOB VORO_SOURCES_CC contrib/voro++-0.4.6/src/*.cc)
-FILE(MAKE_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/include/voro++)
-FILE(COPY ${VORO_SOURCES_HH} DESTINATION ${CMAKE_CURRENT_SOURCE_DIR}/include/voro++)
-LIST(REMOVE_ITEM VORO_SOURCES_CC ${CMAKE_CURRENT_SOURCE_DIR}/contrib/voro++-0.4.6/src/voro++.cc)
-LIST(REMOVE_ITEM VORO_SOURCES_CC ${CMAKE_CURRENT_SOURCE_DIR}/contrib/voro++-0.4.6/src/v_base_wl.cc)
+#if(NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/contrib/voro++-0.4.6)
+#    SET(VORO_URL http://math.lbl.gov/voro++/download/dir/voro++-0.4.6.tar.gz)
+#    SET(VORO_DOWNLOAD_PATH ${CMAKE_CURRENT_SOURCE_DIR}/contrib/voro++-0.4.6.tar.gz)
+#    message("Downloading and extracting Voro++")
+#    FILE(DOWNLOAD ${VORO_URL} ${VORO_DOWNLOAD_PATH})
+#    EXECUTE_PROCESS(
+#        COMMAND tar xaf voro++-0.4.6.tar.gz
+#        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/contrib)
+#endif()
+FILE(GLOB VORO_SOURCES_HH include/voro++/*.hh)
+FILE(GLOB VORO_SOURCES_CC contrib/voro++/src/*.cc)
+#FILE(MAKE_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/include/voro++)
+#FILE(COPY ${VORO_SOURCES_HH} DESTINATION ${CMAKE_CURRENT_SOURCE_DIR}/include/voro++)
+LIST(REMOVE_ITEM VORO_SOURCES_CC ${CMAKE_CURRENT_SOURCE_DIR}/contrib/voro++/src/voro++.cc)
+LIST(REMOVE_ITEM VORO_SOURCES_CC ${CMAKE_CURRENT_SOURCE_DIR}/contrib/voro++/src/v_base_wl.cc)
 
 SET(MDSTRESS_SOURCES ${MDSTRESS_SOURCES_CPP} ${MDSTRESS_SOURCES_H} ${VORO_SOURCES_CC} ${VORO_SOURCES_HH})
 
 INCLUDE_DIRECTORIES(include/mdstress)
-INCLUDE_DIRECTORIES(contrib/voro++-0.4.6/src)
+INCLUDE_DIRECTORIES(include/voro++)
 
 # attempt to find LAPACK library
 FIND_LIBRARY(LAPACK_LIBRARY_SYS NAMES lapack liblapack HINTS /usr/lib REQUIRED)
