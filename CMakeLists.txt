@@ -5,6 +5,7 @@ enable_language(CXX)
 include(${CMAKE_ROOT}/Modules/ExternalProject.cmake)
 
 option(MDS_BOOSTPYTHON "Enable Boost Python bindings" OFF)
+option(MDS_COMPILEMAIN "Compile main.cpp into a target" OFF)
 
 if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE "Release" CACHE STRING
@@ -16,6 +17,9 @@ set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG -ffast-math -march=native" CACHE STRIN
 
 FILE(GLOB MDSTRESS_SOURCES_H   include/mdstress/*.h)
 FILE(GLOB MDSTRESS_SOURCES_CPP src/*.cpp)
+
+# remove main.cpp
+LIST(REMOVE_ITEM MDSTRESS_SOURCES_CPP ${CMAKE_CURRENT_SOURCE_DIR}/src/main.cpp)
 
 # the voro++ build process: treats voro++ as header-only library
 #if(NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/contrib/voro++-0.4.6)
@@ -58,6 +62,15 @@ endif()
 
 ADD_LIBRARY(mdstress SHARED ${MDSTRESS_SOURCES})
 TARGET_LINK_LIBRARIES(mdstress ${LAPACK_LIBRARY} ${PYTHON_LIBRARIES})
+
+# setup any targets
+if(MDS_COMPILEMAIN)
+    add_library(mdstress_static STATIC ${MDSTRESS_SOURCES})
+    target_link_libraries(mdstress_static ${LAPACK_LIBRARY} ${PYTHON_LIBRARIES})
+    add_executable(mdstress_test src/main.cpp)
+    target_link_libraries(mdstress_test PRIVATE mdstress_static)
+    install(TARGETS mdstress_test RUNTIME DESTINATION bin)
+endif(MDS_COMPILEMAIN)
 
 INSTALL(TARGETS mdstress RUNTIME DESTINATION bin LIBRARY DESTINATION lib ARCHIVE DESTINATION lib/static)
 

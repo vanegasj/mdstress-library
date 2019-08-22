@@ -435,7 +435,17 @@ void StressGrid::Reset ( )
 //Writes file with average stress to grid using the filename set by the user
 void StressGrid::Write ( )
 {
-    if ( !ierr )
+    if (true)
+    {
+        for (int i = 0; i < this->ncells; ++i)
+        {
+            printf("%03d: %18e %18e %18e %18e %18e %18e %18e %18e %18e\n", i,
+                    this->sum_grid[i][0][0], this->sum_grid[i][0][1], this->sum_grid[i][0][1],
+                    this->sum_grid[i][1][0], this->sum_grid[i][1][1], this->sum_grid[i][1][1],
+                    this->sum_grid[i][2][0], this->sum_grid[i][2][1], this->sum_grid[i][2][1]);
+        }
+    }
+    else if ( !ierr )
     {
         int                Dtype=1;
         dmatrix            avgbox;
