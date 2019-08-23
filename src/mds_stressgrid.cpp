@@ -706,14 +706,9 @@ void StressGrid::ComputeNbodyPairForces(int nAtoms, darraylist R, darraylist F, 
 // F    -> pairwise force
 void StressGrid::DistributePairInteraction( darray xi, darray xj, darray F )
 {
-    int nDim = 3;
-
     double oldt, sumfactor;
-
-    darray curpt, t, d_cgrid, diff;
-
-    int  i, j, k, ii, jj, kk; //counters
-    bool tof;                  //true or false
+    int cmp0x,cmp1x,cmp2x,iX;
+    darray t, d_cgrid, diff;
 
     iarray i1; //grid cell corresponding to particle I (A)
     iarray i2; //grid cell corresponding to particle J (B)
@@ -721,18 +716,13 @@ void StressGrid::DistributePairInteraction( darray xi, darray xj, darray F )
     iarray xn; //next cell during spreading
     iarray c;  //director
     
-    double gridp;
-    
     dmatrix stress;
 
-    int timesInLoop; //this is to avoid that the program gets stacked in an infinite loop
+    int timesInLoop; // avoid getting stuck in the while loop
 
     //------------------------------------------------------------------------------------
     // Calculate the stress tensor
-
-    // difference between xj and xi
-    diffarray ( xj, xi, diff, this->box, this->periodic);
-
+    diffarray( xj, xi, diff, this->box, this->periodic);
     stress[0][0] = F[0]*diff[0];
     stress[1][0] = F[1]*diff[0];
     stress[2][0] = F[2]*diff[0];
@@ -743,133 +733,78 @@ void StressGrid::DistributePairInteraction( darray xi, darray xj, darray F )
     stress[1][2] = F[1]*diff[2];
     stress[2][2] = F[2]*diff[2];
 
-    
     //------------------------------------------------------------------------------------
+    // Distribute the stress
 
-    //------------------------------------------------------------------------------------
-    //Distribute the stress
-
-    // Calculate the grid coordinates (no pbc) for the extreme points
+    // calculate the grid coordinates (no pbc) for the extreme points
     this->GridCoord(xi, &i1[0], &i1[1], &i1[2]);
     this->GridCoord(xj, &i2[0], &i2[1], &i2[2]);
 
     // d_cgrid = vector from the center of the present cell to the initial point
-    // c is a vector that guide the advance in each coordinate (+1 if it has to advance in this coordinate, -1 if it has to go back or 0 if it has to do nothing)
-    for(i = 0; i < nDim; i++) 
-    {
-        d_cgrid[i] = xi[i]-(i1[i]+0.5)*this->gridsp[i];
-        if(i2[i]>i1[i])
-        {
-            c[i] = 1;
-        } 
-        else if(i1[i]>i2[i])
-        {
-            c[i]=-1;
-        } else
-        {
-            c[i] = 0;
-        }
-    }
-
-    // First cross point with aplane (if there is at least one i.e. c[i] != 0)
-    for(i = 0; i < nDim; i++ )
-    {
-        if(c[i]==1)
-        {
-            xn[i] = i1[i]+1;                    //label of the next cell is 1 step further than the previous in this direction
-            gridp = xn[i] * this->gridsp[i];    //position of the cell
-            t[i] = (xi[i]-gridp)/(xi[i]-xj[i]); //parametric time of crossing
-        } 
-        else if(c[i]==-1)
-        {
-            xn[i] = i1[i];                      //label of the next cell is the same in this direction
-            gridp = xn[i] * this->gridsp[i];    //position of the cell
-            t[i] = (xi[i]-gridp)/(xi[i]-xj[i]); //parametric time of crossing
-        } 
-        else 
-            t[i]=1.1;                           //This sets the time larger than 1 because there is no crossing
-
-        x[i] = i1[i];
-
-    }
+    d_cgrid[0] = xi[0]-(i1[0]+0.5)*this->gridsp[0];
+    d_cgrid[1] = xi[1]-(i1[1]+0.5)*this->gridsp[1];
+    d_cgrid[2] = xi[2]-(i1[2]+0.5)*this->gridsp[2];
     
-    oldt      = 0.0; //previous parametric time of crossing
-    sumfactor = 0.0; //This is just to check that the contribution has been completely spread
+    // First cross point with aplane (if there is at least one i.e. c[i] != 0)
+    x[0] = i1[0];
+    x[1] = i1[1];
+    x[2] = i1[2];
 
-    // While we don't reach the last point...
+    // c is a vector that guide the advance in each coordinate (+1 if it has to advance in this coordinate, -1 if it has to go back or 0 if it has to do nothing)
+    c[0] = (i2[0]>i1[0])-(i1[0]>i2[0]);
+    c[1] = (i2[1]>i1[1])-(i1[1]>i2[1]);
+    c[2] = (i2[2]>i1[2])-(i1[2]>i2[2]);
+    
+    // label of the next cell is 1 step further than the previous in this direction
+    xn[0] = i1[0]+(c[0]+1)/2;
+    xn[1] = i1[1]+(c[1]+1)/2;
+    xn[2] = i1[2]+(c[2]+1)/2;
 
-    tof = (c[0]*x[0]<c[0]*i2[0]+mds_eps)||(c[1]*x[1]<c[1]*i2[1]+mds_eps)||(c[2]*x[2]<c[2]*i2[2]+mds_eps);
-
-    timesInLoop = 0;
-
-    while(tof)
-    {
-
-        if(t[0]<t[1]+mds_eps && t[0]<t[2]+mds_eps)
-        {
-            // Distribute the contribution
-            this->SpreadLineSource(diff,d_cgrid,oldt,t[0],x,stress,&sumfactor);
-            // Move
-            d_cgrid[0] -= c[0] * gridsp[0];
-            oldt = t[0];
-            
-            x[0] += c[0];
-            xn[0] += c[0];
-
-            // Next cross point:
-            gridp = xn[0] *gridsp[0];
-            t[0] = (xi[0]-gridp)/(xi[0]-xj[0]);
-        } 
-        else if (t[1]<t[0]+mds_eps && t[1]<t[2]+mds_eps)
-        {
-            // Distribute the contribution
-            this->SpreadLineSource(diff,d_cgrid,oldt,t[1],x,stress,&sumfactor);
-
-            // Move
-            d_cgrid[1] -= c[1] * gridsp[1];
-            oldt = t[1];
-
-            x[1]+=c[1];
-            xn[1]+=c[1];
-
-            // Next cross point:
-            gridp = xn[1] * gridsp[1];
-            t[1] = (xi[1]-gridp)/(xi[1]-xj[1]);
-
-        } 
-        else if (t[2]<t[0]+mds_eps && t[2]<t[1]+mds_eps)
-        {
-            // Distribute the contribution
-            this->SpreadLineSource(diff,d_cgrid,oldt,t[2],x,stress,&sumfactor);
-
-            // Move
-            d_cgrid[2] -= c[2] * gridsp[2];
-            oldt  = t[2];
-
-            x[2]+=c[2];
-            xn[2]+=c[2];
-
-            // Next cross point:
-            gridp = xn[2] * gridsp[2];
-            t[2] = (xi[2]-gridp)/(xi[2]-xj[2]);
-        }
-        else
-        {
-            //printf("ERROR::gmx_spread_local_stress_on_grid: t=(%lf, %lf, %lf), i1=(%d, %d, %d), i2=(%d, %d, %d), x=(%d, %d, %d)\n",t[0], t[1], t[2], i1[0], i1[1], i1[2], i2[0], i2[1], i2[2], x[0], x[1], x[2]);
-            return;
-        }
-
-        tof = (c[0]*x[0]<c[0]*i2[0])||(c[1]*x[1]<c[1]*i2[1])||(c[2]*x[2]<c[2]*i2[2]);
-        timesInLoop ++;
+    // parametric time of crossing
+    t[0] = (xi[0]-xn[0] * this->gridsp[0])/(xi[0]-xj[0]);
+    t[1] = (xi[1]-xn[1] * this->gridsp[1])/(xi[1]-xj[1]);
+    t[2] = (xi[2]-xn[2] * this->gridsp[2])/(xi[2]-xj[2]);
         
-        if(timesInLoop > 10000000) //To avoid infinite loops
-        {
+    // this sets the time larger than 1 if there is no crossing
+    t[0] = (c[0] == 0)*1.1 + (c[0] != 0.0)*t[0];
+    t[1] = (c[1] == 0)*1.1 + (c[1] != 0.0)*t[1];
+    t[2] = (c[2] == 0)*1.1 + (c[2] != 0.0)*t[2];
+    
+    // track previous time of crossing and check that sum is complete (?)
+    oldt      = 0.0; 
+    sumfactor = 0.0; 
+
+    // while we don't reach the last point...
+    timesInLoop = 0;
+    while( (c[0]*x[0]<c[0]*i2[0])||(c[1]*x[1]<c[1]*i2[1])||(c[2]*x[2]<c[2]*i2[2]) )
+    {
+        // iterate loop
+        timesInLoop ++;
+
+        // figure out index
+        cmp0x = ((t[0]<t[1]+mds_eps) + (t[0]<t[2]+mds_eps))/2;
+        cmp1x = ((t[1]<t[0]+mds_eps) + (t[1]<t[2]+mds_eps))/2;
+        cmp2x = ((t[2]<t[0]+mds_eps) + (t[2]<t[1]+mds_eps))/2;
+        iX = 0*cmp0x+1*cmp1x+2*cmp2x;
+
+        // distribute the contribution
+        this->SpreadLineSource(diff,d_cgrid,oldt,t[iX],x,stress,&sumfactor);
+
+        // move to next cross point
+        d_cgrid[iX] -= c[iX] * gridsp[iX];
+        oldt = t[iX];
+        
+        x[iX] += c[iX];
+        xn[iX] += c[iX];
+
+        // Next cross point:
+        t[iX] = (xi[iX]-xn[iX] *gridsp[iX])/(xi[iX]-xj[iX]);
+
+        if(iX > 2 || timesInLoop > 10000000) //To avoid infinite loops
             return;
-        }
     }
 
     // Distribute the last contribution
-
     this->SpreadLineSource(diff,d_cgrid,oldt,1,x,stress,&sumfactor);
 
     //------------------------------------------------------------------------------------
