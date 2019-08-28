@@ -57,6 +57,7 @@ StressGrid::StressGrid()
 
     this->nframes  = 0;
     this->nreset   = 0;
+    this->batch_index = 0;
     
     for ( int i = 0; i < mds_ndim; i++ )
     {
@@ -83,6 +84,7 @@ StressGrid::StressGrid()
     this->molecule_id    = NULL;
     this->radii          = NULL;
     this->positions      = NULL;
+    this->batch          = NULL;
     
     this->nodispcor      = false;
     this->periodic[0]    = false;
@@ -111,6 +113,7 @@ void StressGrid::Clear()
     if (this->molecule_id  != NULL ) delete [] this->molecule_id;
     if (this->radii        != NULL ) delete [] this->radii;
     if (this->positions    != NULL ) delete [] this->positions;
+    if (this->batch        != NULL ) delete [] this->batch;
 
     this->lapack       = NULL;
     this->Amat         = NULL;
@@ -123,6 +126,7 @@ void StressGrid::Clear()
     this->molecule_id  = NULL;
     this->radii        = NULL;
     this->positions    = NULL;
+    this->batch        = NULL;
 }
 
 // This function is provided to identify bad settings
@@ -247,6 +251,10 @@ void StressGrid::Init()
         
         // Finally, create the lapack object to deal with linear solvers and projections
         this->lapack = new Lapack (mds_ndim*this->maxClust,(this->maxClust*(this->maxClust-1))/2);
+
+        // now create the batch array
+        this->batch_index = 0;
+        this->batch = new batcharrays;
     }
 }
         
@@ -766,9 +774,9 @@ void StressGrid::DistributePairInteraction( darray xi, darray xj, darray F )
     t[2] = (xi[2]-xn[2] * this->gridsp[2])/(xi[2]-xj[2]);
         
     // this sets the time larger than 1 if there is no crossing
-    t[0] = (c[0] == 0)*1.1 + (c[0] != 0.0)*t[0];
-    t[1] = (c[1] == 0)*1.1 + (c[1] != 0.0)*t[1];
-    t[2] = (c[2] == 0)*1.1 + (c[2] != 0.0)*t[2];
+    t[0] = (c[0] == 0.0)*1.1 + (c[0] != 0.0)*t[0];
+    t[1] = (c[1] == 0.0)*1.1 + (c[1] != 0.0)*t[1];
+    t[2] = (c[2] == 0.0)*1.1 + (c[2] != 0.0)*t[2];
     
     // track previous time of crossing and check that sum is complete (?)
     oldt      = 0.0; 
@@ -806,8 +814,6 @@ void StressGrid::DistributePairInteraction( darray xi, darray xj, darray F )
 
     // Distribute the last contribution
     this->SpreadLineSource(diff,d_cgrid,oldt,1,x,stress,&sumfactor);
-
-    //------------------------------------------------------------------------------------
 }
 
 //----------------------------------------------------------------------------------------

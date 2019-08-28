@@ -345,6 +345,9 @@ class  mds::StressGrid
         double    *positions;    ///< the position of an atomic site
         int       *molecule_id;  ///< The molecule an atomic site belongs to
         //@}
+        
+        int batch_index;
+        batcharrays *batch;
 
         /** Method to delete the preallocated member variables */
         void Clear();

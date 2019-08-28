@@ -1,3 +1,4 @@
+#pragma once
 /*=========================================================================
 
   Module    : MDStress
@@ -76,13 +77,19 @@ namespace mds
 
     #define mds_fileext "mds"
     
-    
     typedef bool    barray[4];
     typedef int     iarray[3];
     typedef double  darray[3];
     typedef double  dmatrix[3][3];
     typedef darray* darraylist;
     typedef iarray* iarraylist;
+
+    #define mds_batchsize 64
+    typedef struct {
+        darray Ri[mds_batchsize];
+        darray Rj[mds_batchsize];
+        darray Fij[mds_batchsize];
+    } batcharrays;
     
     class  StressGrid;
     class  StressGridPython;

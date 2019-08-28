@@ -17,24 +17,8 @@ set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG -ffast-math -march=native" CACHE STRIN
 
 FILE(GLOB MDSTRESS_SOURCES_H   include/mdstress/*.h)
 FILE(GLOB MDSTRESS_SOURCES_CPP src/*.cpp)
-
-# remove main.cpp
-LIST(REMOVE_ITEM MDSTRESS_SOURCES_CPP ${CMAKE_CURRENT_SOURCE_DIR}/src/main.cpp)
-
-# the voro++ build process: treats voro++ as header-only library
-#if(NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/contrib/voro++-0.4.6)
-#    SET(VORO_URL http://math.lbl.gov/voro++/download/dir/voro++-0.4.6.tar.gz)
-#    SET(VORO_DOWNLOAD_PATH ${CMAKE_CURRENT_SOURCE_DIR}/contrib/voro++-0.4.6.tar.gz)
-#    message("Downloading and extracting Voro++")
-#    FILE(DOWNLOAD ${VORO_URL} ${VORO_DOWNLOAD_PATH})
-#    EXECUTE_PROCESS(
-#        COMMAND tar xaf voro++-0.4.6.tar.gz
-#        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/contrib)
-#endif()
 FILE(GLOB VORO_SOURCES_HH include/voro++/*.hh)
 FILE(GLOB VORO_SOURCES_CC contrib/voro++/src/*.cc)
-#FILE(MAKE_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/include/voro++)
-#FILE(COPY ${VORO_SOURCES_HH} DESTINATION ${CMAKE_CURRENT_SOURCE_DIR}/include/voro++)
 LIST(REMOVE_ITEM VORO_SOURCES_CC ${CMAKE_CURRENT_SOURCE_DIR}/contrib/voro++/src/voro++.cc)
 LIST(REMOVE_ITEM VORO_SOURCES_CC ${CMAKE_CURRENT_SOURCE_DIR}/contrib/voro++/src/v_base_wl.cc)
 
@@ -43,7 +27,6 @@ SET(MDSTRESS_SOURCES ${MDSTRESS_SOURCES_CPP} ${MDSTRESS_SOURCES_H} ${VORO_SOURCE
 INCLUDE_DIRECTORIES(include/mdstress)
 INCLUDE_DIRECTORIES(include/voro++)
 
-# attempt to find LAPACK library
 FIND_LIBRARY(LAPACK_LIBRARY_SYS NAMES lapack liblapack HINTS /usr/lib REQUIRED)
 if (NOT LAPACK_LIBRARY_SYS)
     UNSET(LAPACK_LIBRARY_SYS-NOTFOUND)
@@ -60,27 +43,30 @@ else()
     FIND_LIBRARY(LAPACK_LIBRARY NAMES lapack liblapack HINTS /usr/lib REQUIRED)
 endif()
 
-ADD_LIBRARY(mdstress SHARED ${MDSTRESS_SOURCES})
-TARGET_LINK_LIBRARIES(mdstress ${LAPACK_LIBRARY} ${PYTHON_LIBRARIES})
-
-# setup any targets
 if(MDS_COMPILEMAIN)
-    add_library(mdstress_static STATIC ${MDSTRESS_SOURCES})
-    target_link_libraries(mdstress_static ${LAPACK_LIBRARY} ${PYTHON_LIBRARIES})
-    add_executable(mdstress_test src/main.cpp)
-    target_link_libraries(mdstress_test PRIVATE mdstress_static)
+    list(REMOVE_ITEM MDSTRESS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/contrib/voro++/src/cmd_line.cc)
+    add_executable(mdstress_test ${MDSTRESS_SOURCES})
+    target_link_libraries(mdstress_test PRIVATE ${LAPACK_LIBRARY} ${PYTHON_LIBRARIES})
     install(TARGETS mdstress_test RUNTIME DESTINATION bin)
+else(MDS_COMPILEMAIN)
+    # remove main.cpp
+    LIST(REMOVE_ITEM MDSTRESS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/src/main.cpp)
+
+    # attempt to find LAPACK library
+    ADD_LIBRARY(mdstress SHARED ${MDSTRESS_SOURCES})
+    TARGET_LINK_LIBRARIES(mdstress ${LAPACK_LIBRARY} ${PYTHON_LIBRARIES})
+
+    # setup any targets
+    INSTALL(TARGETS mdstress RUNTIME DESTINATION bin LIBRARY DESTINATION lib ARCHIVE DESTINATION lib/static)
+
+    INSTALL(FILES ${MDSTRESS_SOURCES_H} DESTINATION include/mdstress)
+    INSTALL(FILES ${VORO_SOURCES_HH} DESTINATION include/voro++)
+
+    # only process python bindings if requested
+    if(MDS_BOOSTPYTHON)
+        ADD_SUBDIRECTORY(boostpython)
+    endif()
+
+    # process tensortools
+    ADD_SUBDIRECTORY(tensortools)
 endif(MDS_COMPILEMAIN)
-
-INSTALL(TARGETS mdstress RUNTIME DESTINATION bin LIBRARY DESTINATION lib ARCHIVE DESTINATION lib/static)
-
-INSTALL(FILES ${MDSTRESS_SOURCES_H} DESTINATION include/mdstress)
-INSTALL(FILES ${VORO_SOURCES_HH} DESTINATION include/voro++)
-
-# only process python bindings if requested
-if(MDS_BOOSTPYTHON)
-    ADD_SUBDIRECTORY(boostpython)
-endif()
-
-# process tensortools
-ADD_SUBDIRECTORY(tensortools)

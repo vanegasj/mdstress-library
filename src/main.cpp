@@ -11,7 +11,7 @@ typedef double real_t;
 #define LZ realval(2.0)
 #define MCSTEPS 350000
 
-real_t gradV(const mds::darray & a, const mds::darray & b, mds::darray & fab)
+static inline real_t gradV(const mds::darray & a, const mds::darray & b, mds::darray & fab)
 {
     // aziz constants
     constexpr real_t rm    = realval(2.9673);
