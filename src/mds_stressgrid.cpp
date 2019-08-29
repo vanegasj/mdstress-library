@@ -282,6 +282,17 @@ void StressGrid::SumGrid ( )
 {
     if ( !ierr )
     {
+        // finish off the batches
+        for (int i = 0; i < this->batch_index; ++i)
+        {
+            BatchPairInteraction(
+                    this->batch->Ri[i],
+                    this->batch->Rj[i],
+                    this->batch->Fij[i]);
+        }
+        this->batch_index = 0;
+
+        this->batch_index = 0;
         if (this->spatatom == mds_spat)
         {
             for( int i=0; i<this->ncells; i++ )
@@ -713,6 +724,45 @@ void StressGrid::ComputeNbodyPairForces(int nAtoms, darraylist R, darraylist F, 
 // xj   -> position of particle J (B)
 // F    -> pairwise force
 void StressGrid::DistributePairInteraction( darray xi, darray xj, darray F )
+{
+    // store for later processing
+    if (this->batch_index < mds_batchsize)
+    {
+        this->batch->Ri[this->batch_index][0]  = xi[0];
+        this->batch->Ri[this->batch_index][1]  = xi[1];
+        this->batch->Ri[this->batch_index][2]  = xi[2];
+        this->batch->Rj[this->batch_index][0]  = xj[0];
+        this->batch->Rj[this->batch_index][1]  = xj[1];
+        this->batch->Rj[this->batch_index][2]  = xj[2];
+        this->batch->Fij[this->batch_index][0] = F[0];
+        this->batch->Fij[this->batch_index][1] = F[1];
+        this->batch->Fij[this->batch_index][2] = F[2];
+        this->batch_index += 1;
+    }
+
+    // process
+    if (this->batch_index == mds_batchsize)
+    {
+        for (int i = 0; i < this->batch_index; ++i)
+        {
+            BatchPairInteraction(
+                    this->batch->Ri[i],
+                    this->batch->Rj[i],
+                    this->batch->Fij[i]);
+        }
+        this->batch_index = 0;
+    }
+}
+
+//----------------------------------------------------------------------------------------
+// DistributePairInteraction
+//
+// Distributes interactions onto locals_grid (from the initial grid point to the last grid point)
+// Requires:
+// xi   -> position of particle I (A)
+// xj   -> position of particle J (B)
+// F    -> pairwise force
+void StressGrid::BatchPairInteraction( darray xi, darray xj, darray F )
 {
     double oldt, sumfactor;
     int cmp0x,cmp1x,cmp2x,iX;

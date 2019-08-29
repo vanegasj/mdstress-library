@@ -355,6 +355,15 @@ class  mds::StressGrid
         /** This function is provided to avoid misleadings parameters, or to identify bad settings */
         int CheckSettings();
         
+        /** BatchPairInteraction
+         *
+         * Stores pair interaction for later processing.
+         * Requires:
+         * R1   -> position of particle I (A)
+         * R2   -> position of particle J (B)
+         * F    -> pairwise force */
+        void BatchPairInteraction     ( darray R1, darray R2, darray F );
+        
         /** DistributePairInteraction
          *
          * Distributes interactions onto locals_grid (from the initial grid point to the last grid point)
