@@ -345,9 +345,17 @@ class  mds::StressGrid
         double    *positions;    ///< the position of an atomic site
         int       *molecule_id;  ///< The molecule an atomic site belongs to
         //@}
-        
+
         int batch_index;
         batcharrays *batch;
+
+#ifdef __CUDACC__
+        /** @name CUDA*/
+        //@{
+        batcharrays *cu_batch;
+        dmatrix     *cu_sum_grid;
+        //@}
+#endif//__CUDACC__
 
         /** Method to delete the preallocated member variables */
         void Clear();

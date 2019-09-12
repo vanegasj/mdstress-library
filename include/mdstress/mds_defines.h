@@ -21,6 +21,18 @@
      juan.m.vanegas@gmail.com
 =========================================================================*/
 
+// a combined summatrix and scalematrix macro
+#define ssmatm(a,b,c) \
+c[0][0] += a*b[0][0]; \
+c[0][1] += a*b[0][1]; \
+c[0][2] += a*b[0][2]; \
+c[1][0] += a*b[1][0]; \
+c[1][1] += a*b[1][1]; \
+c[1][2] += a*b[1][2]; \
+c[2][0] += a*b[2][0]; \
+c[2][1] += a*b[2][1]; \
+c[2][2] += a*b[2][2]
+
 namespace mds
 {   
     #define mds_max(a,b) \

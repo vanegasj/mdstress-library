@@ -23,19 +23,11 @@
 #include "mds_stressgrid.h"
 #include "voro++.hh"
 
-using namespace mds;
+#ifdef __CUDACC__
+#include "mds_custress.h"
+#endif//__CUDACC__
 
-// a combined summatrix and scalematrix macro
-#define ssmatm(a,b,c) \
-c[0][0] += a*b[0][0]; \
-c[0][1] += a*b[0][1]; \
-c[0][2] += a*b[0][2]; \
-c[1][0] += a*b[1][0]; \
-c[1][1] += a*b[1][1]; \
-c[1][2] += a*b[1][2]; \
-c[2][0] += a*b[2][0]; \
-c[2][1] += a*b[2][1]; \
-c[2][2] += a*b[2][2]
+using namespace mds;
 
 //Constructor
 StressGrid::StressGrid()
@@ -127,6 +119,10 @@ void StressGrid::Clear()
     this->radii        = NULL;
     this->positions    = NULL;
     this->batch        = NULL;
+
+#ifdef __CUDACC__
+    custress_clear();
+#endif//__CUDACC__
 }
 
 // This function is provided to identify bad settings
@@ -255,6 +251,10 @@ void StressGrid::Init()
         // now create the batch array
         this->batch_index = 0;
         this->batch = new batcharrays;
+
+#ifdef __CUDACC__
+        custress_init(this->ncells);
+#endif//__CUDACC__
     }
 }
         

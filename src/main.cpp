@@ -4,12 +4,12 @@
 typedef double real_t;
 #define realval(a) (a)
 
-#define NUM_ATOMS 9
+#define NUM_ATOMS 100
 #define SEED 994373
 #define LX realval(2.0)
 #define LY realval(2.0)
 #define LZ realval(2.0)
-#define MCSTEPS 350000
+#define MCSTEPS 10000
 
 static inline real_t gradV(const mds::darray & a, const mds::darray & b, mds::darray & fab)
 {
