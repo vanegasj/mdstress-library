@@ -9,6 +9,34 @@
 // some macros to check for errors
 #define checkCuda(a) __checkCuda(a, __FILE__, __LINE__)
 
+// need atomic add for FP64 (only for older hardware):
+#if !defined(__CUDA_ARCH__) || __CUDA_ARCH__ >= 600
+#else
+__device__ double atomicAdd(double* address, double val)
+{
+    unsigned long long int* address_as_ull = (unsigned long long int*)address;
+    unsigned long long int old = *address_as_ull, assumed;
+    do {
+        assumed = old;
+        old = atomicCAS(address_as_ull, assumed,
+                __double_as_longlong(val + __longlong_as_double(assumed)));
+    } while (assumed != old);
+    return __longlong_as_double(old);
+}
+#endif
+
+// cuda specific ssmatm
+#define cu_ssmatm(a,b,c) \
+atomicAdd(&c[0][0],a*b[0][0]); \
+atomicAdd(&c[0][1],a*b[0][1]); \
+atomicAdd(&c[0][2],a*b[0][2]); \
+atomicAdd(&c[1][0],a*b[1][0]); \
+atomicAdd(&c[1][1],a*b[1][1]); \
+atomicAdd(&c[1][2],a*b[1][2]); \
+atomicAdd(&c[2][0],a*b[2][0]); \
+atomicAdd(&c[2][1],a*b[2][1]); \
+atomicAdd(&c[2][2],a*b[2][2])
+
 // convenience function for checking CUDA runtime API results
 inline
 cudaError_t __checkCuda(cudaError_t result, const char * file, int line)
@@ -156,14 +184,14 @@ __device__ static inline void spread_line_source(
     //printf("FACTOR 0: %f, 1: %f,2: %f, 3: %f,4: %f, 5: %f,6: %f, 7: %f\n",factor[0],factor[1],factor[2],factor[3],factor[4],factor[5],factor[6],factor[7]);
 
     // perform the sums into the grid
-    ssmatm(factor[0], stress, current_grid[iip1 + jjp1 + kkp1]);
-    ssmatm(factor[1], stress, current_grid[iip1 + jjp1 + kkm1]);
-    ssmatm(factor[2], stress, current_grid[iip1 + jjm1 + kkp1]);
-    ssmatm(factor[3], stress, current_grid[iip1 + jjm1 + kkm1]);
-    ssmatm(factor[4], stress, current_grid[iim1 + jjp1 + kkp1]);
-    ssmatm(factor[5], stress, current_grid[iim1 + jjp1 + kkm1]);
-    ssmatm(factor[6], stress, current_grid[iim1 + jjm1 + kkp1]);
-    ssmatm(factor[7], stress, current_grid[iim1 + jjm1 + kkm1]);
+    cu_ssmatm(factor[0], stress, current_grid[iip1 + jjp1 + kkp1]);
+    cu_ssmatm(factor[1], stress, current_grid[iip1 + jjp1 + kkm1]);
+    cu_ssmatm(factor[2], stress, current_grid[iip1 + jjm1 + kkp1]);
+    cu_ssmatm(factor[3], stress, current_grid[iip1 + jjm1 + kkm1]);
+    cu_ssmatm(factor[4], stress, current_grid[iim1 + jjp1 + kkp1]);
+    cu_ssmatm(factor[5], stress, current_grid[iim1 + jjp1 + kkm1]);
+    cu_ssmatm(factor[6], stress, current_grid[iim1 + jjm1 + kkp1]);
+    cu_ssmatm(factor[7], stress, current_grid[iim1 + jjm1 + kkm1]);
 }
 
 __device__ static inline void diff_array(
@@ -345,7 +373,7 @@ void custress_set_periodic(bool x, bool y, bool z, bool enforce)
 {
     // initialize period boundary conditions
     cu_barray cu_periodic = { x, y, z ,enforce };
-    checkCuda(cudaMemcpyToSymbol(c_periodic, cu_periodic, sizeof(mds::barray)));
+    checkCuda(cudaMemcpyToSymbol(c_periodic, cu_periodic, sizeof(cu_barray)));
 }
 
 // public functions
@@ -390,17 +418,17 @@ void custress_update_box_spacings(const mds::dmatrix box, const mds::dmatrix inv
 }
 
 // gpu kernel
-/*__global__ static void process_batch(uint_t batch_index, const batcharrays_t * __restrict__ batch, cu_dmatrix * current_grid)
+__global__ static void process_batch(uint_t batch_index, const batcharrays_t * __restrict__ batch, cu_dmatrix * current_grid)
 {
     auto bid = blockIdx.x;
 
     // guard execution
         BatchPairInteraction(batch->Ri[bid], batch->Rj[bid], batch->Fij[bid], current_grid);
-}*/
-__global__ static void process_batch(uint_t batch_index, const batcharrays_t * __restrict__ batch, cu_dmatrix * current_grid)
+}
+/*__global__ static void process_batch(uint_t batch_index, const batcharrays_t * __restrict__ batch, cu_dmatrix * current_grid)
 {
     BatchPairInteraction(batch->Ri[batch_index], batch->Rj[batch_index], batch->Fij[batch_index], current_grid);
-}
+}*/
 
 // launches GPU kernel
 void custress_distribute_pair_interaction(const mds::darray xi, const mds::darray xj, const mds::darray Fij)
@@ -431,8 +459,7 @@ void custress_distribute_pair_interaction(const mds::darray xi, const mds::darra
                 cudaMemcpyHostToDevice) );
 
         // execute with a single element processed by each streaming multiprocessor
-        for (int i = 0; i < cu_batchsize; ++i)
-            process_batch<<<1,1>>>(i, d_batch, d_sum_grid);
+        process_batch<<<h_bindex,1>>>(h_bindex, d_batch, d_sum_grid);
 
         h_bindex = 0;
     }
@@ -451,8 +478,7 @@ void custress_sum_grid(mds::dmatrix * current_grid)
                 cudaMemcpyHostToDevice) );
 
         // execute with a single element processed by each streaming multiprocessor
-        for (int i = 0; i < h_bindex; ++i)
-            process_batch<<<1,1>>>(i, d_batch, d_sum_grid);
+        process_batch<<<h_bindex,1>>>(h_bindex, d_batch, d_sum_grid);
 
        h_bindex = 0;
     }
