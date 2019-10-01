@@ -93,13 +93,7 @@ class  mds::StressGrid
         
         /** Set/Get periodic boundary conditions: */
         //@{
-        void SetPeriodicBoundaries(bool x, bool y, bool z, bool enforce)
-        { 
-            this->periodic[0] = x;
-            this->periodic[1] = y;
-            this->periodic[2] = z;
-            this->periodic[3] = enforce;
-        }
+        void SetPeriodicBoundaries(bool x, bool y, bool z, bool enforce);
         void  GetPeriodicBoundaries(bool & x, bool & y, bool & z, bool enforce)
         { 
             x = this->periodic[0];
@@ -346,31 +340,11 @@ class  mds::StressGrid
         int       *molecule_id;  ///< The molecule an atomic site belongs to
         //@}
 
-        int batch_index;
-        batcharrays *batch;
-
-#ifdef __CUDACC__
-        /** @name CUDA*/
-        //@{
-        batcharrays *cu_batch;
-        dmatrix     *cu_sum_grid;
-        //@}
-#endif//__CUDACC__
-
         /** Method to delete the preallocated member variables */
         void Clear();
 
         /** This function is provided to avoid misleadings parameters, or to identify bad settings */
         int CheckSettings();
-        
-        /** BatchPairInteraction
-         *
-         * Stores pair interaction for later processing.
-         * Requires:
-         * R1   -> position of particle I (A)
-         * R2   -> position of particle J (B)
-         * F    -> pairwise force */
-        void BatchPairInteraction     ( darray R1, darray R2, darray F );
         
         /** DistributePairInteraction
          *

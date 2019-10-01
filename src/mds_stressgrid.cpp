@@ -23,9 +23,10 @@
 #include "mds_stressgrid.h"
 #include "voro++.hh"
 
-#ifdef __CUDACC__
+#define CUSTRESS_ENABLE
+#ifdef CUSTRESS_ENABLE
 #include "mds_custress.h"
-#endif//__CUDACC__
+#endif//CUSTRESS_ENABLE
 
 using namespace mds;
 
@@ -49,7 +50,6 @@ StressGrid::StressGrid()
 
     this->nframes  = 0;
     this->nreset   = 0;
-    this->batch_index = 0;
     
     for ( int i = 0; i < mds_ndim; i++ )
     {
@@ -76,7 +76,6 @@ StressGrid::StressGrid()
     this->molecule_id    = NULL;
     this->radii          = NULL;
     this->positions      = NULL;
-    this->batch          = NULL;
     
     this->nodispcor      = false;
     this->periodic[0]    = false;
@@ -105,7 +104,6 @@ void StressGrid::Clear()
     if (this->molecule_id  != NULL ) delete [] this->molecule_id;
     if (this->radii        != NULL ) delete [] this->radii;
     if (this->positions    != NULL ) delete [] this->positions;
-    if (this->batch        != NULL ) delete [] this->batch;
 
     this->lapack       = NULL;
     this->Amat         = NULL;
@@ -118,11 +116,10 @@ void StressGrid::Clear()
     this->molecule_id  = NULL;
     this->radii        = NULL;
     this->positions    = NULL;
-    this->batch        = NULL;
 
-#ifdef __CUDACC__
+#ifdef CUSTRESS_ENABLE
     custress_clear();
-#endif//__CUDACC__
+#endif//CUSTRESS_ENABLE
 }
 
 // This function is provided to identify bad settings
@@ -248,14 +245,22 @@ void StressGrid::Init()
         // Finally, create the lapack object to deal with linear solvers and projections
         this->lapack = new Lapack (mds_ndim*this->maxClust,(this->maxClust*(this->maxClust-1))/2);
 
-        // now create the batch array
-        this->batch_index = 0;
-        this->batch = new batcharrays;
-
-#ifdef __CUDACC__
-        custress_init(this->ncells);
-#endif//__CUDACC__
+#ifdef CUSTRESS_ENABLE
+        custress_init(this->ncells, this->nx, this->ny, this->nz);
+#endif//CUSTRESS_ENABLE
     }
+}
+
+
+void StressGrid::SetPeriodicBoundaries(bool x, bool y, bool z, bool enforce)
+{ 
+#ifdef CUSTRESS_ENABLE
+    custress_set_periodic(x, y, z, enforce);
+#endif//CUSTRESS_ENABLE
+    this->periodic[0] = x;
+    this->periodic[1] = y;
+    this->periodic[2] = z;
+    this->periodic[3] = enforce;
 }
         
 // This function updates the box, invbox and computes the new spacings.
@@ -273,6 +278,10 @@ void StressGrid::UpdateBoxSpacings ( dmatrix box )
         this->invgridsp = 1.0/(this->gridsp[0]*this->gridsp[1]*this->gridsp[2]);
 
         summatrix( this->box, this->sumbox, this->sumbox );
+
+#ifdef CUSTRESS_ENABLE
+        custress_update_box_spacings(this->box, this->invbox, this->gridsp);
+#endif//CUSTRESS_ENABLE
     }
 }
 
@@ -282,17 +291,10 @@ void StressGrid::SumGrid ( )
 {
     if ( !ierr )
     {
-        // finish off the batches
-        for (int i = 0; i < this->batch_index; ++i)
-        {
-            BatchPairInteraction(
-                    this->batch->Ri[i],
-                    this->batch->Rj[i],
-                    this->batch->Fij[i]);
-        }
-        this->batch_index = 0;
+#ifdef CUSTRESS_ENABLE
+        custress_sum_grid(this->current_grid);
+#endif//CUSTRESS_ENABLE
 
-        this->batch_index = 0;
         if (this->spatatom == mds_spat)
         {
             for( int i=0; i<this->ncells; i++ )
@@ -725,45 +727,9 @@ void StressGrid::ComputeNbodyPairForces(int nAtoms, darraylist R, darraylist F, 
 // F    -> pairwise force
 void StressGrid::DistributePairInteraction( darray xi, darray xj, darray F )
 {
-    // store for later processing
-    if (this->batch_index < mds_batchsize)
-    {
-        this->batch->Ri[this->batch_index][0]  = xi[0];
-        this->batch->Ri[this->batch_index][1]  = xi[1];
-        this->batch->Ri[this->batch_index][2]  = xi[2];
-        this->batch->Rj[this->batch_index][0]  = xj[0];
-        this->batch->Rj[this->batch_index][1]  = xj[1];
-        this->batch->Rj[this->batch_index][2]  = xj[2];
-        this->batch->Fij[this->batch_index][0] = F[0];
-        this->batch->Fij[this->batch_index][1] = F[1];
-        this->batch->Fij[this->batch_index][2] = F[2];
-        this->batch_index += 1;
-    }
-
-    // process
-    if (this->batch_index == mds_batchsize)
-    {
-        for (int i = 0; i < this->batch_index; ++i)
-        {
-            BatchPairInteraction(
-                    this->batch->Ri[i],
-                    this->batch->Rj[i],
-                    this->batch->Fij[i]);
-        }
-        this->batch_index = 0;
-    }
-}
-
-//----------------------------------------------------------------------------------------
-// DistributePairInteraction
-//
-// Distributes interactions onto locals_grid (from the initial grid point to the last grid point)
-// Requires:
-// xi   -> position of particle I (A)
-// xj   -> position of particle J (B)
-// F    -> pairwise force
-void StressGrid::BatchPairInteraction( darray xi, darray xj, darray F )
-{
+#ifdef CUSTRESS_ENABLE
+    custress_distribute_pair_interaction(xi,xj,F);
+#else
     double oldt, sumfactor;
     int cmp0x,cmp1x,cmp2x,iX;
     darray t, d_cgrid, diff;
@@ -864,6 +830,7 @@ void StressGrid::BatchPairInteraction( darray xi, darray xj, darray F )
 
     // Distribute the last contribution
     this->SpreadLineSource(diff,d_cgrid,oldt,1,x,stress,&sumfactor);
+#endif//CUSTRESS_ENABLE
 }
 
 //----------------------------------------------------------------------------------------
