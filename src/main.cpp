@@ -4,12 +4,12 @@
 typedef double real_t;
 #define realval(a) (a)
 
-#define NUM_ATOMS 100
+#define NUM_ATOMS 8192
 #define SEED 994373
-#define LX realval(2.0)
-#define LY realval(2.0)
-#define LZ realval(2.0)
-#define MCSTEPS 10000
+#define LX realval(20.0)
+#define LY realval(20.0)
+#define LZ realval(20.0)
+#define MCSTEPS 0
 
 static inline real_t gradV(const mds::darray & a, const mds::darray & b, mds::darray & fab)
 {
@@ -110,14 +110,14 @@ int main(int argc, const char ** argv)
     }
     
     // print some output
-    printf("Old: Positions || Forces || Force\n");
+    /*printf("Old: Positions || Forces || Force\n");
     for (int i = 0; i < NUM_ATOMS; ++i)
     {
         printf("%02d: %15e, %15e, %15e", i+1, R[i][0], R[i][1], R[i][2]);
         printf(" || %15e, %15e, %15e", F[i][0], F[i][1], F[i][2]);
         printf(" || %15e\n", sqrt(F[i][0]*F[i][0]+F[i][1]*F[i][1]+F[i][2]*F[i][2]));
     }
-    printf("\n");
+    printf("\n");*/
 
     // relax the positions by seeking lowest potential configuration
     for (int i = 0; i < MCSTEPS; ++i)
@@ -167,38 +167,22 @@ int main(int argc, const char ** argv)
                 R[k][0] = Rk[0];
                 R[k][1] = Rk[1];
                 R[k][2] = Rk[2];
+                F[k][0] = fnew[0];
+                F[k][1] = fnew[1];
+                F[k][2] = fnew[2];
             }
         }
     }
-
-    // calculate total force on each atom
-    for (int i = 0; i < NUM_ATOMS; ++i)
-    {
-        // sum into Fi
-        mds::darray Fi = {realval(0.0)};
-
-        // first part
-        for (int j = 0; j < i; ++j)
-            gradV(R[i],R[j],Fi);
-        // remainder
-        for (int j = i+1; j < NUM_ATOMS; ++j)
-            gradV(R[i],R[j],Fi);
-
-        // store Fi
-        F[i][0] = Fi[0];
-        F[i][1] = Fi[1];
-        F[i][2] = Fi[2];
-    }
-
+    
     // print some output
-    printf("New: Positions || Forces || Force\n");
+    /*printf("New: Positions || Forces || Force\n");
     for (int i = 0; i < NUM_ATOMS; ++i)
     {
         printf("%02d: %15e, %15e, %15e", i+1, R[i][0], R[i][1], R[i][2]);
         printf(" || %15e, %15e, %15e", F[i][0], F[i][1], F[i][2]);
         printf(" || %15e\n", sqrt(F[i][0]*F[i][0]+F[i][1]*F[i][1]+F[i][2]*F[i][2]));
     }
-    printf("\n");
+    printf("\n");*/
 
     // initialize mdstresslib
     mds::StressGrid mds;
@@ -208,8 +192,8 @@ int main(int argc, const char ** argv)
     mds.SetForceDecomposition(mds_ccfd);
     
     mds.SetFileName("output.bin");
-    mds.SetMaxCluster(int(NUM_ATOMS*(NUM_ATOMS-1)/2 + 1));
     mds.SetNumberOfAtoms(NUM_ATOMS);
+    mds.SetMaxCluster(NUM_ATOMS);
 
     mds::dmatrix box = {{0}};
     box[0][0] = LX;
@@ -217,16 +201,43 @@ int main(int argc, const char ** argv)
     box[2][2] = LZ;
     mds.SetBox(box);
 
-    mds.SetNumberOfGridCellsX(4);
-    mds.SetNumberOfGridCellsY(4);
-    mds.SetNumberOfGridCellsZ(4);
+    mds.SetNumberOfGridCellsX(16);
+    mds.SetNumberOfGridCellsY(16);
+    mds.SetNumberOfGridCellsZ(16);
 
     // initialize mdstress
     mds.Init();
     mds.UpdateBoxSpacings(box);
 
+    // calculate total force on each atom
+    for (int i = 0; i < NUM_ATOMS; ++i)
+    {
+        // first part
+        for (int j = i+1; j < NUM_ATOMS; ++j)
+        {
+            // sum into Fi
+            mds::darray Fx[2] = { {realval(0.0)} };
+            mds::darray Rx[2] = { {realval(0.0)} };
+
+            // calculate gradient
+            gradV(R[i],R[j],Fx[0]);
+
+            Rx[0][0] = R[i][0];
+            Rx[0][1] = R[i][1];
+            Rx[0][2] = R[i][2];
+            Rx[1][0] = R[j][0];
+            Rx[1][1] = R[j][1];
+            Rx[1][2] = R[j][2];
+            Fx[1][0] = -Fx[0][0];
+            Fx[1][1] = -Fx[0][1];
+            Fx[1][2] = -Fx[0][2];
+
+            // call into mdstsresslib
+            mds.DistributeInteraction(2,Rx,Fx,NULL);
+        }
+    }
+    
     // perform stress analysis
-    mds.DistributeInteraction(NUM_ATOMS,R,F,NULL);
     mds.SumGrid();
     mds.Write();
 

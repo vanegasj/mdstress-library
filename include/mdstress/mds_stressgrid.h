@@ -297,6 +297,16 @@ class  mds::StressGrid
         /** Destructor */
         ~StressGrid();
         
+        /** DistributePairInteraction
+         *
+         * Distributes interactions onto locals_grid (from the initial grid point to the last grid point)
+         * Requires:
+         * R1   -> position of particle I (A)
+         * R2   -> position of particle J (B)
+         * F    -> pairwise force */
+        void DistributePairInteraction     ( darray R1, darray R2, darray F );
+        
+        
     private:
         /** @name Inputs*/
         //@{
@@ -345,15 +355,6 @@ class  mds::StressGrid
 
         /** This function is provided to avoid misleadings parameters, or to identify bad settings */
         int CheckSettings();
-        
-        /** DistributePairInteraction
-         *
-         * Distributes interactions onto locals_grid (from the initial grid point to the last grid point)
-         * Requires:
-         * R1   -> position of particle I (A)
-         * R2   -> position of particle J (B)
-         * F    -> pairwise force */
-        void DistributePairInteraction     ( darray R1, darray R2, darray F );
         
         /** Decompose 3-body potentials (angles)*/
         void DistributeN3                  ( darray Ra, darray Rb, darray Rc, darray Fa, darray Fb, darray Fc );

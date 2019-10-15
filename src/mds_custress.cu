@@ -51,6 +51,7 @@ cudaError_t __checkCuda(cudaError_t result, const char * file, int line)
 }
 
 // toy with single precision
+#define CUSTRESS_SINGLE
 #ifndef CUSTRESS_SINGLE
 typedef double real_t;
 #define realval(a) (a)
@@ -71,7 +72,8 @@ typedef int_t cu_iarray[3];
 typedef real_t cu_darray[3];
 typedef real_t cu_dmatrix[3][3];
 
-#define cu_batchsize 64
+#define cu_batchsize 16384
+#define cu_threads_per_block 32
 typedef struct {
     cu_darray Ri[cu_batchsize];
     cu_darray Rj[cu_batchsize];
@@ -420,10 +422,11 @@ void custress_update_box_spacings(const mds::dmatrix box, const mds::dmatrix inv
 // gpu kernel
 __global__ static void process_batch(uint_t batch_index, const batcharrays_t * __restrict__ batch, cu_dmatrix * current_grid)
 {
-    auto bid = blockIdx.x;
+    auto index = blockIdx.x*cu_threads_per_block+threadIdx.x;
 
     // guard execution
-        BatchPairInteraction(batch->Ri[bid], batch->Rj[bid], batch->Fij[bid], current_grid);
+    if (index < batch_index)
+        BatchPairInteraction(batch->Ri[index], batch->Rj[index], batch->Fij[index], current_grid);
 }
 /*__global__ static void process_batch(uint_t batch_index, const batcharrays_t * __restrict__ batch, cu_dmatrix * current_grid)
 {
@@ -459,7 +462,7 @@ void custress_distribute_pair_interaction(const mds::darray xi, const mds::darra
                 cudaMemcpyHostToDevice) );
 
         // execute with a single element processed by each streaming multiprocessor
-        process_batch<<<h_bindex,1>>>(h_bindex, d_batch, d_sum_grid);
+        process_batch<<<cu_batchsize/cu_threads_per_block,cu_threads_per_block>>>(h_bindex, d_batch, d_sum_grid);
 
         h_bindex = 0;
     }
@@ -478,9 +481,9 @@ void custress_sum_grid(mds::dmatrix * current_grid)
                 cudaMemcpyHostToDevice) );
 
         // execute with a single element processed by each streaming multiprocessor
-        process_batch<<<h_bindex,1>>>(h_bindex, d_batch, d_sum_grid);
+        process_batch<<<cu_batchsize/cu_threads_per_block,cu_threads_per_block>>>(h_bindex, d_batch, d_sum_grid);
 
-       h_bindex = 0;
+        h_bindex = 0;
     }
     
     // transfer the grid to host
