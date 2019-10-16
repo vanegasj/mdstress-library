@@ -4,11 +4,11 @@
 typedef double real_t;
 #define realval(a) (a)
 
-#define NUM_ATOMS 8192
+#define NUM_ATOMS 32768
 #define SEED 994373
-#define LX realval(20.0)
-#define LY realval(20.0)
-#define LZ realval(20.0)
+#define LX realval(30.0)
+#define LY realval(30.0)
+#define LZ realval(30.0)
 #define MCSTEPS 0
 
 static inline real_t gradV(const mds::darray & a, const mds::darray & b, mds::darray & fab)
@@ -201,9 +201,9 @@ int main(int argc, const char ** argv)
     box[2][2] = LZ;
     mds.SetBox(box);
 
-    mds.SetNumberOfGridCellsX(16);
-    mds.SetNumberOfGridCellsY(16);
-    mds.SetNumberOfGridCellsZ(16);
+    mds.SetNumberOfGridCellsX(4);
+    mds.SetNumberOfGridCellsY(4);
+    mds.SetNumberOfGridCellsZ(4);
 
     // initialize mdstress
     mds.Init();

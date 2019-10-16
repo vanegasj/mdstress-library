@@ -12,7 +12,7 @@
 // need atomic add for FP64 (only for older hardware):
 #if !defined(__CUDA_ARCH__) || __CUDA_ARCH__ >= 600
 #else
-__device__ double atomicAdd(double* address, double val)
+/*__device__ double atomicAdd(double* address, double val)
 {
     unsigned long long int* address_as_ull = (unsigned long long int*)address;
     unsigned long long int old = *address_as_ull, assumed;
@@ -22,7 +22,7 @@ __device__ double atomicAdd(double* address, double val)
                 __double_as_longlong(val + __longlong_as_double(assumed)));
     } while (assumed != old);
     return __longlong_as_double(old);
-}
+}*/
 #endif
 
 // cuda specific ssmatm
@@ -51,7 +51,7 @@ cudaError_t __checkCuda(cudaError_t result, const char * file, int line)
 }
 
 // toy with single precision
-#define CUSTRESS_SINGLE
+//#define CUSTRESS_SINGLE
 #ifndef CUSTRESS_SINGLE
 typedef double real_t;
 #define realval(a) (a)
@@ -59,7 +59,7 @@ typedef double real_t;
 #else
 typedef float real_t;
 #define realval(a) (a ## f)
-#define cu_eps 1.0e-6f
+#define cu_eps realval(1.0e-6)
 #endif//CUSTRESS_SINGLE
 
 // typedefs for custress 
@@ -71,9 +71,10 @@ typedef bool cu_barray[4];
 typedef int_t cu_iarray[3];
 typedef real_t cu_darray[3];
 typedef real_t cu_dmatrix[3][3];
+typedef float cu_smatrix[3][3];
 
-#define cu_batchsize 16384
-#define cu_threads_per_block 32
+#define cu_batchsize 524288
+#define cu_threads_per_block 256
 typedef struct {
     cu_darray Ri[cu_batchsize];
     cu_darray Rj[cu_batchsize];
@@ -89,13 +90,13 @@ __constant__ cu_darray  c_gridsp;
 
 // device global memory is not, so minimize access here
 batcharrays_t *d_batch    = nullptr;
-cu_dmatrix    *d_sum_grid = nullptr;
+cu_smatrix    *d_sum_grid = nullptr;
 
 // host memory
 uint_t h_bindex = 0;
 uint_t h_ncells = 0;
 batcharrays_t *h_batch    = nullptr;
-cu_dmatrix    *h_sum_grid = nullptr;
+cu_smatrix    *h_sum_grid = nullptr;
 
 // global functions
 __device__ static inline void spread_line_source(
@@ -104,7 +105,7 @@ __device__ static inline void spread_line_source(
         const cu_darray & b,
         const cu_iarray & x,
         const cu_dmatrix & stress,
-        cu_dmatrix * current_grid)
+        cu_smatrix * current_grid)
 {
     // attempt to auto-vectorize code
     const real_t ijks[8][8] = {
@@ -236,7 +237,7 @@ __device__ static inline void BatchPairInteraction(
         const cu_darray xi,
         const cu_darray xj,
         const cu_darray F,
-        cu_dmatrix * current_grid)
+        cu_smatrix * current_grid)
 {
     real_t oldt;
     int_t cmp0x,cmp1x,cmp2x,iX;
@@ -355,7 +356,7 @@ void custress_init(size_t ncells, int nx, int ny, int nz)
 
     // allocate host memory
     h_batch = new batcharrays_t;
-    h_sum_grid = new cu_dmatrix[ncells];
+    h_sum_grid = new cu_smatrix[ncells];
     
     cu_iarray cu_nxyz = {(int_t)nx, (int_t)ny, (int_t)nz};
     checkCuda(cudaMemcpyToSymbol(c_nxyz, cu_nxyz, sizeof(mds::iarray)));
@@ -367,7 +368,7 @@ void custress_init(size_t ncells, int nx, int ny, int nz)
     // initialize host memory
     h_ncells = (uint_t)ncells;
     h_bindex = 0;
-    memset(h_sum_grid, 0, ncells*sizeof(cu_dmatrix));
+    memset(h_sum_grid, 0, ncells*sizeof(cu_smatrix));
     memset(h_batch,    0, sizeof(cu_dmatrix));
 }
 
@@ -420,7 +421,7 @@ void custress_update_box_spacings(const mds::dmatrix box, const mds::dmatrix inv
 }
 
 // gpu kernel
-__global__ static void process_batch(uint_t batch_index, const batcharrays_t * __restrict__ batch, cu_dmatrix * current_grid)
+__global__ static void process_batch(uint_t batch_index, const batcharrays_t * __restrict__ batch, cu_smatrix * current_grid)
 {
     auto index = blockIdx.x*cu_threads_per_block+threadIdx.x;
 
@@ -490,7 +491,7 @@ void custress_sum_grid(mds::dmatrix * current_grid)
     checkCuda(cudaMemcpy(
             h_sum_grid,
             d_sum_grid,
-            h_ncells*sizeof(cu_dmatrix),
+            h_ncells*sizeof(cu_smatrix),
             cudaMemcpyDeviceToHost) );
     checkCuda(cudaDeviceSynchronize());
 
