@@ -10,32 +10,30 @@
 #define checkCuda(a) __checkCuda(a, __FILE__, __LINE__)
 
 // need atomic add for FP64 (only for older hardware):
-#if !defined(__CUDA_ARCH__) || __CUDA_ARCH__ >= 600
-#else
-/*__device__ double atomicAdd(double* address, double val)
+union float2UllUnion {
+    float2 f;
+    unsigned long long int ull;
+};
+
+__device__ void atomicAddKbn(float2* __restrict address, const float val)
 {
-    unsigned long long int* address_as_ull = (unsigned long long int*)address;
-    unsigned long long int old = *address_as_ull, assumed;
-    do {
-        assumed = old;
-        old = atomicCAS(address_as_ull, assumed,
-                __double_as_longlong(val + __longlong_as_double(assumed)));
-    } while (assumed != old);
-    return __longlong_as_double(old);
-}*/
-#endif
+    float oldacc = atomicAdd(&address->x, val);  // Accumulate high-order bits
+    float newacc = oldacc + val;        // Recover addition result
+    float r = val - (newacc - oldacc);  // Recover rounding error using Fast2Sum, assumes |oldacc|>=|val|
+    atomicAdd(&address->y, r);   // Accumulate low-order bits
+}
 
 // cuda specific ssmatm
 #define cu_ssmatm(a,b,c) \
-atomicAdd(&c[0][0],a*b[0][0]); \
-atomicAdd(&c[0][1],a*b[0][1]); \
-atomicAdd(&c[0][2],a*b[0][2]); \
-atomicAdd(&c[1][0],a*b[1][0]); \
-atomicAdd(&c[1][1],a*b[1][1]); \
-atomicAdd(&c[1][2],a*b[1][2]); \
-atomicAdd(&c[2][0],a*b[2][0]); \
-atomicAdd(&c[2][1],a*b[2][1]); \
-atomicAdd(&c[2][2],a*b[2][2])
+atomicAddKbn(&c[0][0],a*b[0][0]); \
+atomicAddKbn(&c[0][1],a*b[0][1]); \
+atomicAddKbn(&c[0][2],a*b[0][2]); \
+atomicAddKbn(&c[1][0],a*b[1][0]); \
+atomicAddKbn(&c[1][1],a*b[1][1]); \
+atomicAddKbn(&c[1][2],a*b[1][2]); \
+atomicAddKbn(&c[2][0],a*b[2][0]); \
+atomicAddKbn(&c[2][1],a*b[2][1]); \
+atomicAddKbn(&c[2][2],a*b[2][2])
 
 // convenience function for checking CUDA runtime API results
 inline
@@ -71,7 +69,7 @@ typedef bool cu_barray[4];
 typedef int_t cu_iarray[3];
 typedef real_t cu_darray[3];
 typedef real_t cu_dmatrix[3][3];
-typedef float cu_smatrix[3][3];
+typedef float2 cu_smatrix[3][3];
 
 #define cu_batchsize 524288
 #define cu_threads_per_block 256
@@ -498,14 +496,14 @@ void custress_sum_grid(mds::dmatrix * current_grid)
     // sum into mdstress current_grid
     for (uint_t i = 0; i < h_ncells; ++i)
     {
-        current_grid[i][0][0] += h_sum_grid[i][0][0];
-        current_grid[i][0][1] += h_sum_grid[i][0][1];
-        current_grid[i][0][2] += h_sum_grid[i][0][2];
-        current_grid[i][1][0] += h_sum_grid[i][1][0];
-        current_grid[i][1][1] += h_sum_grid[i][1][1];
-        current_grid[i][1][2] += h_sum_grid[i][1][2];
-        current_grid[i][2][0] += h_sum_grid[i][2][0];
-        current_grid[i][2][1] += h_sum_grid[i][2][1];
-        current_grid[i][2][2] += h_sum_grid[i][2][2];
+        current_grid[i][0][0] += (double)h_sum_grid[i][0][0].x + (double)h_sum_grid[i][0][0].y;
+        current_grid[i][0][1] += (double)h_sum_grid[i][0][1].x + (double)h_sum_grid[i][0][1].y;
+        current_grid[i][0][2] += (double)h_sum_grid[i][0][2].x + (double)h_sum_grid[i][0][2].y;
+        current_grid[i][1][0] += (double)h_sum_grid[i][1][0].x + (double)h_sum_grid[i][1][0].y;
+        current_grid[i][1][1] += (double)h_sum_grid[i][1][1].x + (double)h_sum_grid[i][1][1].y;
+        current_grid[i][1][2] += (double)h_sum_grid[i][1][2].x + (double)h_sum_grid[i][1][2].y;
+        current_grid[i][2][0] += (double)h_sum_grid[i][2][0].x + (double)h_sum_grid[i][2][0].y;
+        current_grid[i][2][1] += (double)h_sum_grid[i][2][1].x + (double)h_sum_grid[i][2][1].y;
+        current_grid[i][2][2] += (double)h_sum_grid[i][2][2].x + (double)h_sum_grid[i][2][2].y;
     }
 }
