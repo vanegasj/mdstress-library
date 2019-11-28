@@ -145,7 +145,6 @@ class  mds::StressGrid
         {   return this->fdecomp;   }
         //@}
         
-        
          /**Set/Get stress type */
         //@{
         void SetStressType ( int spatatom )
@@ -153,7 +152,6 @@ class  mds::StressGrid
         int GetStressType ( void ) const
         {   return this->spatatom;   }
         //@}
-         
         
          /**Set/Get contrib type */
         //@{
@@ -161,6 +159,14 @@ class  mds::StressGrid
         {   this->contrib = contrib;    }
         int GetContribType ( void ) const
         {   return this->contrib;   }
+        //@}
+        
+         /**Set/Get mindihangle */
+        //@{
+        void SetMinDihAngle (double mindihangle)
+        {   this->mindihangle = mindihangle;    }
+        double GetMinDihAngle ( )
+        {   return this->mindihangle;   }
         //@}
         
         /** Compute N-body force decomposition: */
@@ -320,6 +326,7 @@ class  mds::StressGrid
         std::string   filename;       ///< body of the filename where the stress is stored
         bool          nodispcor;      ///< disables dispersion correction if set to true
         barray        periodic;       ///< mark dimensions as periodic
+        double        mindihangle;
         //@}
     
         /** @name Outputs*/

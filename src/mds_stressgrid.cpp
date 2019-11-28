@@ -88,6 +88,7 @@ StressGrid::StressGrid()
     this->periodic[0]    = false;
     this->periodic[1]    = false;
     this->periodic[2]    = false;
+    this->mindihangle    = 0.0;
 }
 
 //Destructor
