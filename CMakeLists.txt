@@ -13,8 +13,25 @@ if(NOT CMAKE_BUILD_TYPE)
       "Choose the type of build, options are: Debug Release RelWithDebInfo MinSizeRel." FORCE)
 endif(NOT CMAKE_BUILD_TYPE)
 
+# set the boostpython option
+option(MDS_BOOSTPYTHON "Enable Boost Python bindings" OFF)
+
 # find lapack library
-FIND_LIBRARY(LAPACK_LIBRARY NAMES lapack liblapack HINTS /usr/lib REQUIRED)
+find_library(LAPACK_LIBRARY_SYS NAMES lapack liblapack HINTS /usr/lib REQUIRED)
+if (NOT LAPACK_LIBRARY_SYS)
+    unset(LAPACK_LIBRARY_SYS-NOTFOUND)
+    unset(LAPACK_LIBRARY_SYS)
+    # check to see if we need to download LAPACK
+    set(LAPACK_URL http://www.netlib.org/lapack/lapack-3.8.0.tar.gz)
+    set(LAPACK_DOWNLOAD_PATH ${CMAKE_CURRENT_SOURCE_DIR}/contrib/lapack-3.8.0.tar.gz)
+    file(DOWNLOAD ${LAPACK_URL} ${LAPACK_DOWNLOAD_PATH})
+    execute_process(
+        COMMAND tar xaf lapack-3.8.0.tar.gz
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/contrib)
+    add_subdirectory(contrib/lapack-3.8.0)
+else()
+    find_library(LAPACK_LIBRARY NAMES lapack liblapack HINTS /usr/lib REQUIRED)
+endif()
 
 # set our cmake modules path for tclap
 set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake" ${CMAKE_MODULE_PATH})
@@ -43,6 +60,11 @@ target_link_libraries(mdstress PRIVATE cuda ${LAPACK_LIBRARY})
 install(TARGETS mdstress RUNTIME DESTINATION bin LIBRARY DESTINATION lib ARCHIVE DESTINATION lib/static)
 install(FILES ${MDSTRESS_SOURCES_H} DESTINATION include/mdstress)
 install(FILES ${VORO_SOURCES_HH} DESTINATION include/voro++)
+
+# only process python bindings if requested
+if(MDS_BOOSTPYTHON)
+    add_subdirectory(boostpython)
+endif()
 
 # process tensortools
 add_subdirectory(tensortools)

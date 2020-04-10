@@ -9,7 +9,7 @@ void custress_update_box_spacings(const mds::dmatrix box, const mds::dmatrix inv
 void custress_clear();
 
 // adds a pair interaction to batch process at a later stage (everything else private)
-void custress_distribute_pair_interaction(const mds::darray xi, const mds::darray xj, const mds::darray Fij);
+void custress_distribute_pair_interaction(const mds::darray xi, const mds::darray xj, const mds::darray Fij, std::mutex * mutex);
 
 // sum grid copies batches any remainder and copies grid from custress to mdstresslib
 void custress_sum_grid(mds::dmatrix * current_grid);

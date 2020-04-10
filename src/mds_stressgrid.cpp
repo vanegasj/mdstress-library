@@ -30,57 +30,71 @@
 
 using namespace mds;
 
+// a combined summatrix and scalematrix macro
+#define ssmatm(a,b,c) \
+c[0][0] += a*b[0][0]; \
+c[0][1] += a*b[0][1]; \
+c[0][2] += a*b[0][2]; \
+c[1][0] += a*b[1][0]; \
+c[1][1] += a*b[1][1]; \
+c[1][2] += a*b[1][2]; \
+c[2][0] += a*b[2][0]; \
+c[2][1] += a*b[2][1]; \
+c[2][2] += a*b[2][2]
+
 //Constructor
 StressGrid::StressGrid()
 {
-    this->nx         = 0;
-    this->ny         = 0;
-    this->nz         = 0;
-    this->maxClust   = mds_maxpart;
-    this->gridsp[0]  = 0.0;
-    this->gridsp[1]  = 0.0;
-    this->gridsp[2]  = 0.0;
-    this->spacing    = 0.0;
+    this->m_nx = 0;
+    this->m_ny = 0;
+    this->m_nz = 0;
+    this->m_maxClust = mds_maxpart;
+    this->m_gridsp[0] = 0.0;
+    this->m_gridsp[1] = 0.0;
+    this->m_gridsp[2] = 0.0;
+    this->m_spacing = 0.0;
     
-    this->spatatom = 0;
-    this->fdecomp  = 0;
-    this->contrib  = 0;
+    this->m_spatatom = 0;
+    this->m_fdecomp  = 0;
+    this->m_contrib  = 0;
     
-    this->ierr     = 0;
+    this->m_ierr     = 0;
 
-    this->nframes  = 0;
-    this->nreset   = 0;
+    this->m_nframes  = 0;
+    this->m_nreset   = 0;
     
     for ( int i = 0; i < mds_ndim; i++ )
     {
         for ( int j = 0; j < mds_ndim; j++ )
         {
-            this->box   [i][j]  = 0.0;
-            this->sumbox[i][j]  = 0.0;
-            this->invbox[i][j]  = 0.0;
+            this->m_box   [i][j]  = 0.0;
+            this->m_sumbox[i][j]  = 0.0;
+            this->m_invbox[i][j]  = 0.0;
         }
-        this->gridsp[i] = 0.0;
+        this->m_gridsp[i] = 0.0;
     }
+    this->m_invgridsp = 0.0;
 
-    this->invgridsp = 0.0;
-
-    this->lapack         = NULL;
-    this->Amat           = NULL;
-    this->AmatT          = NULL;
-    this->bvec           = NULL;
-    this->R_ij           = NULL;
-    this->F_ij           = NULL;
-    this->current_grid   = NULL;
-    this->sum_grid       = NULL;
-    this->sum_volume     = NULL;
-    this->molecule_id    = NULL;
-    this->radii          = NULL;
-    this->positions      = NULL;
+    this->m_maxpart      = 0;
+    this->p_lapack       = NULL;
+    this->p_Amat         = NULL;
+    this->p_AmatT        = NULL;
+    this->p_bvec         = NULL;
+    this->p_Rij          = NULL;
+    this->p_Fij          = NULL;
+    this->p_Uij          = NULL;
+    this->p_current_grid = NULL; 
+    this->p_sum_grid     = NULL;
+    this->p_sum_volume   = NULL;
+    this->p_molecule_id  = NULL;
+    this->p_radii        = NULL;
+    this->p_positions    = NULL;
     
-    this->nodispcor      = false;
-    this->periodic[0]    = false;
-    this->periodic[1]    = false;
-    this->periodic[2]    = false;
+    this->m_nodispcor      = false;
+    this->m_periodic[0]    = false;
+    this->m_periodic[1]    = false;
+    this->m_periodic[2]    = false;
+    this->m_mindihangle    = 0.0;
 }
 
 //Destructor
@@ -92,31 +106,34 @@ StressGrid::~StressGrid()
 // Method to delete the preallocated member variables
 void StressGrid::Clear()
 {
-    if (this->lapack       != NULL ) delete    this->lapack;
-    if (this->Amat         != NULL ) delete [] this->Amat;
-    if (this->AmatT        != NULL ) delete [] this->AmatT;
-    if (this->bvec         != NULL ) delete [] this->bvec;
-    if (this->R_ij         != NULL ) delete [] this->R_ij;
-    if (this->F_ij         != NULL ) delete [] this->F_ij;
-    if (this->current_grid != NULL ) delete [] this->current_grid;
-    if (this->sum_grid     != NULL ) delete [] this->sum_grid;
-    if (this->sum_volume   != NULL ) delete [] this->sum_volume;
-    if (this->molecule_id  != NULL ) delete [] this->molecule_id;
-    if (this->radii        != NULL ) delete [] this->radii;
-    if (this->positions    != NULL ) delete [] this->positions;
+    if (this->p_lapack       != NULL ) delete    this->p_lapack;
+    if (this->p_Amat         != NULL ) delete [] this->p_Amat;
+    if (this->p_AmatT        != NULL ) delete [] this->p_AmatT;
+    if (this->p_bvec         != NULL ) delete [] this->p_bvec;
+    if (this->p_Rij          != NULL ) delete [] this->p_Rij;
+    if (this->p_Fij          != NULL ) delete [] this->p_Fij;
+    if (this->p_Uij          != NULL ) delete [] this->p_Uij;
+    if (this->p_current_grid != NULL ) delete [] this->p_current_grid;
+    if (this->p_sum_grid     != NULL ) delete [] this->p_sum_grid;
+    if (this->p_sum_volume   != NULL ) delete [] this->p_sum_volume;
+    if (this->p_molecule_id  != NULL ) delete [] this->p_molecule_id;
+    if (this->p_radii        != NULL ) delete [] this->p_radii;
+    if (this->p_positions    != NULL ) delete [] this->p_positions;
 
-    this->lapack       = NULL;
-    this->Amat         = NULL;
-    this->AmatT        = NULL;
-    this->bvec         = NULL;
-    this->R_ij         = NULL;
-    this->F_ij         = NULL;
-    this->current_grid = NULL; 
-    this->sum_grid     = NULL;
-    this->molecule_id  = NULL;
-    this->radii        = NULL;
-    this->positions    = NULL;
-
+    this->m_maxpart      = 0;
+    this->p_lapack       = NULL;
+    this->p_Amat         = NULL;
+    this->p_AmatT        = NULL;
+    this->p_bvec         = NULL;
+    this->p_Rij          = NULL;
+    this->p_Fij          = NULL;
+    this->p_Uij          = NULL;
+    this->p_current_grid = NULL; 
+    this->p_sum_grid     = NULL;
+    this->p_sum_volume   = NULL;
+    this->p_molecule_id  = NULL;
+    this->p_radii        = NULL;
+    this->p_positions    = NULL;
 #ifdef CUSTRESS_ENABLE
     custress_clear();
 #endif//CUSTRESS_ENABLE
@@ -125,34 +142,34 @@ void StressGrid::Clear()
 // This function is provided to identify bad settings
 int StressGrid::CheckSettings()
 {
-    if ( this->spatatom != mds_spat && this->spatatom != mds_atom )
+    if ( this->m_spatatom != mds_spat && this->m_spatatom != mds_atom )
     {
         std::cout << "ERROR::StressGrid: The stress type (SetStressType) should be either spatial (0) or atomic (1)\n";
         return 1;
     }
-    if ( this->spatatom == mds_spat )
+    if ( this->m_spatatom == mds_spat )
     {
-        if ( this->nx < 0 || this->ny < 0 || this->nz < 0)
+        if ( this->m_nx < 0 || this->m_ny < 0 || this->m_nz < 0)
         {
-            std::cout << "ERROR::StressGrid: The number of grid cells are negative: (nx,ny,nz)=" << " ( " <<this->nx << ", " << this->ny << ", " <<this->nz << " )\n"; 
+            std::cout << "ERROR::StressGrid: The number of grid cells are negative: (nx,ny,nz)=" << " ( " <<this->m_nx << ", " << this->m_ny << ", " <<this->m_nz << " )\n"; 
             return 2;
         }
         
-        if ( this->nx == 0 && this->ny == 0 && this->nz == 0)
+        if ( this->m_nx == 0 && this->m_ny == 0 && this->m_nz == 0)
         {
-            if ( this->spacing < mds_eps )
+            if ( this->m_spacing < mds_eps )
             {
-                std::cout << "ERROR::StressGrid: The local spacing is too small: " << this->spacing << "( < " << mds_eps << " )\n"; 
+                std::cout << "ERROR::StressGrid: The local spacing is too small: " << this->m_spacing << "( < " << mds_eps << " )\n"; 
                 return 3;
             }
             
-            if ( iszeromatrix(this->box) )
+            if ( iszeromatrix(this->m_box) )
             {
                 std::cout << "ERROR::StressGrid: The initial MD box haven't been set or it's too small\n"; 
                 return 4;
             }
         }
-        if ( this->fdecomp < mds_ccfd || this->fdecomp > mds_gld )
+        if ( this->m_fdecomp < mds_ccfd || this->m_fdecomp > mds_gld )
         {
             std::cout << "ERROR::StressGrid: The stress type (SetForceDecomposition) should be: 0 (cCFD), 1 (nCFD), 2 (GLD) or 3 (GMC)\n";
             return 5;
@@ -160,22 +177,22 @@ int StressGrid::CheckSettings()
     }
     else
     {
-        if ( this->nAtoms <= 0 )
+        if ( this->m_nAtoms <= 0 )
         {
             std::cout << "ERROR::StressGrid: Number of atoms must > 0\n";
             return 6;
         }
     }
 
-    if ( this->filename.size() == 0 )
+    if ( this->m_filename.size() == 0 )
     {
         std::cout << "ERROR::StressGrid: Filename for output is not set (SetFileName)" << mds_sl << " and " << mds_cmp << "\n";
         return 8;
     }
     
-    if ( this->maxClust <= 1 )
+    if ( this->m_maxClust <= 1 )
     {
-        std::cout << "ERROR:StressGrid: The maximum number of particles in a cluster is not valid:" << this->maxClust << "\n";
+        std::cout << "ERROR:StressGrid: The maximum number of particles in a cluster is not valid:" << this->m_maxClust << "\n";
     }
     this->Clear();
     
@@ -186,101 +203,104 @@ int StressGrid::CheckSettings()
 //it throws an error
 void StressGrid::Init()
 {
+    std::lock_guard<std::mutex> lock(this->m_mutex_state);
+    
     //First call checksettings to check if all parameters are OK
-    this->ierr = this->CheckSettings();
+    this->m_ierr = this->CheckSettings();
 
-    if ( !ierr )
+    if ( !this->m_ierr )
     {
         //Sizes
-        if (this->spatatom == mds_spat)
+        if (this->m_spatatom == mds_spat)
         {
-            if(this->nx == 0)   this->nx = static_cast<int>(box[0][0]/this->spacing);
-            if(this->ny == 0)   this->ny = static_cast<int>(box[1][1]/this->spacing);
-            if(this->nz == 0)   this->nz = static_cast<int>(box[2][2]/this->spacing);
+            if(this->m_nx == 0)   this->m_nx = static_cast<int>(this->m_box[0][0]/this->m_spacing);
+            if(this->m_ny == 0)   this->m_ny = static_cast<int>(this->m_box[1][1]/this->m_spacing);
+            if(this->m_nz == 0)   this->m_nz = static_cast<int>(this->m_box[2][2]/this->m_spacing);
             
-            this->ncells = this->nx*this->ny*this->nz;
+            this->m_ncells = this->m_nx*this->m_ny*this->m_nz;
 
-            if(this->nx==0)  this->nx=1;
-            if(this->ny==0)  this->ny=1;
-            if(this->nz==0)  this->nz=1;
+            if(this->m_nx==0)  this->m_nx=1;
+            if(this->m_ny==0)  this->m_ny=1;
+            if(this->m_nz==0)  this->m_nz=1;
         }
         else
         {
-            this->ncells = this->nAtoms;
+            this->m_ncells = this->m_nAtoms;
 
             // create the molecule_id array
-            this->molecule_id = new int[this->ncells];
+            this->p_molecule_id = new int[this->m_ncells];
             
             // create the radii array
-            this->radii = new double[this->ncells];
-            this->positions = new double[3*this->ncells];
-            this->sum_volume = new double[this->ncells];
+            this->p_radii = new double[this->m_ncells];
+            this->p_positions = new double[3*this->m_ncells];
+            this->p_sum_volume = new double[this->m_ncells];
 
             // set them to defaults
-            for ( int i=0; i < this->ncells; ++i )
+            for ( int i=0; i < this->m_ncells; ++i )
             {
-                this->molecule_id[i] = 0;
-                this->radii[i] = 0.001;
-                this->sum_volume[i] = 0.0;
+                this->p_molecule_id[i] = 0;
+                this->p_radii[i] = 0.001;
+                this->p_sum_volume[i] = 0.0;
         
-                this->positions[3*i] = 0.0;
-                this->positions[3*i+1] = 0.0;
-                this->positions[3*i+2] = 0.0;
+                this->p_positions[3*i] = 0.0;
+                this->p_positions[3*i+1] = 0.0;
+                this->p_positions[3*i+2] = 0.0;
             }
         }
 
         //Give size to current and sum grid
-        this->sum_grid     = new dmatrix [this->ncells];
-        this->current_grid = new dmatrix [this->ncells];
+        this->p_sum_grid     = new dmatrix [this->m_ncells];
+        this->p_current_grid = new dmatrix [this->m_ncells];
         
         //Set all to zero
-        for( int i=0; i<this->ncells; i++ )
+        for( int i=0; i<this->m_ncells; i++ )
         {
-            zeromatrix ( this->sum_grid[i]     );
-            zeromatrix ( this->current_grid[i] );
+            zeromatrix ( this->p_sum_grid[i]     );
+            zeromatrix ( this->p_current_grid[i] );
         }
 
-        this->nframes = 0;
+        this->m_nframes = 0;
         
         // Finally, create the lapack object to deal with linear solvers and projections
-        this->lapack = new Lapack (mds_ndim*this->maxClust,(this->maxClust*(this->maxClust-1))/2);
+        this->p_lapack = new Lapack (mds_ndim*this->m_maxClust,(this->m_maxClust*(this->m_maxClust-1))/2);
 
 #ifdef CUSTRESS_ENABLE
-        custress_init(this->ncells, this->nx, this->ny, this->nz);
+        custress_init(this->m_ncells, this->m_nx, this->m_ny, this->m_nz);
 #endif//CUSTRESS_ENABLE
     }
 }
 
-
 void StressGrid::SetPeriodicBoundaries(bool x, bool y, bool z, bool enforce)
 { 
+    std::lock_guard<std::mutex> lock(m_mutex_state);
 #ifdef CUSTRESS_ENABLE
     custress_set_periodic(x, y, z, enforce);
 #endif//CUSTRESS_ENABLE
-    this->periodic[0] = x;
-    this->periodic[1] = y;
-    this->periodic[2] = z;
-    this->periodic[3] = enforce;
+    this->m_periodic[0] = x;
+    this->m_periodic[1] = y;
+    this->m_periodic[2] = z;
+    this->m_periodic[3] = enforce;
 }
         
 // This function updates the box, invbox and computes the new spacings.
 void StressGrid::UpdateBoxSpacings ( dmatrix box )
 {
-    if ( !ierr )
+    std::lock_guard<std::mutex> lock(this->m_mutex_state);
+
+    if ( !this->m_ierr )
     {
-        copymatrix( box, this->box);
-        inversematrix( this->box, this->invbox );
+        copymatrix( box, this->m_box);
+        inversematrix( this->m_box, this->m_invbox );
 
-        this->gridsp[0] = this->box[0][0]/static_cast<double>(this->nx);
-        this->gridsp[1] = this->box[1][1]/static_cast<double>(this->ny);
-        this->gridsp[2] = this->box[2][2]/static_cast<double>(this->nz);
+        this->m_gridsp[0] = this->m_box[0][0]/static_cast<double>(this->m_nx);
+        this->m_gridsp[1] = this->m_box[1][1]/static_cast<double>(this->m_ny);
+        this->m_gridsp[2] = this->m_box[2][2]/static_cast<double>(this->m_nz);
 
-        this->invgridsp = 1.0/(this->gridsp[0]*this->gridsp[1]*this->gridsp[2]);
+        this->m_invgridsp = 1.0/(this->m_gridsp[0]*this->m_gridsp[1]*this->m_gridsp[2]);
 
-        summatrix( this->box, this->sumbox, this->sumbox );
-
+        summatrix( this->m_box, this->m_sumbox, this->m_sumbox );
 #ifdef CUSTRESS_ENABLE
-        custress_update_box_spacings(this->box, this->invbox, this->gridsp);
+        custress_update_box_spacings(this->m_box, this->m_invbox, this->m_gridsp);
 #endif//CUSTRESS_ENABLE
     }
 }
@@ -289,24 +309,25 @@ void StressGrid::UpdateBoxSpacings ( dmatrix box )
 // to zero.
 void StressGrid::SumGrid ( )
 {
-    if ( !ierr )
+    std::lock_guard<std::mutex> lock(this->m_mutex_state);
+    if ( !this->m_ierr )
     {
 #ifdef CUSTRESS_ENABLE
-        custress_sum_grid(this->current_grid);
+        custress_sum_grid(this->p_current_grid);
 #endif//CUSTRESS_ENABLE
 
-        if (this->spatatom == mds_spat)
+        if (this->m_spatatom == mds_spat)
         {
-            for( int i=0; i<this->ncells; i++ )
-                summatrix( this->sum_grid[i], this->current_grid[i], this->sum_grid[i] );
+            for( int i=0; i<this->m_ncells; i++ )
+                summatrix( this->p_sum_grid[i], this->p_current_grid[i], this->p_sum_grid[i] );
         }
         else
         {
             // initialize the voro container
             double vor_box[3];
-            vor_box[0] = this->box[0][0];
-            vor_box[1] = this->box[1][1];
-            vor_box[2] = this->box[2][2];
+            vor_box[0] = this->m_box[0][0];
+            vor_box[1] = this->m_box[1][1];
+            vor_box[2] = this->m_box[2][2];
             
             double gfxy,gfxz;
             gfxy = vor_box[1]/vor_box[0];
@@ -314,36 +335,36 @@ void StressGrid::SumGrid ( )
 
             // need to count the number of sites without radius 0.0
             int vcells = 0;
-            for (int i = 0; i < this->ncells; ++i)
+            for (int i = 0; i < this->m_ncells; ++i)
             {
-                if (this->radii[i] > 0.0)
+                if (this->p_radii[i] > 0.0)
                     vcells += 1;
             }
 
             int gridn[3];
-            gridn[0] = pow(ncells/(3*gfxy*gfxz), 1/3.0);
+            gridn[0] = pow(this->m_ncells/(3*gfxy*gfxz), 1/3.0);
             gridn[1] = gridn[0]*gfxy;
             gridn[2] = gridn[0]*gfxz;
 
             // create the voronoi objects
-            voro::particle_order vorpo = voro::particle_order(ncells);
-            voro::container_poly vorcon = voro::container_poly(0.0, vor_box[0], 0.0, vor_box[1], 0.0, vor_box[2], gridn[0], gridn[1], gridn[2], this->periodic[0], this->periodic[1], this->periodic[2], 8);
+            voro::particle_order vorpo = voro::particle_order(this->m_ncells);
+            voro::container_poly vorcon = voro::container_poly(0.0, vor_box[0], 0.0, vor_box[1], 0.0, vor_box[2], gridn[0], gridn[1], gridn[2], this->m_periodic[0], this->m_periodic[1], this->m_periodic[2], 8);
             // fill the container
             int voro_cells = 0;
-            for (int i = 0; i < this->ncells; ++i)
+            for (int i = 0; i < this->m_ncells; ++i)
             {
-                if (this->radii[i] > 0.0)
+                if (this->p_radii[i] > 0.0)
                 {
                     voro_cells += 1;
-                    double px = this->positions[3*i];
-                    double py = this->positions[3*i+1];
-                    double pz = this->positions[3*i+2];
+                    double px = this->p_positions[3*i];
+                    double py = this->p_positions[3*i+1];
+                    double pz = this->p_positions[3*i+2];
 
                     // we are scaling the radii down to 1/100th the size here so that the number of voronoi cells is the same as
                     // the number of atoms with non-zero radii. This is because voro++ does a check and if two particles are within
                     // a distance less than the sum of their radii, they are put in the same voronoi cell, which does not allow
                     // the calculation of volumes of every particle in the system
-                    vorcon.put(vorpo, i, px, py, pz, 0.01*this->radii[i]);
+                    vorcon.put(vorpo, i, px, py, pz, 0.01*this->p_radii[i]);
                 }
             }
 
@@ -354,7 +375,7 @@ void StressGrid::SumGrid ( )
             int pid = 0;
 
             // track the particle/cell id of atom with largest volume in this molecule
-            int this_molecule = molecule_id[pid];
+            int this_molecule = this->p_molecule_id[pid];
             int last_pid = 0;
             double last_volume = 0.0;
 
@@ -362,7 +383,7 @@ void StressGrid::SumGrid ( )
             if (vl.start())
             {
                 do{
-                    if (this->radii[pid] > 0.0 && vorcon.compute_cell(c,vl))
+                    if (this->p_radii[pid] > 0.0 && vorcon.compute_cell(c,vl))
                     {
                         // count the cells
                         cells_computed += 1;
@@ -372,26 +393,26 @@ void StressGrid::SumGrid ( )
                         last_pid = pid;
 
                         // mark the last volume encountered
-                        this_molecule = molecule_id[pid];
+                        this_molecule = this->p_molecule_id[pid];
 
-                        scalematrix( this->current_grid[pid], 1.0/last_volume, this->current_grid[pid] );
-                        summatrix( this->sum_grid[pid], this->current_grid[pid], this->sum_grid[pid] );
+                        scalematrix( this->p_current_grid[pid], 1.0/last_volume, this->p_current_grid[pid] );
+                        summatrix( this->p_sum_grid[pid], this->p_current_grid[pid], this->p_sum_grid[pid] );
                     
                         // add the volume
-                        this->sum_volume[pid] += last_volume;
+                        this->p_sum_volume[pid] += last_volume;
                     }
                     else
                     {
                         // check that we are working on the same molecule
-                        if (this_molecule != molecule_id[pid])
+                        if (this_molecule != this->p_molecule_id[pid])
                         {
-                            this->ierr = 13;
+                            this->m_ierr = 13;
                             std::cout << "ERROR:: radius of zero encountered, but last atom molecule was not this molecule" << std::endl;
                         }
                         else
                         {
-                            scalematrix( this->current_grid[pid], 1.0/last_volume, this->current_grid[pid] );
-                            summatrix( this->sum_grid[last_pid], this->current_grid[pid], this->sum_grid[last_pid] );
+                            scalematrix( this->p_current_grid[pid], 1.0/last_volume, this->p_current_grid[pid] );
+                            summatrix( this->p_sum_grid[last_pid], this->p_current_grid[pid], this->p_sum_grid[last_pid] );
                         }
                     }
                     
@@ -400,9 +421,9 @@ void StressGrid::SumGrid ( )
                 }while(vl.inc());
 
                 // should do an error check here
-                if (pid != this->nAtoms)
+                if (pid != this->m_nAtoms)
                 {
-                    this->ierr = 11;
+                    this->m_ierr = 11;
                     std::cout << "ERROR:: number of atoms processed does not match number of sites" << std::endl;
                 }
             }
@@ -410,21 +431,23 @@ void StressGrid::SumGrid ( )
 //            std::cout << "Cells computed this frame: " << cells_computed << std::endl;
         }
 
-        for( int i=0; i<this->ncells; i++ )
-            zeromatrix ( this->current_grid[i] );
+        for( int i=0; i<this->m_ncells; i++ )
+            zeromatrix ( this->p_current_grid[i] );
 
-        this->nframes ++;
+        this->m_nframes ++;
     }
 }
 
 void StressGrid::DispersionCorrection (double shift)
 {
-    if (this->nodispcor == false)
+    std::lock_guard<std::mutex> lock_guard(this->m_mutex_state);
+
+    if (this->m_nodispcor == false)
     {
-        for(int i = 0; i < this->ncells; i++)
+        for(int i = 0; i < this->m_ncells; i++)
         {
             for(int m = 0; m < 3; m++)
-                this->current_grid[i][m][m] += shift;
+                this->p_current_grid[i][m][m] += shift;
         }
     }
 }
@@ -433,22 +456,23 @@ void StressGrid::DispersionCorrection (double shift)
 //printing files) and set the number of frames to zero
 void StressGrid::Reset ( )
 {
-    if ( !ierr )
+    std::lock_guard<std::mutex> lock(this->m_mutex_state);
+    if ( !this->m_ierr )
     {
-        for( int i=0; i<this->ncells; i++ )
+        for( int i=0; i<this->m_ncells; i++ )
         {
-            zeromatrix ( this->sum_grid[i]     );
-            zeromatrix ( this->current_grid[i] );
+            zeromatrix ( this->p_sum_grid[i]     );
+            zeromatrix ( this->p_current_grid[i] );
         }
         
-        if (this->spatatom == mds_atom)
+        if (this->m_spatatom == mds_atom)
         {
-            for( int i=0; i<this->ncells; i++ )
-                sum_volume[i] = 0.0;
+            for( int i=0; i<this->m_ncells; i++ )
+                this->p_sum_volume[i] = 0.0;
         }
-        this->nframes = 0;
+        this->m_nframes = 0;
         
-        this->nreset ++;
+        this->m_nreset ++;
     }
 }
 
@@ -456,7 +480,8 @@ void StressGrid::Reset ( )
 //Writes file with average stress to grid using the filename set by the user
 void StressGrid::Write ( )
 {
-    if ( !ierr )
+    std::lock_guard<std::mutex> lock(this->m_mutex_state);
+    if ( !this->m_ierr )
     {
         int                Dtype=1;
         dmatrix            avgbox;
@@ -465,52 +490,52 @@ void StressGrid::Write ( )
         FILE              *outfile;
         double             factor;
         
-        outnumber << this->nreset;
+        outnumber << this->m_nreset;
         
         //Change output format if the user specifies a filename with a .dat extension
-        outname = this->filename + outnumber.str();
+        outname = this->m_filename + outnumber.str();
         if (outname.find(".dat") == std::string::npos)
             outname = outname + "." + mds_fileext;
 
         outfile = fopen(outname.c_str(), "wb" );
         
-        if (this->spatatom == mds_spat)
+        if (this->m_spatatom == mds_spat)
             Dtype = 1;
-        else if (this->spatatom == mds_atom)
+        else if (this->m_spatatom == mds_atom)
             Dtype = 2;
         
         fwrite(&Dtype, sizeof(int), 1, outfile);
         
         //Divide sumbox with respect to the number of frames to get the avg
-        scalematrix( this->sumbox, 1.0/this->nframes, avgbox);
+        scalematrix( this->m_sumbox, 1.0/this->m_nframes, avgbox);
 
         fwrite(avgbox, sizeof(dmatrix), 1, outfile);
-        if (this->spatatom == mds_spat)
+        if (this->m_spatatom == mds_spat)
         {
-            fwrite(&this->nx, sizeof(this->nx), 1, outfile);
-            fwrite(&this->ny, sizeof(this->ny), 1, outfile);
-            fwrite(&this->nz, sizeof(this->nz), 1, outfile);
+            fwrite(&this->m_nx, sizeof(this->m_nx), 1, outfile);
+            fwrite(&this->m_ny, sizeof(this->m_ny), 1, outfile);
+            fwrite(&this->m_nz, sizeof(this->m_nz), 1, outfile);
         }
         else
         {
-            fwrite(&this->ncells, sizeof(int), 1, outfile);
+            fwrite(&this->m_ncells, sizeof(int), 1, outfile);
         }
 
-        factor = mds_units/this->nframes;
+        factor = mds_units/this->m_nframes;
         
-        for ( int i = 0; i < this->ncells; i++ )
+        for ( int i = 0; i < this->m_ncells; i++ )
         {
-            scalematrix(this->sum_grid[i], factor, this->sum_grid[i]);
+            scalematrix(this->p_sum_grid[i], factor, this->p_sum_grid[i]);
         }
         
-        fwrite(this->sum_grid, sizeof(dmatrix), this->ncells, outfile);
+        fwrite(this->p_sum_grid, sizeof(dmatrix), this->m_ncells, outfile);
 
         // append the volume data
-        if (this->spatatom == mds_atom)
+        if (this->m_spatatom == mds_atom)
         {
-            for ( int i = 0; i < this->ncells; i++ )
-                this->sum_volume[i] /= this->nframes;
-            fwrite(this->sum_volume, sizeof(double), this->ncells, outfile);
+            for ( int i = 0; i < this->m_ncells; i++ )
+                this->p_sum_volume[i] /= this->m_nframes;
+            fwrite(this->p_sum_volume, sizeof(double), this->m_ncells, outfile);
         }
         
         fclose(outfile);
@@ -527,17 +552,18 @@ void StressGrid::Write ( )
 // atomID  -> label of the atom
 void StressGrid::SetVoronoiRadius(double radius, int atomID)
 {
+    std::lock_guard<std::mutex> lock(this->m_mutex_state);
     // quick check if we have the correct number of atoms
-    if (atomID > this->ncells)
+    if (atomID > this->m_ncells)
     {
-        this->ierr = 12;
+        this->m_ierr = 12;
         std::cout << "ERROR:: atomID is greater than number of cells" << std::endl;
     }
 
-    if (!ierr)
+    if (!this->m_ierr)
     {
         // setup the molecule id
-        this->radii[atomID] = std::max(radius,0.001);
+        this->p_radii[atomID] = std::max(radius,0.001);
     }
 }
         
@@ -554,22 +580,23 @@ void StressGrid::SetVoronoiRadius(double radius, int atomID)
 // moleID  -> label of the molecule this atom belongs to
 void StressGrid::AddVoronoiAtom(double px, double py, double pz, int atomID, int moleID)
 {
+    std::lock_guard<std::mutex> lock(this->m_mutex_state);
     // quick check if we have the correct number of atoms
-    if (atomID > this->ncells)
+    if (atomID > this->m_ncells)
     {
-        this->ierr = 12;
+        this->m_ierr = 12;
         std::cout << "ERROR:: atomID is greater than number of cells" << std::endl;
     }
 
-    if (!ierr)
+    if (!this->m_ierr)
     {
         // set the positions
-        this->positions[3*atomID] = px;
-        this->positions[3*atomID+1] = py;
-        this->positions[3*atomID+2] = pz;
+        this->p_positions[3*atomID] = px;
+        this->p_positions[3*atomID+1] = py;
+        this->p_positions[3*atomID+2] = pz;
 
         // set the molecular id
-        this->molecule_id[atomID] = moleID;
+        this->p_molecule_id[atomID] = moleID;
     }
 }
 
@@ -585,24 +612,25 @@ void StressGrid::AddVoronoiAtom(double px, double py, double pz, int atomID, int
 // R       -> positions of the atoms
 // F       -> forces on the atoms
 // atomIDs -> labels of the atoms
-void StressGrid::DistributeInteraction(int nAtoms, darraylist R, darraylist F, int *atomIDs = NULL)
+void StressGrid::DistributeInteraction(int nAtoms, darray *R, darray *F, int *atomIDs = NULL)
 {
+
     int    n;
     int    i,j;
     double temp;
 
     dmatrix stress;
 
-    if ( nAtoms > this->maxClust )
+    if ( nAtoms > this->m_maxClust )
     {
-        std::cout << "ERROR::StressGrid: Distribute Interaction has been called with a number of atoms larger than the maximum cluster size previously set, nAtoms=" << nAtoms << " and maxClust=" << this->maxClust << "\n";
-        this->ierr = 8;
+        std::cout << "ERROR::StressGrid: Distribute Interaction has been called with a number of atoms larger than the maximum cluster size previously set, nAtoms=" << nAtoms << " and maxClust=" << this->m_maxClust << "\n";
+        this->m_ierr = 8;
     }
     
-    if ( !ierr )
+    if ( !this->m_ierr )
     {
         // If spatatom==mds_spat distribute the stress spatially following Noll's procedure
-        if (this->spatatom == mds_spat)
+        if (this->m_spatatom == mds_spat)
         {
             // Depending on the number of atoms, call a different function
             switch (nAtoms)
@@ -635,7 +663,7 @@ void StressGrid::DistributeInteraction(int nAtoms, darraylist R, darraylist F, i
 
         }
         // If spatatom==mds_atom, distributes the stress per atom using the atomic stress definition
-        else if (this->spatatom == mds_atom)
+        else if (this->m_spatatom == mds_atom)
         {
             // This is because SETTLE calls the function with nAtoms=-3
             if (nAtoms < 0) nAtoms = -nAtoms;
@@ -648,9 +676,9 @@ void StressGrid::DistributeInteraction(int nAtoms, darraylist R, darraylist F, i
 
             for (n = 0; n < nAtoms; n++ )
             {
-                if ( atomIDs[n] >= this->nAtoms )
+                if ( atomIDs[n] >= this->m_nAtoms )
                 {
-                    std::cout << "ERROR:: the atom label" << atomIDs[n] << "is equal or larger than the total number of atoms" << this->nAtoms;
+                    std::cout << "ERROR:: the atom label" << atomIDs[n] << "is equal or larger than the total number of atoms" << this->m_nAtoms;
                     return;
                 }
             }
@@ -702,8 +730,9 @@ void StressGrid::DistributeInteraction(int nAtoms, darraylist R, darraylist F, i
 // nAtoms  -> number of atoms of the contribution
 // R       -> positions of the atoms
 // F       -> forces on the atoms
-void StressGrid::ComputeNbodyPairForces(int nAtoms, darraylist R, darraylist F, int *atomIDs = NULL)
+void StressGrid::ComputeNbodyPairForces(int nAtoms, darray *R, darray *F, int *atomIDs = NULL)
 {
+    std::lock_guard<std::mutex> lock(m_mutex_state);
     this->DistributeNBody( nAtoms, R, F, false);
 }
 
@@ -718,8 +747,9 @@ void StressGrid::ComputeNbodyPairForces(int nAtoms, darraylist R, darraylist F, 
 void StressGrid::DistributePairInteraction( darray xi, darray xj, darray F )
 {
 #ifdef CUSTRESS_ENABLE
-    custress_distribute_pair_interaction(xi,xj,F);
+    custress_distribute_pair_interaction(xi,xj,F,&this->m_mutex_state);
 #else
+    std::lock_guard<std::mutex> lock(this->m_mutex_state);
     double oldt, sumfactor;
     int cmp0x,cmp1x,cmp2x,iX;
     darray t, d_cgrid, diff;
@@ -736,7 +766,7 @@ void StressGrid::DistributePairInteraction( darray xi, darray xj, darray F )
 
     //------------------------------------------------------------------------------------
     // Calculate the stress tensor
-    diffarray( xj, xi, diff, this->box, this->periodic);
+    diffarray( xj, xi, diff, this->m_box, this->m_periodic);
     stress[0][0] = F[0]*diff[0];
     stress[1][0] = F[1]*diff[0];
     stress[2][0] = F[2]*diff[0];
@@ -755,9 +785,9 @@ void StressGrid::DistributePairInteraction( darray xi, darray xj, darray F )
     this->GridCoord(xj, &i2[0], &i2[1], &i2[2]);
 
     // d_cgrid = vector from the center of the present cell to the initial point
-    d_cgrid[0] = xi[0]-(i1[0]+0.5)*this->gridsp[0];
-    d_cgrid[1] = xi[1]-(i1[1]+0.5)*this->gridsp[1];
-    d_cgrid[2] = xi[2]-(i1[2]+0.5)*this->gridsp[2];
+    d_cgrid[0] = xi[0]-(i1[0]+0.5)*this->m_gridsp[0];
+    d_cgrid[1] = xi[1]-(i1[1]+0.5)*this->m_gridsp[1];
+    d_cgrid[2] = xi[2]-(i1[2]+0.5)*this->m_gridsp[2];
     
     // First cross point with aplane (if there is at least one i.e. c[i] != 0)
     x[0] = i1[0];
@@ -775,9 +805,9 @@ void StressGrid::DistributePairInteraction( darray xi, darray xj, darray F )
     xn[2] = i1[2]+(c[2]+1)/2;
 
     // parametric time of crossing
-    t[0] = (xi[0]-xn[0] * this->gridsp[0])/(xi[0]-xj[0]);
-    t[1] = (xi[1]-xn[1] * this->gridsp[1])/(xi[1]-xj[1]);
-    t[2] = (xi[2]-xn[2] * this->gridsp[2])/(xi[2]-xj[2]);
+    t[0] = (xi[0]-xn[0] * this->m_gridsp[0])/(xi[0]-xj[0]);
+    t[1] = (xi[1]-xn[1] * this->m_gridsp[1])/(xi[1]-xj[1]);
+    t[2] = (xi[2]-xn[2] * this->m_gridsp[2])/(xi[2]-xj[2]);
         
     // this sets the time larger than 1 if there is no crossing
     t[0] = (c[0] == 0.0)*1.1 + (c[0] != 0.0)*t[0];
@@ -805,14 +835,14 @@ void StressGrid::DistributePairInteraction( darray xi, darray xj, darray F )
         this->SpreadLineSource(diff,d_cgrid,oldt,t[iX],x,stress,&sumfactor);
 
         // move to next cross point
-        d_cgrid[iX] -= c[iX] * gridsp[iX];
+        d_cgrid[iX] -= c[iX] * m_gridsp[iX];
         oldt = t[iX];
         
         x[iX] += c[iX];
         xn[iX] += c[iX];
 
         // Next cross point:
-        t[iX] = (xi[iX]-xn[iX] *gridsp[iX])/(xi[iX]-xj[iX]);
+        t[iX] = (xi[iX]-xn[iX]*m_gridsp[iX])/(xi[iX]-xj[iX]);
 
         if(iX > 2 || timesInLoop > 10000000) //To avoid infinite loops
             return;
@@ -820,7 +850,7 @@ void StressGrid::DistributePairInteraction( darray xi, darray xj, darray F )
 
     // Distribute the last contribution
     this->SpreadLineSource(diff,d_cgrid,oldt,1,x,stress,&sumfactor);
-#endif//CUSTRESS_ENABLE
+#endif
 }
 
 //----------------------------------------------------------------------------------------
@@ -841,10 +871,9 @@ void StressGrid::DistributePairInteraction( darray xi, darray xj, darray F )
 // For velocity-verlet integrators we know v at the same time step, t, as the positions so the contribution is -m*va(t)*va(t)
 void StressGrid::DistributeKinetic(double mass, darray x, darray va, darray vb = NULL, int atomID = -1)
 {
-
+    std::lock_guard<std::mutex> lock(this->m_mutex_state);
     dmatrix stress;
-
-    if ( !ierr )
+    if ( !this->m_ierr )
     {
         if (vb == NULL)
         {
@@ -870,12 +899,14 @@ void StressGrid::DistributeKinetic(double mass, darray x, darray va, darray vb =
             stress[2][1] = -mass*(va[2]*va[1] + vb[2]*vb[1])/2;
             stress[2][2] = -mass*(va[2]*va[2] + vb[2]*vb[2])/2;
         }
+            
+        
         // If spatatom==mds_spat distribute the stress spatially following Noll's procedure
-        if (this->spatatom == mds_spat)
+        if (this->m_spatatom == mds_spat)
         {
             SpreadPointSource(x, stress);
         }
-        else if (this->spatatom == mds_atom)
+        else if (this->m_spatatom == mds_atom)
         {
             if (atomID == -1)
             {
@@ -938,26 +969,26 @@ void StressGrid::SpreadLineSource(darray a, darray b, double t1, double t2, iarr
     // now the position/spatial constants
     axy = a[0]*a[1]; axz = a[0]*a[2]; ayz = a[1]*a[2];
     bxy = b[0]*b[1]; bxz = b[0]*b[2]; byz = b[1]*b[2];
-    lxy = this->gridsp[0]*this->gridsp[1];
-    lxz = this->gridsp[0]*this->gridsp[2];
-    lyz = this->gridsp[1]*this->gridsp[2];
-    axyz = a[0]*ayz; bxyz = b[0]*byz; lxyz = this->gridsp[0]*lyz;
+    lxy = this->m_gridsp[0]*this->m_gridsp[1];
+    lxz = this->m_gridsp[0]*this->m_gridsp[2];
+    lyz = this->m_gridsp[1]*this->m_gridsp[2];
+    axyz = a[0]*ayz; bxyz = b[0]*byz; lxyz = this->m_gridsp[0]*lyz;
 
     // and the index constants
-    iip1 = ((x[0] + 1 + this->nx) % this->nx)*this->ny*this->nz;
-    jjp1 = ((x[1] + 1 + this->ny) % this->ny)*this->nz;
-    kkp1 = ((x[2] + 1 + this->nz) % this->nz);
-    iim1 = ((x[0] + this->nx) % this->nx)*this->ny*this->nz;
-    jjm1 = ((x[1] + this->ny) % this->ny)*this->nz;
-    kkm1 = ((x[2] + this->nz) % this->nz);
+    iip1 = ((x[0] + 1 + this->m_nx) % this->m_nx)*this->m_ny*this->m_nz;
+    jjp1 = ((x[1] + 1 + this->m_ny) % this->m_ny)*this->m_nz;
+    kkp1 = ((x[2] + 1 + this->m_nz) % this->m_nz);
+    iim1 = ((x[0] + this->m_nx) % this->m_nx)*this->m_ny*this->m_nz;
+    jjm1 = ((x[1] + this->m_ny) % this->m_ny)*this->m_nz;
+    kkm1 = ((x[2] + this->m_nz) % this->m_nz);
 
     // the composite constants in terms of i, j, k
-    C = 0.125*this->invgridsp*this->invgridsp;
+    C = 0.125*this->m_invgridsp*this->m_invgridsp;
     D[0] = 8.0*bxyz*dt1 + 4.0*(a[0]*byz+a[1]*bxz+a[2]*bxy)*dt2
         + 2.0*(b[0]*ayz+b[1]*axz+b[2]*axy)*dt3 + 2.0*axyz*dt4;
-    D[1] = this->gridsp[0]*(4.0*byz*dt1 + 2.0*(a[1]*b[2]+a[2]*b[1])*dt2 + ayz*dt3);
-    D[2] = this->gridsp[1]*(4.0*bxz*dt1 + 2.0*(a[0]*b[2]+a[2]*b[0])*dt2 + axz*dt3);
-    D[3] = this->gridsp[2]*(4.0*bxy*dt1 + 2.0*(a[0]*b[1]+a[1]*b[0])*dt2 + axy*dt3);
+    D[1] = this->m_gridsp[0]*(4.0*byz*dt1 + 2.0*(a[1]*b[2]+a[2]*b[1])*dt2 + ayz*dt3);
+    D[2] = this->m_gridsp[1]*(4.0*bxz*dt1 + 2.0*(a[0]*b[2]+a[2]*b[0])*dt2 + axz*dt3);
+    D[3] = this->m_gridsp[2]*(4.0*bxy*dt1 + 2.0*(a[0]*b[1]+a[1]*b[0])*dt2 + axy*dt3);
     D[4] = lxy*(2.0*b[2]*dt1+a[2]*dt2);
     D[5] = lxz*(2.0*b[1]*dt1+a[1]*dt2);
     D[6] = lyz*(2.0*b[0]*dt1+a[0]*dt2);
@@ -974,14 +1005,14 @@ void StressGrid::SpreadLineSource(darray a, darray b, double t1, double t2, iarr
     factor[7] = C*(ijks[7][0]*D[0] + ijks[7][1]*D[1] + ijks[7][2]*D[2] + ijks[7][3]*D[3] + ijks[7][4]*D[4] + ijks[7][5]*D[5] + ijks[7][6]*D[6] + ijks[7][7]*D[7]);
 
     // perform the sums into the grid
-    ssmatm(factor[0], stress, this->current_grid[iip1 + jjp1 + kkp1]);
-    ssmatm(factor[1], stress, this->current_grid[iip1 + jjp1 + kkm1]);
-    ssmatm(factor[2], stress, this->current_grid[iip1 + jjm1 + kkp1]);
-    ssmatm(factor[3], stress, this->current_grid[iip1 + jjm1 + kkm1]);
-    ssmatm(factor[4], stress, this->current_grid[iim1 + jjp1 + kkp1]);
-    ssmatm(factor[5], stress, this->current_grid[iim1 + jjp1 + kkm1]);
-    ssmatm(factor[6], stress, this->current_grid[iim1 + jjm1 + kkp1]);
-    ssmatm(factor[7], stress, this->current_grid[iim1 + jjm1 + kkm1]);
+    ssmatm(factor[0], stress, this->p_current_grid[iip1 + jjp1 + kkp1]);
+    ssmatm(factor[1], stress, this->p_current_grid[iip1 + jjp1 + kkm1]);
+    ssmatm(factor[2], stress, this->p_current_grid[iip1 + jjm1 + kkp1]);
+    ssmatm(factor[3], stress, this->p_current_grid[iip1 + jjm1 + kkm1]);
+    ssmatm(factor[4], stress, this->p_current_grid[iim1 + jjp1 + kkp1]);
+    ssmatm(factor[5], stress, this->p_current_grid[iim1 + jjp1 + kkm1]);
+    ssmatm(factor[6], stress, this->p_current_grid[iim1 + jjm1 + kkp1]);
+    ssmatm(factor[7], stress, this->p_current_grid[iim1 + jjm1 + kkm1]);
 
     // add factors
     //sumfactor[0] += factor[0] + factor[1] + factor[2] + factor[3] + factor[4] + factor[5] + factor[6] + factor[7];
@@ -1020,13 +1051,13 @@ void StressGrid::SpreadLineSource(darray a, darray b, double t1, double t2, iarr
     for(i=1;i>=-1;i-=2)
     {
         ii+=i;
-        dummy3 = 2*b[0]+i*this->gridsp[0];
+        dummy3 = 2*b[0]+i*this->m_gridsp[0];
         dummy7 = a[1]*a[2]*dummy3;
 
         for(j=1;j>=-1;j-=2)
         {
             jj+=j;
-            dummy4 = 2*b[1]+j*this->gridsp[1];
+            dummy4 = 2*b[1]+j*this->m_gridsp[1];
             dummy6 = dummy3*dummy4;
             dummy8 = a[0]*a[2]*dummy4;
             dummy10= a[2]*dummy3*dummy4;
@@ -1034,21 +1065,21 @@ void StressGrid::SpreadLineSource(darray a, darray b, double t1, double t2, iarr
             for(k=1;k>=-1;k-=2)
             {
                 kk+=k;
-                dummy5 = 2*b[2]+k*this->gridsp[2];
+                dummy5 = 2*b[2]+k*this->m_gridsp[2];
                 dummy9 = a[1]*a[0]*dummy5;
                 dummy11= a[1]*dummy3*dummy5;
                 dummy12= a[0]*dummy4*dummy5;
-                factor = i*j*k*0.125*this->invgridsp*this->invgridsp*(dummy1+dummy2+(t2-t1)*dummy6*dummy5+1.333333333333*(t23-t13)
+                factor = i*j*k*0.125*this->m_invgridsp*this->m_invgridsp*(dummy1+dummy2+(t2-t1)*dummy6*dummy5+1.333333333333*(t23-t13)
                             *(dummy7+dummy8+dummy9)+(t22-t12)*(dummy10+dummy11+dummy12));
 
                 *sumfactor=*sumfactor+factor;
                 
                 scalematrix(stress,factor,partial_stress);
     
-                gridcell = modulo(ii,this->nx)*this->nz*this->ny
-                    + modulo(jj,this->ny)*this->nz+modulo(kk,this->nz);
+                gridcell = modulo(ii,this->m_nx)*this->m_nz*this->m_ny
+                    + modulo(jj,this->m_ny)*this->m_nz+modulo(kk,this->m_nz);
                 
-                this->AddAtomStressToGrid (gridcell, partial_stress);
+                this->m_AddAtomStressToGrid (gridcell, partial_stress);
             }
         }
     }
@@ -1064,9 +1095,7 @@ void StressGrid::SpreadLineSource(darray a, darray b, double t1, double t2, iarr
 // stress -> stress to be distributed
 void StressGrid::SpreadPointSource( darray pt, dmatrix stress )
 {
-
     // Spreads the velocity in one point
-
     int i, j, k, ii, jj, kk, iii, jjj, kkk;
     dmatrix part_stress;
     double factor, dummy1, dummy2;
@@ -1082,18 +1111,18 @@ void StressGrid::SpreadPointSource( darray pt, dmatrix stress )
     for(i=1;i>=-1;i-=2)
     {
         iii+=i;
-        dummy1 = i * this->invgridsp * this->invgridsp * (pt[0]-(ii+0.5*(1-i))*gridsp[0]);
+        dummy1 = i * this->m_invgridsp * this->m_invgridsp * (pt[0]-(ii+0.5*(1-i))*this->m_gridsp[0]);
         for(j=1;j>=-1;j-=2)
         {
             jjj+=j;
-            dummy2 = dummy1 * j * (pt[1]-(jj+0.5*(1-j))*gridsp[1]);
+            dummy2 = dummy1 * j * (pt[1]-(jj+0.5*(1-j))*this->m_gridsp[1]);
             for(k=1;k>=-1;k-=2)
             {
                 kkk+=k;
-                factor = dummy2 * k * (pt[2]-(kk+0.5*(1-k))*gridsp[2]);
+                factor = dummy2 * k * (pt[2]-(kk+0.5*(1-k))*this->m_gridsp[2]);
                 scalematrix(stress,factor,part_stress);
-                gridcell = modulo(iii,this->nx)*this->nz*this->ny
-                    + modulo(jjj,this->ny)*this->nz+modulo(kkk,this->nz);
+                gridcell = modulo(iii,this->m_nx)*this->m_nz*this->m_ny
+                    + modulo(jjj,this->m_ny)*this->m_nz+modulo(kkk,this->m_nz);
                 this->AddAtomStressToGrid( gridcell,part_stress );
             }
         }
@@ -1107,7 +1136,6 @@ void StressGrid::SpreadPointSource( darray pt, dmatrix stress )
 // Decompose 3-body potentials (angles)
 void StressGrid::DistributeN3( darray Ra, darray Rb, darray Rc, darray Fa, darray Fb, darray Fc )
 {
-
     //Counter
     int i;
 
@@ -1137,11 +1165,11 @@ void StressGrid::DistributeN3( darray Ra, darray Rb, darray Rc, darray Fa, darra
     double b[mds_nrow3], s[mds_ncol3];
 
     // If the force decomposition is cCFD or CFD
-    if(this->fdecomp == mds_ccfd || this->fdecomp == mds_ncfd)
+    if(this->m_fdecomp == mds_ccfd || this->m_fdecomp == mds_ncfd)
     {
-        diffarray(Rb, Ra, AB, this->box, this->periodic);
-        diffarray(Rc, Ra, AC, this->box, this->periodic);
-        diffarray(Rc, Rb, BC, this->box, this->periodic);
+        diffarray(Rb, Ra, AB, this->m_box, this->m_periodic);
+        diffarray(Rc, Ra, AC, this->m_box, this->m_periodic);
+        diffarray(Rc, Rb, BC, this->m_box, this->m_periodic);
 
         normAB=normarray(AB);
         normAC=normarray(AC);
@@ -1170,10 +1198,12 @@ void StressGrid::DistributeN3( darray Ra, darray Rb, darray Rc, darray Fa, darra
         M[nRow*1+8] = -AC[2]; M[nRow*2+8] = -BC[2];
         b[6] = Fc[0]; b[7] = Fc[1]; b[8] = Fc[2];
        
-        if ( this->lapack->SolveMinNorm(nRow, nCol, M, b) )
+        std::lock_guard<std::mutex> lock(this->m_mutex_lapack);
+
+        if ( this->p_lapack->SolveMinNorm(nRow, nCol, M, b) )
         {
             std::cout << "ERROR::StressGrid: LAPACK solver fails\n";
-            this->ierr = 10;
+            this->m_ierr = 10;
         }
 
         // Sum the 3 contributions to the stress
@@ -1189,7 +1219,7 @@ void StressGrid::DistributeN3( darray Ra, darray Rb, darray Rc, darray Fa, darra
         this->DistributePairInteraction(Rb, Rc, Fij);
 
     }
-    else if (this->fdecomp == mds_gld)
+    else if (this->m_fdecomp == mds_gld)
     {
         Fij[0] = (Fa[0]-Fb[0])/3.0; Fij[1] = (Fa[1]-Fb[1])/3.0; Fij[2] = (Fa[2]-Fb[2])/3.0;
         this->DistributePairInteraction(Ra, Rb, Fij);
@@ -1232,11 +1262,11 @@ void StressGrid::DistributeSettle( darray Ra, darray Rb, darray Rc, darray Fa, d
     // Vector, we want to solve M*x = b
     double b[mds_nrow3], s[mds_ncol3];
 
-    if (this->fdecomp == mds_ccfd || this->fdecomp == mds_ncfd || this->fdecomp == mds_gld )
+    if (this->m_fdecomp == mds_ccfd || this->m_fdecomp == mds_ncfd || this->m_fdecomp == mds_gld )
     {
-        diffarray(Rb, Ra, AB, this->box, this->periodic);
-        diffarray(Rc, Ra, AC, this->box, this->periodic);
-        diffarray(Rc, Rb, BC, this->box, this->periodic);
+        diffarray(Rb, Ra, AB, this->m_box, this->m_periodic);
+        diffarray(Rc, Ra, AC, this->m_box, this->m_periodic);
+        diffarray(Rc, Rb, BC, this->m_box, this->m_periodic);
 
         normAB=normarray(AB);
         normAC=normarray(AC);
@@ -1265,10 +1295,11 @@ void StressGrid::DistributeSettle( darray Ra, darray Rb, darray Rc, darray Fa, d
         M[nRow*1+8] = -AC[2]; M[nRow*2+8] = -BC[2];
         b[6] = Fc[0]; b[7] = Fc[1]; b[8] = Fc[2];
 
-        if ( this->lapack->SolveMinNorm(nRow, nCol, M, b) )
+        std::lock_guard<std::mutex> lock(this->m_mutex_lapack);
+        if ( this->p_lapack->SolveMinNorm(nRow, nCol, M, b) )
         {
             std::cout << "ERROR::StressGrid: LAPACK solver fails\n";
-            this->ierr = 10;
+            this->m_ierr = 10;
         }
 
         // Sum the 3 contributions to the stress
@@ -1318,14 +1349,14 @@ void StressGrid::DistributeN4( darray Ra, darray Rb, darray Rc, darray Rd, darra
     double b[mds_nrow4], s[mds_ncol4];
 
     // If the force decomposition is cCFD or CFD
-    if(this->fdecomp == mds_ccfd || this->fdecomp == mds_ncfd)
+    if(this->m_fdecomp == mds_ccfd || this->m_fdecomp == mds_ncfd)
     {
-        diffarray(Rb, Ra, AB, this->box, this->periodic);
-        diffarray(Rc, Ra, AC, this->box, this->periodic);
-        diffarray(Rd, Ra, AD, this->box, this->periodic);
-        diffarray(Rc, Rb, BC, this->box, this->periodic);
-        diffarray(Rd, Rb, BD, this->box, this->periodic);
-        diffarray(Rd, Rc, CD, this->box, this->periodic);
+        diffarray(Rb, Ra, AB, this->m_box, this->m_periodic);
+        diffarray(Rc, Ra, AC, this->m_box, this->m_periodic);
+        diffarray(Rd, Ra, AD, this->m_box, this->m_periodic);
+        diffarray(Rc, Rb, BC, this->m_box, this->m_periodic);
+        diffarray(Rd, Rb, BD, this->m_box, this->m_periodic);
+        diffarray(Rd, Rc, CD, this->m_box, this->m_periodic);
 
         normAB=normarray(AB);
         normAC=normarray(AC);
@@ -1361,11 +1392,13 @@ void StressGrid::DistributeN4( darray Ra, darray Rb, darray Rc, darray Rd, darra
         M[nRow*2+10] = -AD[1]; M[nRow*4+10] = -BD[1]; M[nRow*5+10] = -CD[1];
         M[nRow*2+11] = -AD[2]; M[nRow*4+11] = -BD[2]; M[nRow*5+11] = -CD[2];
         b[9] = Fd[0]; b[10] = Fd[1]; b[11] = Fd[2];
+        
+        std::lock_guard<std::mutex> lock(this->m_mutex_lapack);
 
-        if ( this->lapack->SolveMinNorm(nRow, nCol, M, b) )
+        if ( this->p_lapack->SolveMinNorm(nRow, nCol, M, b) )
         {
             std::cout << "ERROR::StressGrid: LAPACK solver fails\n";
-            this->ierr = 10;
+            this->m_ierr = 10;
         }
 
         // Sum the 6 contributions to the stress
@@ -1391,7 +1424,7 @@ void StressGrid::DistributeN4( darray Ra, darray Rb, darray Rc, darray Rd, darra
         this->DistributePairInteraction(Rc, Rd, Fij);
 
     }
-    else if (this->fdecomp == mds_gld)
+    else if (this->m_fdecomp == mds_gld)
     {
         Fij[0] = (Fa[0]-Fb[0])/4.0; Fij[1] = (Fa[1]-Fb[1])/4.0; Fij[2] = (Fa[2]-Fb[2])/4.0;
         this->DistributePairInteraction(Ra, Rb, Fij);
@@ -1444,18 +1477,18 @@ void StressGrid::DistributeN5(darray Ra, darray Rb, darray Rc, darray Rd, darray
     double prod;
 
     // If the force decomposition is cCFD or CFD
-    if(this->fdecomp == mds_ccfd || this->fdecomp == mds_ncfd)
+    if(this->m_fdecomp == mds_ccfd || this->m_fdecomp == mds_ncfd)
     {
-        diffarray(Rb, Ra, AB, this->box, this->periodic);
-        diffarray(Rc, Ra, AC, this->box, this->periodic);
-        diffarray(Rd, Ra, AD, this->box, this->periodic);
-        diffarray(Re, Ra, AE, this->box, this->periodic);
-        diffarray(Rc, Rb, BC, this->box, this->periodic);
-        diffarray(Rd, Rb, BD, this->box, this->periodic);
-        diffarray(Re, Rb, BE, this->box, this->periodic);
-        diffarray(Rd, Rc, CD, this->box, this->periodic);
-        diffarray(Re, Rc, CE, this->box, this->periodic);
-        diffarray(Re, Rd, DE, this->box, this->periodic);
+        diffarray(Rb, Ra, AB, this->m_box, this->m_periodic);
+        diffarray(Rc, Ra, AC, this->m_box, this->m_periodic);
+        diffarray(Rd, Ra, AD, this->m_box, this->m_periodic);
+        diffarray(Re, Ra, AE, this->m_box, this->m_periodic);
+        diffarray(Rc, Rb, BC, this->m_box, this->m_periodic);
+        diffarray(Rd, Rb, BD, this->m_box, this->m_periodic);
+        diffarray(Re, Rb, BE, this->m_box, this->m_periodic);
+        diffarray(Rd, Rc, CD, this->m_box, this->m_periodic);
+        diffarray(Re, Rc, CE, this->m_box, this->m_periodic);
+        diffarray(Re, Rd, DE, this->m_box, this->m_periodic);
 
         normAB=normarray(AB);
         normAC=normarray(AC);
@@ -1526,15 +1559,17 @@ void StressGrid::DistributeN5(darray Ra, darray Rb, darray Rc, darray Rd, darray
         M[nRow*3+13] = -AE[1]; M[nRow*6+13] = -BE[1]; M[nRow*8+13] = -CE[1]; M[nRow*9+13] = -DE[1];
         M[nRow*3+14] = -AE[2]; M[nRow*6+14] = -BE[2]; M[nRow*8+14] = -CE[2]; M[nRow*9+14] = -DE[2];
         b[12] = Fe[0]; b[13] = Fe[1]; b[14] = Fe[2];
+
+        std::lock_guard<std::mutex> lock(this->m_mutex_lapack);
         
-        if ( this->lapack->SolveMinNorm(nRow, nCol, M, b) )
+        if ( this->p_lapack->SolveMinNorm(nRow, nCol, M, b) )
         {
             std::cout << "ERROR::StressGrid: LAPACK solver fails\n";
-            this->ierr = 10;
+            this->m_ierr = 10;
         }
 
         //If cCFD project the least squares CFD to the shape space
-        if(this->fdecomp == mds_ccfd)
+        if(this->m_fdecomp == mds_ccfd)
         {
             //Calculate the normal to the Shape Space
             ShapeSpace5Normal(normAB,normAC,normAD,normAE,normBC,normBD,normBE,normCD,normCE,normDE,CaleyMengerNormal);
@@ -1586,7 +1621,7 @@ void StressGrid::DistributeN5(darray Ra, darray Rb, darray Rc, darray Rd, darray
         this->DistributePairInteraction(Rd, Re, Fij);
 
     }
-    else if(this->fdecomp == mds_gld)
+    else if(this->m_fdecomp == mds_gld)
     {
         Fij[0] = (Fa[0]-Fb[0])/5.0; Fij[1] = (Fa[1]-Fb[1])/5.0; Fij[2] = (Fa[2]-Fb[2])/5.0;
         this->DistributePairInteraction(Ra, Rb, Fij);
@@ -1612,31 +1647,42 @@ void StressGrid::DistributeN5(darray Ra, darray Rb, darray Rc, darray Rd, darray
 }
 
 // General function to decompose N-body potentials (it can be used to compute higher order terms coming from EAM for instance)
-void StressGrid::DistributeNBody ( int nPart, darraylist R, darraylist F, bool distribute_stress)
+void StressGrid::DistributeNBody ( int nPart, darray *R, darray *F, bool distribute_stress)
 {
-    int i,j,k, iD, jD, n;
+    std::lock_guard<std::mutex> lock(this->m_mutex_lapack);
 
+    int i,j,k, iD, jD, n;
     int maxrows, maxcols;
+    darray F_ij_temp;
+
     maxrows = mds_ndim*nPart;
     maxcols = (nPart*(nPart-1))/2;
 
-    this->Amat  = new double [maxrows*maxcols];
 
-    this->AmatT = new double [maxrows*maxcols];
+    // grow the temp state as needed
+    if (nPart > this->m_maxpart)
+    {
+        if (this->p_Amat != nullptr)  delete [] this->p_Amat;
+        if (this->p_AmatT != nullptr) delete [] this->p_AmatT;
+        if (this->p_bvec != nullptr) delete [] this->p_bvec;
+        if (this->p_Rij  != nullptr) delete [] this->p_Rij;
+        if (this->p_Uij  != nullptr) delete [] this->p_Uij;
+        if (this->p_Fij  != nullptr) delete [] this->p_Fij;
 
-    this->bvec  = new double [maxcols];
-
-    this->R_ij  = new darray [nPart*nPart];
-    this->F_ij  = new darray [nPart*nPart];
-
-    darray R_ij_temp[maxcols];
-    darray F_ij_temp;
+        this->m_maxpart = nPart;
+        this->p_Amat  = new double [maxrows*maxcols];
+        this->p_AmatT = new double [maxrows*maxcols];
+        this->p_bvec  = new double [maxcols];
+        this->p_Rij  = new darray [m_maxpart*m_maxpart];
+        this->p_Fij  = new darray [m_maxpart*m_maxpart];
+        this->p_Uij  = new darray [maxcols];
+    }
 
     // zero the pairwise force and pairwise position arrays
     for (int i = 0; i < nPart*nPart; ++i)
     {
-        R_ij[i][0] = R_ij[i][1] = R_ij[i][2] = 0.0;
-        F_ij[i][0] = F_ij[i][1] = F_ij[i][2] = 0.0;
+        this->p_Rij[i][0] = this->p_Rij[i][1] = this->p_Rij[i][2] = 0.0;
+        this->p_Fij[i][0] = this->p_Fij[i][1] = this->p_Fij[i][2] = 0.0;
     }
 
     n = 0;
@@ -1644,16 +1690,16 @@ void StressGrid::DistributeNBody ( int nPart, darraylist R, darraylist F, bool d
     {
         for ( j = i+1; j < nPart; j++ )
         {
-            diffarray(R[j], R[i], R_ij_temp[n], this->box, this->periodic);
-            copyarray(R_ij_temp[n], this->R_ij[i*nPart+j]);
-            scalearray(R_ij_temp[n], -1.0, this->R_ij[j*nPart+i]);
-            scalearray(R_ij_temp[n],1.0/normarray(R_ij_temp[n]),R_ij_temp[n]);
+            diffarray(R[j], R[i], this->p_Uij[n], this->m_box, this->m_periodic);
+            copyarray(this->p_Uij[n], this->p_Rij[i*nPart+j]);
+            scalearray(this->p_Uij[n], -1.0, this->p_Rij[j*nPart+i]);
+            scalearray(this->p_Uij[n],1.0/normarray(this->p_Uij[n]),this->p_Uij[n]);
             n++;
         }
     }
 
     // If the force decomposition is cCFD or CFD
-    if(this->fdecomp == mds_ccfd || this->fdecomp == mds_ncfd)
+    if(this->m_fdecomp == mds_ccfd || this->m_fdecomp == mds_ncfd)
     {
         //Number of rows and columns
         int nRow;
@@ -1664,8 +1710,8 @@ void StressGrid::DistributeNBody ( int nPart, darraylist R, darraylist F, bool d
 
         for ( i = 0; i < nCol*nRow; i++ )
         {
-            this->Amat [i] = 0.0;
-            this->AmatT[i] = 0.0;
+            this->p_Amat [i] = 0.0;
+            this->p_AmatT[i] = 0.0;
         }
 
         n = 0;
@@ -1677,34 +1723,34 @@ void StressGrid::DistributeNBody ( int nPart, darraylist R, darraylist F, bool d
                 jD = mds_ndim * j;
                 for ( k = 0; k < mds_ndim; k++ )
                 {
-                    this->Amat [nRow*n+(iD+k)] =  R_ij_temp[n][k];
-                    this->Amat [nRow*n+(jD+k)] = -R_ij_temp[n][k];
-                    this->AmatT[(iD+k)*nCol+n] =  R_ij_temp[n][k];
-                    this->AmatT[(jD+k)*nCol+n] = -R_ij_temp[n][k];
+                    this->p_Amat [nRow*n+(iD+k)] =  this->p_Uij[n][k];
+                    this->p_Amat [nRow*n+(jD+k)] = -this->p_Uij[n][k];
+                    this->p_AmatT[(iD+k)*nCol+n] =  this->p_Uij[n][k];
+                    this->p_AmatT[(jD+k)*nCol+n] = -this->p_Uij[n][k];
                 }
                 n++;
             }
 
-            copyarray(F[i], &this->bvec[iD]);
+            copyarray(F[i], &this->p_bvec[iD]);
         }
 
-        if ( this->lapack->SolveMinNorm(nRow, nCol, this->Amat, this->bvec))
+        if ( this->p_lapack->SolveMinNorm(nRow, nCol, this->p_Amat, this->p_bvec))
         {
             std::cout << "ERROR::StressGrid: LAPACK solver fails\n";
-            this->ierr = 10;
+            this->m_ierr = 10;
         }
 
-        if(this->fdecomp == mds_ccfd)
-            this->lapack->QQTb( nCol, nRow, nCol, nRow-6, this->AmatT, this->bvec );
+        if(this->m_fdecomp == mds_ccfd)
+            this->p_lapack->QQTb( nCol, nRow, nCol, nRow-6, this->p_AmatT, this->p_bvec );
 
         n = 0;
         for ( i = 0; i < nPart; i++ )
         {
             for ( j = i+1; j < nPart; j++ )
             {
-                scalearray(R_ij_temp[n], this->bvec[n], F_ij_temp);
-                copyarray(F_ij_temp, F_ij[i*nPart+j]);
-                scalearray(F_ij_temp, -1.0, F_ij[j*nPart+i]);
+                scalearray(this->p_Uij[n], this->p_bvec[n], F_ij_temp);
+                copyarray(F_ij_temp, this->p_Fij[i*nPart+j]);
+                scalearray(F_ij_temp, -1.0, this->p_Fij[j*nPart+i]);
 
                 if (distribute_stress)
                     this->DistributePairInteraction(R[i], R[j], F_ij_temp);
@@ -1713,7 +1759,7 @@ void StressGrid::DistributeNBody ( int nPart, darraylist R, darraylist F, bool d
             }
         }
     }
-    else if(this->fdecomp == mds_gld)
+    else if(this->m_fdecomp == mds_gld)
     {
         n = 0;
         for ( i = 0; i < nPart; i++ )
@@ -1722,8 +1768,8 @@ void StressGrid::DistributeNBody ( int nPart, darraylist R, darraylist F, bool d
             {
                 diffarray(F[i], F[j], F_ij_temp );
                 scalearray(F_ij_temp, 1.0/static_cast<double>(nPart), F_ij_temp);
-                copyarray(F_ij_temp, F_ij[i*nPart+j]);
-                scalearray(F_ij_temp, -1.0, F_ij[j*nPart+i]);
+                copyarray(F_ij_temp, this->p_Fij[i*nPart+j]);
+                scalearray(F_ij_temp, -1.0, this->p_Fij[j*nPart+i]);
 
                 if (distribute_stress)
                     this->DistributePairInteraction(R[i], R[j], F_ij_temp);
@@ -1740,7 +1786,7 @@ void StressGrid::DistributeNBody ( int nPart, darraylist R, darraylist F, bool d
 //Sum the stress to the current_grid
 void StressGrid::AddAtomStressToGrid(int n, dmatrix stress)
 {
-    summatrix (this->current_grid[n],stress,this->current_grid[n]);
+    summatrix (this->p_current_grid[n],stress,this->p_current_grid[n]);
     return;
 }
 
@@ -1755,16 +1801,16 @@ void StressGrid::GridCoord( darray pt, int *i, int *j, int *k )
     fractional indices are invbox * coordinate;
     grid indices are then nx*f_ind[0], etc.
     */
-    rxx = this->invbox[0][0];
-    ryx = this->invbox[1][0];
-    ryy = this->invbox[1][1];
-    rzx = this->invbox[2][0];
-    rzy = this->invbox[2][1];
-    rzz = this->invbox[2][2];
+    rxx = this->m_invbox[0][0];
+    ryx = this->m_invbox[1][0];
+    ryy = this->m_invbox[1][1];
+    rzx = this->m_invbox[2][0];
+    rzy = this->m_invbox[2][1];
+    rzz = this->m_invbox[2][2];
 
-    nx = this->nx;
-    ny = this->ny;
-    nz = this->nz;
+    nx = this->m_nx;
+    ny = this->m_ny;
+    nz = this->m_nz;
 
     *i = static_cast<int>(nx * pt[0] * rxx);
     *j = static_cast<int>(ny * pt[1] * ryy);
