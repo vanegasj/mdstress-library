@@ -80,9 +80,9 @@ typedef single_t cu_smatrix[3][3];
 typedef double_t cu_darray[3];
 typedef double_t cu_dmatrix[3][3];
 
-#define cu_batches 1
-#define cu_batchsize ( 524288 / cu_batches )
-#define cu_threads_per_block 32
+#define cu_batches 16
+#define cu_batchsize (2*262144)
+#define cu_threads_per_block 64
 typedef struct {
     cu_sarray Ri[cu_batchsize];
     cu_sarray Rj[cu_batchsize];
@@ -387,8 +387,6 @@ void custress_clear()
 
 void custress_update_box_spacings(const mds::dmatrix box, const mds::dmatrix invbox, const mds::darray gridsp)
 {
-    for (int i = 0; i < cu_batches; ++i)
-        h_mutex_kernel[i].lock();
     // convert to custress types
     cu_smatrix cu_box = {
         {(single_t)box[0][0], (single_t)box[0][1], (single_t)box[0][2]},
@@ -415,8 +413,6 @@ void custress_update_box_spacings(const mds::dmatrix box, const mds::dmatrix inv
     checkCuda(cudaMemcpyToSymbol(c_box,    cu_box,    sizeof(cu_smatrix)));
     checkCuda(cudaMemcpyToSymbol(c_invbox, cu_invbox, sizeof(cu_smatrix)));
     checkCuda(cudaMemcpyToSymbol(c_gridsp, cu_gridsp, sizeof(cu_gridsp)));
-    for (int i = 0; i < cu_batches; ++i)
-        h_mutex_kernel[i].unlock();
 }
 
 // gpu kernel
@@ -440,10 +436,16 @@ void custress_distribute_pair_interaction(const mds::darray xi, const mds::darra
     
     if (this_length > h_length_max[cu_batches-1u])
     {
+        state_mutex->lock();
         for (int i = 0; i < cu_batches; ++i)
-        {
+            h_mutex_kernel[i].lock();
+
+        for (int i = 0; i < cu_batches; ++i)
             h_length_max[i] = (i+1)*(this_length/cu_batches);
-        }
+
+        for (int i = 0; i < cu_batches; ++i)
+            h_mutex_kernel[i].unlock();
+        state_mutex->unlock();
     }
     
     // calculate the possible maximum length
@@ -457,6 +459,7 @@ void custress_distribute_pair_interaction(const mds::darray xi, const mds::darra
     } while(true); 
     i = (i >= cu_batches) ? cu_batches-1u : i;
     
+    h_mutex_kernel[i].lock();
     checkCuda(cudaEventSynchronize(h_mem_event[i]));
     
     // store for later processing
@@ -474,7 +477,7 @@ void custress_distribute_pair_interaction(const mds::darray xi, const mds::darra
     // if bindex is cu_batchsize we process
     if (h_bindex[i] == cu_batchsize)
     {
-        //std::lock_guard<std::mutex> kernel_lock(h_mutex_kernel[i]);
+        //state_mutex->lock();
 
         // transfer the grid to host
         checkCuda(cudaMemcpyAsync(
@@ -487,14 +490,14 @@ void custress_distribute_pair_interaction(const mds::darray xi, const mds::darra
         // execute with a single element processed by each streaming multiprocessor
         process_batch<<<cu_batchsize/cu_threads_per_block,cu_threads_per_block>>>(h_bindex[i], &d_batch[i], d_sum_grid);
         h_bindex[i] = 0;
+        
+        //state_mutex->unlock();
     }
+    h_mutex_kernel[i].unlock();
 }
 
 void custress_sum_grid(mds::dmatrix * current_grid)
 {
-    for (int i = 0; i < cu_batches; ++i)
-        h_mutex_kernel[i].lock();
-
     // finish off any remaining pairs
     for (int i = 0; i < cu_batches; ++i)
     {
@@ -521,9 +524,6 @@ void custress_sum_grid(mds::dmatrix * current_grid)
             h_ncells*sizeof(cu_smatrix),
             cudaMemcpyDeviceToHost) );
     
-    for (int i = 0; i < cu_batches; ++i)
-        h_mutex_kernel[i].unlock();
-
     // sum into mdstress current_grid
     for (uint_t i = 0; i < h_ncells; ++i)
     {
