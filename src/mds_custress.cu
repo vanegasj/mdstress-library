@@ -28,7 +28,7 @@ __device__ double atomicAdd(double* address, double val)
 }
 #endif
 
-#define SINGLE_PRECISION
+//#define SINGLE_PRECISION
 #ifdef SINGLE_PRECISION
 typedef double double_t;
 #define doubleval(a) (a)
@@ -81,8 +81,8 @@ typedef double_t cu_darray[3];
 typedef double_t cu_dmatrix[3][3];
 
 #define cu_batches 16
-#define cu_batchsize (2*262144)
-#define cu_threads_per_block 64
+#define cu_batchsize (262144/cu_batches)
+#define cu_threads_per_block 32
 typedef struct {
     cu_sarray Ri[cu_batchsize];
     cu_sarray Rj[cu_batchsize];
