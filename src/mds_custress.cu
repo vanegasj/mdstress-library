@@ -59,7 +59,6 @@ cudaError_t __checkCuda(cudaError_t result, const char * file, int line)
 {
 #if defined(DEBUG) || defined(_DEBUG)
   if (result != cudaSuccess) {
-    fprintf(stderr, "CUDA Runtime Error: %s in %s, line %d\n", cudaGetErrorString(result), file, line);
     assert(result == cudaSuccess);
   }
 #endif
@@ -80,8 +79,8 @@ typedef single_t cu_smatrix[3][3];
 typedef double_t cu_darray[3];
 typedef double_t cu_dmatrix[3][3];
 
-#define cu_batches 16
-#define cu_batchsize (262144/cu_batches)
+#define cu_batches 256
+#define cu_batchsize ((4*262144)/cu_batches)
 #define cu_threads_per_block 32
 typedef struct {
     cu_sarray Ri[cu_batchsize];
@@ -97,6 +96,7 @@ __constant__ cu_smatrix c_invbox;
 __constant__ single_t   c_gridsp[8];
 
 // device global memory is not, so minimize access here
+#define cu_grids 8
 batcharrays_t *d_batch    = nullptr;
 cu_smatrix    *d_sum_grid = nullptr;
 
@@ -109,7 +109,12 @@ cu_smatrix    *h_sum_grid = nullptr;
 
 // mutex for threads
 std::mutex h_mutex_kernel[cu_batches];
+
+// cuda context
 cudaEvent_t h_mem_event[cu_batches] = { nullptr };
+cudaStream_t h_stream[cu_batches] = { nullptr };
+const dim3 batch_blocks = {cu_batchsize/cu_threads_per_block,1,1};
+const dim3 batch_threads = {cu_threads_per_block,1,1};
 
 // global functions
 __device__ static inline void spread_line_source(
@@ -322,35 +327,36 @@ void custress_init(size_t ncells, int nx, int ny, int nz)
     // initialize device
     checkCuda(cudaSetDevice(0));
 
-    // create event
+    // create events and streams
     for (int i = 0; i < cu_batches; ++i) 
     {
+        checkCuda(cudaStreamCreate(&h_stream[i]));
         checkCuda(cudaEventCreate(&h_mem_event[i]));
-        checkCuda(cudaEventRecord(h_mem_event[i]));
+        checkCuda(cudaEventRecord(h_mem_event[i],h_stream[i]));
     }
 
     // clear it
     custress_clear();
 
     // allocate global memory
-    checkCuda(cudaMalloc((void**)&d_sum_grid,ncells*sizeof(cu_smatrix)));
+    checkCuda(cudaMalloc((void**)&d_sum_grid,(size_t)(cu_batches*ncells)*sizeof(cu_smatrix)));
     checkCuda(cudaMalloc((void**)&d_batch,sizeof(batcharrays_t[cu_batches])));
 
     // allocate host memory
     h_batch = new batcharrays_t[cu_batches];
-    h_sum_grid = new cu_smatrix[ncells];
+    h_sum_grid = new cu_smatrix[(size_t)(cu_batches*ncells)];
     
     cu_iarray cu_nxyz = {(int_t)nx, (int_t)ny, (int_t)nz};
     checkCuda(cudaMemcpyToSymbol(c_nxyz, cu_nxyz, sizeof(mds::iarray)));
 
     // initialize global memory
-    checkCuda(cudaMemset(d_sum_grid, 0, ncells*sizeof(cu_smatrix)));
+    checkCuda(cudaMemset(d_sum_grid, 0, (size_t)(cu_batches*ncells)*sizeof(cu_smatrix)));
     checkCuda(cudaMemset(d_batch,    0, sizeof(batcharrays_t[cu_batches])));
 
     // initialize host memory
     h_ncells = (uint_t)ncells;
     for (int i = 0; i < cu_batches; ++i) h_bindex[i] = 0;
-    memset(h_sum_grid, 0, ncells*sizeof(cu_smatrix));
+    memset(h_sum_grid, 0, (size_t)(cu_batches*ncells)*sizeof(cu_smatrix));
     memset(h_batch,    0, sizeof(batcharrays_t[cu_batches]));
 }
 
@@ -382,6 +388,8 @@ void custress_clear()
     {
         checkCuda(cudaEventDestroy(h_mem_event[i]));
         h_mem_event[i] = nullptr;
+        checkCuda(cudaStreamDestroy(h_stream[i]));
+        h_stream[i] = nullptr;
     }
 }
 
@@ -425,9 +433,42 @@ __global__ static void process_batch(uint_t batch_index, const batcharrays_t * _
         BatchPairInteraction(batch->Ri[index], batch->Rj[index], batch->Fij[index], current_grid);
 }
 
+__global__ static void reduce_grids(uint_t ncells, cu_smatrix * current_grid)
+{
+    auto index = blockIdx.x*cu_threads_per_block+threadIdx.x;
+    cu_smatrix this_cell = { { 0 } };
+
+    if (index < ncells)
+    {
+        for (int_t i = cu_batches-1; i >= 0 ; --i)
+        {
+            this_cell[0][0] += current_grid[index+i*ncells][0][0];
+            this_cell[0][1] += current_grid[index+i*ncells][0][1];
+            this_cell[0][2] += current_grid[index+i*ncells][0][2];
+            this_cell[1][0] += current_grid[index+i*ncells][1][0];
+            this_cell[1][1] += current_grid[index+i*ncells][1][1];
+            this_cell[1][2] += current_grid[index+i*ncells][1][2];
+            this_cell[2][0] += current_grid[index+i*ncells][2][0];
+            this_cell[2][1] += current_grid[index+i*ncells][2][1];
+            this_cell[2][2] += current_grid[index+i*ncells][2][2];
+        }
+
+        current_grid[index][0][0] = this_cell[0][0];
+        current_grid[index][0][1] = this_cell[0][1];
+        current_grid[index][0][2] = this_cell[0][2];
+        current_grid[index][1][0] = this_cell[1][0];
+        current_grid[index][1][1] = this_cell[1][1];
+        current_grid[index][1][2] = this_cell[1][2];
+        current_grid[index][2][0] = this_cell[2][0];
+        current_grid[index][2][1] = this_cell[2][1];
+        current_grid[index][2][2] = this_cell[2][2];
+    }
+}
+
 // launches GPU kernel
 void custress_distribute_pair_interaction(const mds::darray xi, const mds::darray xj, const mds::darray Fij, std::mutex * state_mutex)
 {
+
     // calculate the diff
     double_t this_length =
         (xi[0]-xj[0])*(xi[0]-xj[0])+
@@ -436,28 +477,14 @@ void custress_distribute_pair_interaction(const mds::darray xi, const mds::darra
     
     if (this_length > h_length_max[cu_batches-1u])
     {
-        state_mutex->lock();
-        for (int i = 0; i < cu_batches; ++i)
-            h_mutex_kernel[i].lock();
-
+        std::lock_guard<std::mutex> lock(*state_mutex);
         for (int i = 0; i < cu_batches; ++i)
             h_length_max[i] = (i+1)*(this_length/cu_batches);
-
-        for (int i = 0; i < cu_batches; ++i)
-            h_mutex_kernel[i].unlock();
-        state_mutex->unlock();
     }
     
     // calculate the possible maximum length
-    int i = 0;
-    do
-    {
-        if (this_length < h_length_max[i])
-            break;
-        else
-            ++i;
-    } while(true); 
-    i = (i >= cu_batches) ? cu_batches-1u : i;
+    uint_t i = 0;
+    while (this_length > h_length_max[i] && i < cu_batches - 1u) i++;
     
     h_mutex_kernel[i].lock();
     checkCuda(cudaEventSynchronize(h_mem_event[i]));
@@ -484,11 +511,12 @@ void custress_distribute_pair_interaction(const mds::darray xi, const mds::darra
                 &d_batch[i],
                 &h_batch[i],
                 sizeof(batcharrays_t),
-                cudaMemcpyHostToDevice) );
-        checkCuda(cudaEventRecord(h_mem_event[i]));
+                cudaMemcpyHostToDevice,
+                h_stream[i]));
+        checkCuda(cudaEventRecord(h_mem_event[i],h_stream[i]));
 
         // execute with a single element processed by each streaming multiprocessor
-        process_batch<<<cu_batchsize/cu_threads_per_block,cu_threads_per_block>>>(h_bindex[i], &d_batch[i], d_sum_grid);
+        process_batch<<<batch_blocks,batch_threads,0u,h_stream[i]>>>(h_bindex[i], &d_batch[i], d_sum_grid+i*h_ncells);
         h_bindex[i] = 0;
         
         //state_mutex->unlock();
@@ -501,6 +529,7 @@ void custress_sum_grid(mds::dmatrix * current_grid)
     // finish off any remaining pairs
     for (int i = 0; i < cu_batches; ++i)
     {
+        h_mutex_kernel[i].lock();
         if (h_bindex[i] > 0)
         {
             // transfer the batch to device
@@ -508,14 +537,26 @@ void custress_sum_grid(mds::dmatrix * current_grid)
                     &d_batch[i],
                     &h_batch[i],
                     sizeof(batcharrays_t),
-                    cudaMemcpyHostToDevice) );
+                    cudaMemcpyHostToDevice,
+                    h_stream[i]) );
 
             // execute with a single element processed by each streaming multiprocessor
-            process_batch<<<cu_batchsize/cu_threads_per_block,cu_threads_per_block>>>(h_bindex[i], &d_batch[i], d_sum_grid);
-
+            process_batch<<<batch_blocks,batch_threads,0u,h_stream[i]>>>(h_bindex[i], &d_batch[i], d_sum_grid+i*h_ncells);
+            
             h_bindex[i] = 0;
         }
+        h_mutex_kernel[i].unlock();
     }
+    
+    // synchronize entire devies
+    checkCuda(cudaDeviceSynchronize());
+
+    // sum grids on device and transfer
+    uint_t reduce_blocks = h_ncells/cu_threads_per_block;
+    reduce_blocks += (reduce_blocks*cu_threads_per_block < h_ncells) ? 1 : 0;
+    
+    reduce_grids<<<reduce_blocks, cu_threads_per_block>>>(h_ncells, d_sum_grid);
+    checkCuda(cudaDeviceSynchronize());
     
     // transfer the grid to host
     checkCuda(cudaMemcpy(
@@ -523,18 +564,18 @@ void custress_sum_grid(mds::dmatrix * current_grid)
             d_sum_grid,
             h_ncells*sizeof(cu_smatrix),
             cudaMemcpyDeviceToHost) );
-    
+
     // sum into mdstress current_grid
     for (uint_t i = 0; i < h_ncells; ++i)
     {
-        current_grid[i][0][0] += (double)h_sum_grid[i][0][0];//.x + (double)h_sum_grid[i][0][0].y;
-        current_grid[i][0][1] += (double)h_sum_grid[i][0][1];//.x + (double)h_sum_grid[i][0][1].y;
-        current_grid[i][0][2] += (double)h_sum_grid[i][0][2];//.x + (double)h_sum_grid[i][0][2].y;
-        current_grid[i][1][0] += (double)h_sum_grid[i][1][0];//.x + (double)h_sum_grid[i][1][0].y;
-        current_grid[i][1][1] += (double)h_sum_grid[i][1][1];//.x + (double)h_sum_grid[i][1][1].y;
-        current_grid[i][1][2] += (double)h_sum_grid[i][1][2];//.x + (double)h_sum_grid[i][1][2].y;
-        current_grid[i][2][0] += (double)h_sum_grid[i][2][0];//.x + (double)h_sum_grid[i][2][0].y;
-        current_grid[i][2][1] += (double)h_sum_grid[i][2][1];//.x + (double)h_sum_grid[i][2][1].y;
-        current_grid[i][2][2] += (double)h_sum_grid[i][2][2];//.x + (double)h_sum_grid[i][2][2].y;
+        current_grid[i][0][0] += (double)h_sum_grid[i][0][0];
+        current_grid[i][0][1] += (double)h_sum_grid[i][0][1];
+        current_grid[i][0][2] += (double)h_sum_grid[i][0][2];
+        current_grid[i][1][0] += (double)h_sum_grid[i][1][0];
+        current_grid[i][1][1] += (double)h_sum_grid[i][1][1];
+        current_grid[i][1][2] += (double)h_sum_grid[i][1][2];
+        current_grid[i][2][0] += (double)h_sum_grid[i][2][0];
+        current_grid[i][2][1] += (double)h_sum_grid[i][2][1];
+        current_grid[i][2][2] += (double)h_sum_grid[i][2][2];
     }
 }
