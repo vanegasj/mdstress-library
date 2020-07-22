@@ -20,6 +20,9 @@
      juan.m.vanegas@gmail.com
 =========================================================================*/
 
+#ifndef __defines_h
+#define __defines_h
+
 namespace mds
 {   
     #define mds_max(a,b) \
@@ -75,14 +78,22 @@ namespace mds
     #define mds_eps      1.0e-10
 
     #define mds_fileext "mds"
-    
+
+    #define mds_batchsize 2048
     
     typedef bool    barray[4];
     typedef int     iarray[3];
     typedef double  darray[3];
     typedef double  dmatrix[3][3];
+
+    typedef struct {
+        darray Ri[mds_batchsize];
+        darray Rj[mds_batchsize];
+        darray Fij[mds_batchsize];
+    } batcharrays;
     
     class  StressGrid;
     class  StressGridPython;
     class  Lapack;
 }
+#endif // __defines_h

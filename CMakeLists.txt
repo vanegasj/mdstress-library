@@ -4,7 +4,7 @@ project(mdstress_test LANGUAGES CXX CUDA)
 # set fast math etc
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG -ffast-math -march=native" CACHE STRING
     "Flags used by the compiler during release builds." FORCE)
-set(CMAKE_CUDA_FLAGS_RELEASE "-O3 -DNDEBUG -Wno-deprecated-gpu-targets -arch=sm_70" CACHE STRING
+set(CMAKE_CUDA_FLAGS_RELEASE "-O3 -DNDEBUG -Wno-deprecated-gpu-targets -arch=sm_61" CACHE STRING
     "Flags used by the compiler during release builds." FORCE)
 
 # set default build type

@@ -24,35 +24,164 @@
 #define __basicops_h
 
 #include "mds_defines.h"
+#include <math.h>
 
 namespace mds
 {
-    //AUXILIARY FUNCTIONS
-    void sumarray ( darray a, darray b, darray c);
+    static inline void sumarray ( darray a, darray b, darray c)
+    {
+        c[0] = a[0]+b[0];
+        c[1] = a[1]+b[1];
+        c[2] = a[2]+b[2];
+    }
 
-    void diffarray ( darray a, darray b, darray c);
+    static inline void diffarray ( darray a, darray b, darray c)
+    {
+        c[0] = a[0]-b[0];
+        c[1] = a[1]-b[1];
+        c[2] = a[2]-b[2];
+    }
 
-    void diffarray ( darray a, darray b, darray c, dmatrix box, barray periodic);
+    static inline void diffarray ( darray a, darray b, darray c, dmatrix box, barray periodic)
+    {
+        c[0] = a[0]-b[0];
+        c[1] = a[1]-b[1];
+        c[2] = a[2]-b[2];
 
-    void scalearray ( darray b, double a, darray c);
+        if (periodic[3] == true)
+        {
+            for (int i = 0; i < mds_ndim; i++)
+            {
+                if (periodic[i] == true)
+                {
+                    while (c[i] > 0.5*box[i][i])
+                        c[i] -= box[i][i];
+                    while (c[i] <= -0.5*box[i][i])
+                        c[i] += box[i][i];
+                }
+            }
+        }
+    }
 
-    double normarray ( darray a );
+    static inline void scalearray ( darray b, double a, darray c)
+    {
+        c[0] = a * b[0];
+        c[1] = a * b[1];
+        c[2] = a * b[2];
+    }
 
-    void copyarray ( darray a, darray b);
+    static inline double normarray ( darray a )
+    {
+        return sqrt(a[0]*a[0] + a[1]*a[1] + a[2]*a[2]);
+    }
 
-    void copymatrix ( dmatrix a, dmatrix b);
+    static inline void copyarray ( darray a, darray b)
+    {
+        b[0] = a[0];
+        b[1] = a[1];
+        b[2] = a[2];
+    }
 
-    void summatrix ( dmatrix a, dmatrix b, dmatrix c);
+    static inline void summatrix ( dmatrix a, dmatrix b, dmatrix c)
+    {
+        c[0][0] = a[0][0] + b[0][0];
+        c[0][1] = a[0][1] + b[0][1];
+        c[0][2] = a[0][2] + b[0][2];
+        c[1][0] = a[1][0] + b[1][0];
+        c[1][1] = a[1][1] + b[1][1];
+        c[1][2] = a[1][2] + b[1][2];
+        c[2][0] = a[2][0] + b[2][0];
+        c[2][1] = a[2][1] + b[2][1];
+        c[2][2] = a[2][2] + b[2][2];
+    }
 
-    void scalematrix ( dmatrix b, double a, dmatrix c);
+    static inline void copymatrix ( dmatrix a, dmatrix b)
+    {
+        b[0][0] = a[0][0];
+        b[0][1] = a[0][1];
+        b[0][2] = a[0][2];
+        b[1][0] = a[1][0];
+        b[1][1] = a[1][1];
+        b[1][2] = a[1][2];
+        b[2][0] = a[2][0];
+        b[2][1] = a[2][1];
+        b[2][2] = a[2][2];
+    }
 
-    void inversematrix ( dmatrix A, dmatrix iA);
+    static inline void scalematrix ( dmatrix b, double a, dmatrix c)
+    {
+        c[0][0] = a * b[0][0];
+        c[0][1] = a * b[0][1];
+        c[0][2] = a * b[0][2];
+        c[1][0] = a * b[1][0];
+        c[1][1] = a * b[1][1];
+        c[1][2] = a * b[1][2];
+        c[2][0] = a * b[2][0];
+        c[2][1] = a * b[2][1];
+        c[2][2] = a * b[2][2];
+    }
+    
+    #define scalesummatrix(a,b,c)\
+        c[0][0] += a * b[0][0];\
+        c[0][1] += a * b[0][1];\
+        c[0][2] += a * b[0][2];\
+        c[1][0] += a * b[1][0];\
+        c[1][1] += a * b[1][1];\
+        c[1][2] += a * b[1][2];\
+        c[2][0] += a * b[2][0];\
+        c[2][1] += a * b[2][1];\
+        c[2][2] += a * b[2][2]
+    
+    static inline void inversematrix ( dmatrix A, dmatrix iA)
+    {
+        double det = 0.0;
+        double iDet = 0.0;
+        
+        //It only works for 3D
+        det  += (A[0][0]*(A[1][1]*A[2][2] - A[1][2]*A[2][1]));
+        det  += (A[0][1]*(A[1][2]*A[2][0] - A[1][0]*A[2][2]));
+        det  += (A[0][2]*(A[1][0]*A[2][1] - A[1][1]*A[2][0]));
+        
+        iDet = 1.0/det;
+        
+        iA[0][0] = ((A[1][1] * A[2][2]) - (A[1][2]*A[2][1])) * iDet;
+        iA[0][1] = ((A[1][2] * A[2][0]) - (A[1][0]*A[2][2])) * iDet;
+        iA[0][2] = ((A[1][0] * A[2][1]) - (A[1][1]*A[2][0])) * iDet;
+        iA[1][0] = ((A[2][1] * A[0][2]) - (A[2][2]*A[0][1])) * iDet;
+        iA[1][1] = ((A[2][2] * A[0][0]) - (A[2][0]*A[0][2])) * iDet;
+        iA[1][2] = ((A[2][0] * A[0][1]) - (A[2][1]*A[0][0])) * iDet;
+        iA[2][0] = ((A[0][1] * A[1][2]) - (A[0][2]*A[1][1])) * iDet;
+        iA[2][1] = ((A[0][2] * A[1][0]) - (A[0][0]*A[1][2])) * iDet;
+        iA[2][2] = ((A[0][0] * A[1][1]) - (A[0][1]*A[1][0])) * iDet;
+    }
 
-    void zeromatrix ( dmatrix A );
+    static inline void zeromatrix ( dmatrix A )
+    {
+        A[0][0] = 0.0;
+        A[0][1] = 0.0;
+        A[0][2] = 0.0;
+        A[1][0] = 0.0;
+        A[1][1] = 0.0;
+        A[1][2] = 0.0;
+        A[2][0] = 0.0;
+        A[2][1] = 0.0;
+        A[2][2] = 0.0;
+    }
 
-    bool iszeromatrix ( dmatrix A );
+    static inline bool iszeromatrix ( dmatrix A )
+    {   
+        for ( int i = 0; i < mds_ndim; i++ )
+            for ( int j = 0; j < mds_ndim; j++ )
+                if (A[i][j] > mds_eps) return false;
+                
+        return true;
+    }
 
-    int modulo (int a, int b);
+    // Modulo operation
+    static inline int modulo (int a, int b)
+    {
+        return (a+b) % b;
+    }
 }
 
 #endif // __basicops_h

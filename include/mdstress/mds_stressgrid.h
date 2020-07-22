@@ -82,6 +82,15 @@ class  mds::StressGrid
         const char *GetNameOfClass() const
         {   return "StressGrid";     }
         
+        /** Set max batches: */
+        //@{
+        void SetMaxBatches(int batches)
+        {
+            std::lock_guard<std::mutex> lock(m_mutex_state);
+            this->m_max_batches = batches;
+        }
+        //@}
+        
         /** Set/Get number of atoms: */
         //@{
         void SetNumberOfAtoms(int n)
@@ -358,6 +367,7 @@ class  mds::StressGrid
         barray      m_periodic;       ///< mark dimensions as periodic
         double      m_mindihangle;
         int         m_maxpart;        ///< used to allocate Rij and Fij
+        int         m_max_batches;    ///< number of batches to use
         //@}
     
         /** @name Outputs*/
@@ -367,22 +377,23 @@ class  mds::StressGrid
         int      m_nreset;       ///< Number of resets (for writing files)
         dmatrix  m_sumbox;       ///< Average box
         dmatrix  m_invbox;       ///< Inverse of the box
-        darray   m_gridsp;       ///< grid spacing
+        double   m_gridsp[7];    ///< grid spacing
         double   m_invgridsp;    ///< inverse of grid spacing
-        Lapack  *p_lapack;       ///< mds_lapack: solves underdetermined/overdetermined systems of equations and projects solution onto shape space
+        Lapack **h_lapack;       ///< mds_lapack: solves underdetermined/overdetermined systems of equations and projects solution onto shape space
         double  *p_Amat;         ///< matrix for linear systems (for systems with more than 5 particles)
         double  *p_AmatT;        ///< transpose of the matrix (used for projecting solution onto the shape space)
         double  *p_bvec;         ///< vector for solving the linear system    
         darray  *p_Rij;          ///< distance vectors
         darray  *p_Fij;          ///< force vectors
         darray  *p_Uij;          ///< distance vectors
-        iarray  *p_Lij;          ///< label vectors
         dmatrix *p_current_grid; ///< Grid (either nx*ny*nz or nAtoms)
         dmatrix *p_sum_grid;     ///< Sum Grid
         double  *p_sum_volume;   ///< Sum of volumes when using mds_atom
         double  *p_radii;        ///< the radius of an atomic site
         double  *p_positions;    ///< the position of an atomic site
         int     *p_molecule_id;  ///< The molecule an atomic site belongs to
+        double     *p_batch_len;  ///< max length of each batch
+        std::mutex *p_batch_mutex; ///< mutex used to protect each batch
         //@}
         
         /** @name Threads*/
@@ -404,47 +415,25 @@ class  mds::StressGrid
          * R1   -> position of particle I (A)
          * R2   -> position of particle J (B)
          * F    -> pairwise force */
-        void DistributePairInteraction     ( darray R1, darray R2, darray F );
+        void DistributePairInteraction     ( darray R1, darray R2, darray F, int batch_id );
         
         /** Decompose 3-body potentials (angles)*/
-        void DistributeN3                  ( darray Ra, darray Rb, darray Rc, darray Fa, darray Fb, darray Fc );
+        void DistributeN3                  ( darray Ra, darray Rb, darray Rc, darray Fa, darray Fb, darray Fc, int batch_id );
         
         /** Decompose Settle */
-        void DistributeSettle              ( darray Ra, darray Rb, darray Rc, darray Fa, darray Fb, darray Fc );
+        void DistributeSettle              ( darray Ra, darray Rb, darray Rc, darray Fa, darray Fb, darray Fc, int batch_id );
         
         /** Decompose 4-body potentials (dihedrals) */
-        void DistributeN4                  ( darray Ra, darray Rb, darray Rc, darray Rd, darray Fa, darray Fb, darray Fc, darray Fd );
+        void DistributeN4                  ( darray Ra, darray Rb, darray Rc, darray Rd, darray Fa, darray Fb, darray Fc, darray Fd, int batch_id );
         
         /** Decompose 5-body potentials (CMAP) */
-        void DistributeN5                  ( darray Ra, darray Rb, darray Rc, darray Rd, darray Re, darray Fa, darray Fb, darray Fc, darray Fd, darray Fe);
+        void DistributeN5                  ( darray Ra, darray Rb, darray Rc, darray Rd, darray Re, darray Fa, darray Fb, darray Fc, darray Fd, darray Fe, int batch_id);
         
         /** General function to decompose N-body potentials (it can be used to compute higher order terms coming from EAM for instance) */
-        void DistributeNBody               ( int nPart, darray *R, darray *F, bool distritube_stress = true);
-        
-        /** SpreadPointSource
-         * Distributes "point sources" onto the grid
-         * Requires:
-         * x      -> source point 
-         * stress -> stress to be distributed */
-        void SpreadPointSource         (darray x, dmatrix stress);
-        
-        /** SpreadLineSource
-        * Distributes "line sources" onto a grid point (asuming trilinear weighting functions!) 
-        * Requires:
-        * a      -> position of particle A
-        * b      -> position of particle B
-        * t1     -> starting parametric time (the line segment is parametrized from 0 to 1 from A to B)
-        * t2     -> ending  parametric time 
-        * x      -> position of the grid point (integers) where we are spreading the contribution
-        * stress -> stress to be spread
-        * sumfactor -> (this is just for monitoring) part of the line source that has already been spread */
-        void SpreadLineSource          (darray a, darray b, double t1, double t2, iarray x, dmatrix stress, double *sumfactor);
+        void DistributeNBody               ( int nPart, darray *R, darray *F, bool distritube_stress, int batch_id);
         
         //AUXILIARY FUNCTIONS
         
-        /** Sum the stress to the current_grid */
-        void AddAtomStressToGrid       (int i,  dmatrix stress);
-
         /** Finds the indices on the grid for a given set of coordinates */
         void GridCoord(darray pt, int *i, int *j, int *k);
 

@@ -463,11 +463,11 @@ class LStensor:
             fp.write("# Stress in units of bar (10^5 Pa)\n# ")
 
         if (self.nx != 1):
-            fp.write("x\t")
+            fp.write("%13s\t" % "x")
         if (self.ny != 1):
-            fp.write("y\t")
+            fp.write("%13s\t" % "y")
         if (self.nz != 1):
-            fp.write("z\t")
+            fp.write("%13s\t" % "z")
         if (self.order == 0):
             fp.write
 
@@ -476,7 +476,7 @@ class LStensor:
         elif (self.order == 1):
             fp.write("Vx Vy Vz\n")
         elif (self.order == 2):
-            fp.write("Sxx\tSxy\tSxz\tSyx\tSyy\tSyz\tSzx\tSzy\tSzz\n")
+            fp.write("%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\n" % ("Sxx","Sxy","Sxz","Syx","Syy","Syz","Szx","Szy","Szz") )
 
         if(self.verbose):
             print("Writing data on grid in txt format to {0}...".format(outputfile))
@@ -485,13 +485,14 @@ class LStensor:
             for j in range(self.ny):
                 for k in range(self.nz):
                     if(self.nx > 1):
-                         fp.write(str(i*self.dx)+'\t')
+                         fp.write(("%15.8f" % (i*self.dx))+'\t')
                     if(self.ny > 1):
-                         fp.write(str(j*self.dy)+'\t')
+                         fp.write(("%15.8f" % (j*self.dy))+'\t')
                     if(self.nz > 1):
-                         fp.write(str(k*self.dz)+'\t')
+                         fp.write(("%15.8f" % (k*self.dz))+'\t')
                     for d in range(self.dsize):
-                        fp.write(str(self.data_grid[i*self.ny*self.nz+j*self.nz+k,d])+'\t')
+                        temp = self.data_grid[i*self.ny*self.nz+j*self.nz+k,d]
+                        fp.write(("%15.8f" % temp)+'\t')
                     fp.write('\n')
 
         fp.close()

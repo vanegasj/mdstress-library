@@ -79,8 +79,8 @@ typedef single_t cu_smatrix[3][3];
 typedef double_t cu_darray[3];
 typedef double_t cu_dmatrix[3][3];
 
-#define cu_batches 256
-#define cu_batchsize ((4*262144)/cu_batches)
+#define cu_batches 32
+#define cu_batchsize 2048
 #define cu_threads_per_block 32
 typedef struct {
     cu_sarray Ri[cu_batchsize];
