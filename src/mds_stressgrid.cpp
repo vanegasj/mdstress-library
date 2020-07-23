@@ -23,7 +23,7 @@
 #include "mds_stressgrid.h"
 #include "voro++.hh"
 
-//#define CUSTRESS_ENABLE
+#define CUSTRESS_ENABLE
 #ifdef CUSTRESS_ENABLE
 #include "mds_custress.h"
 #endif//CUSTRESS_ENABLE
@@ -273,7 +273,7 @@ void StressGrid::Init()
         for (int i=0; i <this->m_max_batches; ++i)
             this->h_lapack[i] = new Lapack (mds_ndim*this->m_maxClust,(this->m_maxClust*(this->m_maxClust-1))/2);
 #ifdef CUSTRESS_ENABLE
-        custress_init(this->m_ncells, this->m_nx, this->m_ny, this->m_nz);
+        custress_init(this->m_max_batches, this->m_ncells, this->m_nx, this->m_ny, this->m_nz);
 #endif//CUSTRESS_ENABLE
     }
 }
@@ -779,7 +779,7 @@ void StressGrid::ComputeNbodyPairForces(int nAtoms, darray *R, darray *F, int *a
 void StressGrid::DistributePairInteraction( darray xi, darray xj, darray F, int batch_id )
 {
 #ifdef CUSTRESS_ENABLE
-    custress_distribute_pair_interaction(xi,xj,F,&this->m_mutex_state);
+    custress_distribute_pair_interaction(xi,xj,F,batch_id);
 #else
     double oldt,newt,factor;
     int cmp0x,cmp1x,cmp2x,iX,index;
