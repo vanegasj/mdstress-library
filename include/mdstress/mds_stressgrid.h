@@ -75,14 +75,14 @@ class  mds::StressGrid
         const char *GetNameOfClass() const
         {   return "StressGrid";     }
         
-        /** Set max batches: */
+        /** Set max threads: */
         //@{
         void SetThreadIDs(int thread_id, int max_threads)
         {
             std::lock_guard<std::mutex> lock(m_mutex_state);
             this->m_thread_map[std::this_thread::get_id()] = thread_id;
             if (thread_id == 0)
-                this->m_max_batches = max_threads;
+                this->m_max_threads = max_threads;
         }
         //@}
         
@@ -362,7 +362,7 @@ class  mds::StressGrid
         barray      m_periodic;       ///< mark dimensions as periodic
         double      m_mindihangle;
         int         m_maxpart;        ///< used to allocate Rij and Fij
-        int         m_max_batches;    ///< number of batches to use
+        int         m_max_threads;    ///< number of threads to use
         //@}
     
         /** @name Outputs*/
@@ -387,7 +387,6 @@ class  mds::StressGrid
         double  *p_radii;        ///< the radius of an atomic site
         double  *p_positions;    ///< the position of an atomic site
         int     *p_molecule_id;  ///< The molecule an atomic site belongs to
-        double     *p_batch_len;  ///< max length of each batch
         //@}
         
         /** @name Threads*/

@@ -1,7 +1,5 @@
-#include <cuda.h>
-
 #include "mds_custress.h"
-#include "mds_basicops.h"
+#include <cuda.h>
 
 // some macros to check for errors
 #define checkCuda(a) __checkCuda(a, __FILE__, __LINE__)
@@ -75,7 +73,7 @@ typedef double_t cu_darray[3];
 typedef double_t cu_dmatrix[3][3];
 
 #define cu_batchsize 4096
-#define cu_threads_per_block 32
+#define cu_threads_per_block 128
 typedef struct {
     cu_sarray Ri[cu_batchsize];
     cu_sarray Rj[cu_batchsize];
@@ -97,7 +95,8 @@ uint_t h_nbatches = 0;
 uint_t        *h_bindex       = nullptr;
 batcharrays_t *h_batch        = nullptr;
 cu_smatrix    *h_sum_grid     = nullptr;
-//cudaEvent_t   *h_mem_event    = nullptr;
+cudaEvent_t   *h_mem_event    = nullptr;
+cudaStream_t  *h_stream       = nullptr;
 double_t      *h_length_max   = nullptr;
 
 // device global memory is not, so minimize access here
@@ -323,36 +322,38 @@ void custress_init(size_t nbatches_min, size_t ncells, int nx, int ny, int nz)
     // allocate host memory
     h_bindex    = new uint_t[h_nbatches];
     h_batch     = new batcharrays_t[h_nbatches];
-    h_sum_grid  = new cu_smatrix[h_ncells];
-    //h_mem_event = new cudaEvent_t[h_nbatches];
+    h_sum_grid  = new cu_smatrix[h_nbatches*h_ncells];
+    h_mem_event = new cudaEvent_t[h_nbatches];
+    h_stream    = new cudaStream_t[h_nbatches];
     h_length_max = new double_t[h_nbatches];
 
     // initialize device
     checkCuda(cudaSetDevice(0));
 
+    // create events and streams
+    for (int i = 0; i < h_nbatches; ++i) 
+    {
+        checkCuda(cudaStreamCreate(&h_stream[i]));
+        checkCuda(cudaEventCreateWithFlags(&h_mem_event[i], cudaEventDisableTiming));
+        checkCuda(cudaEventRecord(h_mem_event[i],h_stream[i]));
+    }
+
     // allocate global memory
     checkCuda(cudaMalloc((void**)&d_batch,sizeof(batcharrays_t[h_nbatches])));
-    checkCuda(cudaMalloc((void**)&d_sum_grid,sizeof(cu_smatrix[h_ncells])));
+    checkCuda(cudaMalloc((void**)&d_sum_grid,sizeof(cu_smatrix[h_nbatches*h_ncells])));
     
     // copy symbols
     cu_iarray cu_nxyz = {(int_t)nx, (int_t)ny, (int_t)nz};
     checkCuda(cudaMemcpyToSymbol(c_nxyz, cu_nxyz, sizeof(mds::iarray)));
 
     // initialize global memory
-    checkCuda(cudaMemset(d_sum_grid, 0, sizeof(cu_smatrix[h_ncells])));
+    checkCuda(cudaMemset(d_sum_grid, 0, sizeof(cu_smatrix[h_nbatches*h_ncells])));
     checkCuda(cudaMemset(d_batch,    0, sizeof(batcharrays_t[h_nbatches])));
-    
-    // create events
-    for (int i = 0; i < h_nbatches; ++i) 
-    {
-        //checkCuda(cudaEventCreate(&h_mem_event[i]));
-        //checkCuda(cudaEventRecord(h_mem_event[i]));
-    }
 
     // initialize host memory
     for (int i = 0; i < h_nbatches; ++i) h_bindex[i] = 0;
     for (int i = 0; i < h_nbatches; ++i) h_length_max[i] = doubleval(0.0);
-    memset(h_sum_grid, 0, sizeof(cu_smatrix[h_ncells]));
+    memset(h_sum_grid, 0, sizeof(cu_smatrix[h_nbatches*h_ncells]));
     memset(h_batch,    0, sizeof(batcharrays_t[h_nbatches]));
 }
 
@@ -370,7 +371,8 @@ void custress_clear()
     {
         for (int i = 0; i < h_nbatches; ++i)
         {
-            //checkCuda(cudaEventDestroy(h_mem_event[i]));
+            checkCuda(cudaEventDestroy(h_mem_event[i]));
+            checkCuda(cudaStreamDestroy(h_stream[i]));
         }
         
         // free global memory
@@ -380,14 +382,16 @@ void custress_clear()
         // free host memory
         if (h_batch != nullptr) free(h_batch);
         if (h_sum_grid != nullptr) free(h_sum_grid);
-        //if (h_mem_event != nullptr) free(h_mem_event);
+        if (h_mem_event != nullptr) free(h_mem_event);
+        if (h_stream != nullptr) free(h_stream);
         if (h_length_max != nullptr)  free(h_length_max);
         
         // set host and device pointers to null
         h_bindex       = nullptr;
         h_batch        = nullptr;
         h_sum_grid     = nullptr;
-        //h_mem_event    = nullptr;
+        h_mem_event    = nullptr;
+        h_stream       = nullptr;
         d_batch        = nullptr;
         d_sum_grid     = nullptr;
         h_length_max   = nullptr;
@@ -474,7 +478,7 @@ __global__ static void reduce_grids(uint_t nbatches, uint_t ncells, cu_smatrix *
 //std::mutex h_length_mutex;
 void custress_distribute_pair_interaction(const mds::darray xi, const mds::darray xj, const mds::darray Fij, int batch_id)
 {
-    // calculate the batch_id
+    // calculate the diff
     /*double_t this_length =
         (xi[0]-xj[0])*(xi[0]-xj[0])+
         (xi[1]-xj[1])*(xi[1]-xj[1])+
@@ -490,8 +494,12 @@ void custress_distribute_pair_interaction(const mds::darray xi, const mds::darra
     int batch_id = 0;
     while (this_length > h_length_max[batch_id] && batch_id < h_nbatches-1u) batch_id++;*/
     
-    // synchronize with last transfer (Memcpy used instead)
-    //checkCuda(cudaEventSynchronize(h_mem_event[batch_id]));
+    // acquire lock, or signal that lock was not acquired
+    if (h_bindex[batch_id] == cu_batchsize)
+    {
+        checkCuda(cudaEventSynchronize(h_mem_event[batch_id]));
+        h_bindex[batch_id] = 0;
+    }
 
     // store for later processing
     h_batch[batch_id].Ri[h_bindex[batch_id]][0] = (single_t)xi[0];
@@ -508,17 +516,17 @@ void custress_distribute_pair_interaction(const mds::darray xi, const mds::darra
     // if bindex is cu_batchsize we process
     if (h_bindex[batch_id] == cu_batchsize)
     {
-        // transfer the grid to host, synchronous call which blocks
-        checkCuda(cudaMemcpy(
+        // transfer the grid to host
+        checkCuda(cudaMemcpyAsync(
                 &d_batch[batch_id],
                 &h_batch[batch_id],
                 sizeof(batcharrays_t),
-                cudaMemcpyHostToDevice));
-        //checkCuda(cudaEventRecord(h_mem_event[batch_id]));
+                cudaMemcpyHostToDevice,
+                h_stream[batch_id]));
+        checkCuda(cudaEventRecord(h_mem_event[batch_id],h_stream[batch_id]));
 
         // execute with a single element processed by each streaming multiprocessor
-        process_batch<<<batch_blocks,batch_threads>>>(h_bindex[batch_id], &d_batch[batch_id], d_sum_grid);
-        h_bindex[batch_id] = 0;
+        process_batch<<<batch_blocks,batch_threads,0u,h_stream[batch_id]>>>(h_bindex[batch_id], &d_batch[batch_id], d_sum_grid+batch_id*h_ncells);
     }
 }
 
@@ -534,10 +542,11 @@ void custress_sum_grid(mds::dmatrix * current_grid)
                     &d_batch[i],
                     &h_batch[i],
                     sizeof(batcharrays_t),
-                    cudaMemcpyHostToDevice));
+                    cudaMemcpyHostToDevice,
+                    h_stream[i]) );
 
             // execute with a single element processed by each streaming multiprocessor
-            process_batch<<<batch_blocks,batch_threads>>>(h_bindex[i], &d_batch[i], d_sum_grid);
+            process_batch<<<batch_blocks,batch_threads,0u,h_stream[i]>>>(h_bindex[i], &d_batch[i], d_sum_grid+i*h_ncells);
             
             h_bindex[i] = 0;
         }
@@ -545,6 +554,13 @@ void custress_sum_grid(mds::dmatrix * current_grid)
     
     // synchronize entire devies
     checkCuda(cudaDeviceSynchronize());
+
+    // sum grids on device and transfer
+    uint_t reduce_blocks = h_ncells/cu_threads_per_block;
+    reduce_blocks += (reduce_blocks*cu_threads_per_block < h_ncells) ? 1 : 0;
+    
+    reduce_grids<<<reduce_blocks, cu_threads_per_block>>>(h_nbatches, h_ncells, d_sum_grid);
+    //checkCuda(cudaDeviceSynchronize());
     
     // transfer the grid to host
     checkCuda(cudaMemcpy(

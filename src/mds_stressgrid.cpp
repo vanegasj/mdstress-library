@@ -21,8 +21,8 @@
 =========================================================================*/
 
 #include "mds_stressgrid.h"
-#include "voro++.hh"
 #include "mds_barrier.h"
+#include "voro++.hh"
 
 #define CUSTRESS_ENABLE
 #ifdef CUSTRESS_ENABLE
@@ -81,7 +81,6 @@ StressGrid::StressGrid()
     this->p_molecule_id  = NULL;
     this->p_radii        = NULL;
     this->p_positions    = NULL;
-    this->p_batch_len    = NULL;
     
     this->m_nodispcor   = false;
     this->m_periodic[0] = false;
@@ -89,7 +88,7 @@ StressGrid::StressGrid()
     this->m_periodic[2] = false;
     this->m_mindihangle = 0.0;
 
-    this->m_max_batches = 0;
+    this->m_max_threads = 0;
 }
 
 //Destructor
@@ -113,10 +112,9 @@ void StressGrid::Clear()
     if (this->p_molecule_id  != NULL ) delete [] this->p_molecule_id;
     if (this->p_radii        != NULL ) delete [] this->p_radii;
     if (this->p_positions    != NULL ) delete [] this->p_positions;
-    if (this->p_batch_len    != NULL ) delete [] this->p_batch_len;
     if (this->h_lapack       != NULL )
     {
-        for (int i = 0; i < m_max_batches; ++i)
+        for (int i = 0; i < m_max_threads; ++i)
             delete this->h_lapack[i];
         delete this->h_lapack;
     }
@@ -134,7 +132,6 @@ void StressGrid::Clear()
     this->p_molecule_id  = NULL;
     this->p_radii        = NULL;
     this->p_positions    = NULL;
-    this->p_batch_len    = NULL;
     this->h_lapack       = NULL;
 
 #ifdef CUSTRESS_ENABLE
@@ -253,24 +250,21 @@ void StressGrid::Init()
 
         //Give size to current and sum grid
         this->p_sum_grid     = new dmatrix [this->m_ncells];
-        this->p_current_grid = new dmatrix [this->m_ncells*this->m_max_batches];
-        this->p_batch_len   = new double[this->m_max_batches];
+        this->p_current_grid = new dmatrix [this->m_ncells*this->m_max_threads];
         
         //Set all to zero
         this->m_nframes = 0;
         for (int i=0; i < this->m_ncells; i++)
             zeromatrix(this->p_sum_grid[i]);
-        for (int i=0; i < this->m_ncells*this->m_max_batches; i++)
+        for (int i=0; i < this->m_ncells*this->m_max_threads; i++)
             zeromatrix(this->p_current_grid[i]);
-        for (int i=0; i <this->m_max_batches; ++i)
-            p_batch_len[i] = 0.0;
         
         // Finally, create the lapack objects to deal with linear solvers and projections
-        this->h_lapack = new Lapack*[m_max_batches];
-        for (int i=0; i <this->m_max_batches; ++i)
+        this->h_lapack = new Lapack*[m_max_threads];
+        for (int i=0; i <this->m_max_threads; ++i)
             this->h_lapack[i] = new Lapack (mds_ndim*this->m_maxClust,(this->m_maxClust*(this->m_maxClust-1))/2);
 #ifdef CUSTRESS_ENABLE
-        custress_init(this->m_max_batches, this->m_ncells, this->m_nx, this->m_ny, this->m_nz);
+        custress_init(this->m_max_threads, this->m_ncells, this->m_nx, this->m_ny, this->m_nz);
 #endif//CUSTRESS_ENABLE
     }
 }
@@ -293,7 +287,7 @@ void StressGrid::UpdateBoxSpacings ( dmatrix box )
     if ( !this->m_ierr )
     {
         // every thread must process this latch before proceeding
-        static barrier ubs_entry(this->m_max_batches);
+        static barrier ubs_entry(this->m_max_threads);
         ubs_entry.count_down_and_wait();
 
         // only thread 0 performs update
@@ -319,7 +313,7 @@ void StressGrid::UpdateBoxSpacings ( dmatrix box )
         }
         
         // every thread must process this latch before exiting
-        static barrier ubs_exit(this->m_max_batches);
+        static barrier ubs_exit(this->m_max_threads);
         ubs_exit.count_down_and_wait();
     }
 }
@@ -331,7 +325,7 @@ void StressGrid::SumGrid ( )
     if ( !this->m_ierr )
     {
         // every thread must process this latch before proceeding
-        static barrier sumgrid_entry(this->m_max_batches);
+        static barrier sumgrid_entry(this->m_max_threads);
         sumgrid_entry.count_down_and_wait();
 
         if (this->m_thread_map[std::this_thread::get_id()] == 0)
@@ -341,7 +335,7 @@ void StressGrid::SumGrid ( )
 #endif//CUSTRESS_ENABLE
 
             // reduce all batches
-            for (int i = 1; i < this->m_max_batches; ++i)
+            for (int i = 1; i < this->m_max_threads; ++i)
             {
                 for (int j = 0; j < this->m_ncells; j++)
                     summatrix( this->p_current_grid[j], this->p_current_grid[j+i*this->m_ncells], this->p_current_grid[j] );
@@ -460,7 +454,7 @@ void StressGrid::SumGrid ( )
                 }
             }
 
-            for (int i = 0; i < this->m_max_batches; ++i)
+            for (int i = 0; i < this->m_max_threads; ++i)
             {
                 for(int j = 0; j < this->m_ncells; ++j)
                     zeromatrix (this->p_current_grid[i*this->m_ncells+j]);
@@ -470,7 +464,7 @@ void StressGrid::SumGrid ( )
         }
         
         // every thread must process this latch before exiting
-        static barrier sumgrid_exit(this->m_max_batches);
+        static barrier sumgrid_exit(this->m_max_threads);
         sumgrid_exit.count_down_and_wait();
     }
 }
@@ -499,7 +493,7 @@ void StressGrid::Reset ( )
     if ( !this->m_ierr)
     {
         // every thread must process this latch before proceeding
-        static barrier reset_entry(this->m_max_batches);
+        static barrier reset_entry(this->m_max_threads);
         reset_entry.count_down_and_wait();
 
         if (this->m_thread_map[std::this_thread::get_id()] == 0)
@@ -521,7 +515,7 @@ void StressGrid::Reset ( )
         }
         
         // every thread must process this latch before exiting
-        static barrier reset_exit(this->m_max_batches);
+        static barrier reset_exit(this->m_max_threads);
         reset_exit.count_down_and_wait();
     }
 }
@@ -533,7 +527,7 @@ void StressGrid::Write ( )
     if ( !this->m_ierr)
     {
         // every thread must process this latch before proceeding
-        static barrier write_entry(this->m_max_batches);
+        static barrier write_entry(this->m_max_threads);
         write_entry.count_down_and_wait();
 
         if (this->m_thread_map[std::this_thread::get_id()] == 0)
@@ -597,7 +591,7 @@ void StressGrid::Write ( )
         }
 
         // every thread must process this latch before exiting
-        static barrier write_exit(this->m_max_batches);
+        static barrier write_exit(this->m_max_threads);
         write_exit.count_down_and_wait();
     }
 }
