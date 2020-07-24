@@ -20,8 +20,8 @@
      juan.m.vanegas@gmail.com
 =========================================================================*/
 
-#ifndef __stressgrid_h
-#define __stressgrid_h
+#ifndef mds_stressgrid_h
+#define mds_stressgrid_h
 
 /** \class StressGrid
 * \brief ROOT OF ALL EVIL. This class handles computations of the local stress from MD trajectories
@@ -62,14 +62,7 @@
 * 
 */
 
-#include <vector>
-#include <iostream>
-#include <fstream>
-#include <stdio.h>
-#include <math.h>
-#include <sstream>
-#include <mutex>
-
+#include "mds_common.h"
 #include "mds_defines.h"
 #include "mds_basicops.h"
 #include "mds_cmenger.h"
@@ -84,10 +77,12 @@ class  mds::StressGrid
         
         /** Set max batches: */
         //@{
-        void SetMaxBatches(int batches)
+        void SetThreadIDs(int thread_id, int max_threads)
         {
             std::lock_guard<std::mutex> lock(m_mutex_state);
-            this->m_max_batches = batches;
+            this->m_thread_map[std::this_thread::get_id()] = thread_id;
+            if (thread_id == 0)
+                this->m_max_batches = max_threads;
         }
         //@}
         
@@ -393,13 +388,12 @@ class  mds::StressGrid
         double  *p_positions;    ///< the position of an atomic site
         int     *p_molecule_id;  ///< The molecule an atomic site belongs to
         double     *p_batch_len;  ///< max length of each batch
-        std::mutex *p_batch_mutex; ///< mutex used to protect each batch
         //@}
         
         /** @name Threads*/
         //@{
+        std::map<std::thread::id,int> m_thread_map;
         std::mutex m_mutex_state;
-        std::mutex m_mutex_lapack;
         //@}
 
         /** Method to delete the preallocated member variables */
@@ -438,4 +432,4 @@ class  mds::StressGrid
         void GridCoord(darray pt, int *i, int *j, int *k);
 
 };
-#endif // __stressgrid_h
+#endif // mds_stressgrid_h

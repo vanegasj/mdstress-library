@@ -22,6 +22,7 @@
 
 #include "mds_stressgrid.h"
 #include "voro++.hh"
+#include "mds_barrier.h"
 
 #define CUSTRESS_ENABLE
 #ifdef CUSTRESS_ENABLE
@@ -81,7 +82,6 @@ StressGrid::StressGrid()
     this->p_radii        = NULL;
     this->p_positions    = NULL;
     this->p_batch_len    = NULL;
-    this->p_batch_mutex  = NULL;
     
     this->m_nodispcor   = false;
     this->m_periodic[0] = false;
@@ -89,7 +89,7 @@ StressGrid::StressGrid()
     this->m_periodic[2] = false;
     this->m_mindihangle = 0.0;
 
-    this->m_max_batches = 20;
+    this->m_max_batches = 0;
 }
 
 //Destructor
@@ -114,7 +114,6 @@ void StressGrid::Clear()
     if (this->p_radii        != NULL ) delete [] this->p_radii;
     if (this->p_positions    != NULL ) delete [] this->p_positions;
     if (this->p_batch_len    != NULL ) delete [] this->p_batch_len;
-    if (this->p_batch_mutex  != NULL ) delete [] this->p_batch_mutex;
     if (this->h_lapack       != NULL )
     {
         for (int i = 0; i < m_max_batches; ++i)
@@ -136,7 +135,6 @@ void StressGrid::Clear()
     this->p_radii        = NULL;
     this->p_positions    = NULL;
     this->p_batch_len    = NULL;
-    this->p_batch_mutex  = NULL;
     this->h_lapack       = NULL;
 
 #ifdef CUSTRESS_ENABLE
@@ -257,7 +255,6 @@ void StressGrid::Init()
         this->p_sum_grid     = new dmatrix [this->m_ncells];
         this->p_current_grid = new dmatrix [this->m_ncells*this->m_max_batches];
         this->p_batch_len   = new double[this->m_max_batches];
-        this->p_batch_mutex = new std::mutex[this->m_max_batches];
         
         //Set all to zero
         this->m_nframes = 0;
@@ -293,27 +290,37 @@ void StressGrid::SetPeriodicBoundaries(bool x, bool y, bool z, bool enforce)
 // This function updates the box, invbox and computes the new spacings.
 void StressGrid::UpdateBoxSpacings ( dmatrix box )
 {
-    std::lock_guard<std::mutex> lock(this->m_mutex_state);
-
     if ( !this->m_ierr )
     {
-        copymatrix( box, this->m_box);
-        inversematrix( this->m_box, this->m_invbox );
+        // every thread must process this latch before proceeding
+        static barrier ubs_entry(this->m_max_batches);
+        ubs_entry.count_down_and_wait();
 
-        this->m_gridsp[0] = this->m_box[0][0]/static_cast<double>(this->m_nx);
-        this->m_gridsp[1] = this->m_box[1][1]/static_cast<double>(this->m_ny);
-        this->m_gridsp[2] = this->m_box[2][2]/static_cast<double>(this->m_nz);
-        this->m_gridsp[3] = this->m_gridsp[0]*this->m_gridsp[1];
-        this->m_gridsp[4] = this->m_gridsp[0]*this->m_gridsp[2];
-        this->m_gridsp[5] = this->m_gridsp[1]*this->m_gridsp[2];
-        this->m_gridsp[6] = this->m_gridsp[0]*this->m_gridsp[1]*this->m_gridsp[2];
+        // only thread 0 performs update
+        if (this->m_thread_map[std::this_thread::get_id()] == 0)
+        {
+            copymatrix( box, this->m_box);
+            inversematrix( this->m_box, this->m_invbox );
 
-        this->m_invgridsp = 1.0/(this->m_gridsp[0]*this->m_gridsp[1]*this->m_gridsp[2]);
+            this->m_gridsp[0] = this->m_box[0][0]/static_cast<double>(this->m_nx);
+            this->m_gridsp[1] = this->m_box[1][1]/static_cast<double>(this->m_ny);
+            this->m_gridsp[2] = this->m_box[2][2]/static_cast<double>(this->m_nz);
+            this->m_gridsp[3] = this->m_gridsp[0]*this->m_gridsp[1];
+            this->m_gridsp[4] = this->m_gridsp[0]*this->m_gridsp[2];
+            this->m_gridsp[5] = this->m_gridsp[1]*this->m_gridsp[2];
+            this->m_gridsp[6] = this->m_gridsp[0]*this->m_gridsp[1]*this->m_gridsp[2];
 
-        summatrix( this->m_box, this->m_sumbox, this->m_sumbox );
+            this->m_invgridsp = 1.0/(this->m_gridsp[0]*this->m_gridsp[1]*this->m_gridsp[2]);
+
+            summatrix( this->m_box, this->m_sumbox, this->m_sumbox );
 #ifdef CUSTRESS_ENABLE
-        custress_update_box_spacings(this->m_box, this->m_invbox, this->m_gridsp);
+            custress_update_box_spacings(this->m_box, this->m_invbox, this->m_gridsp);
 #endif//CUSTRESS_ENABLE
+        }
+        
+        // every thread must process this latch before exiting
+        static barrier ubs_exit(this->m_max_batches);
+        ubs_exit.count_down_and_wait();
     }
 }
 
@@ -321,158 +328,166 @@ void StressGrid::UpdateBoxSpacings ( dmatrix box )
 // to zero.
 void StressGrid::SumGrid ( )
 {
-    std::lock_guard<std::mutex> lock(this->m_mutex_state);
     if ( !this->m_ierr )
     {
+        // every thread must process this latch before proceeding
+        static barrier sumgrid_entry(this->m_max_batches);
+        sumgrid_entry.count_down_and_wait();
+
+        if (this->m_thread_map[std::this_thread::get_id()] == 0)
+        {
 #ifdef CUSTRESS_ENABLE
-        custress_sum_grid(this->p_current_grid);
+            custress_sum_grid(this->p_current_grid);
 #endif//CUSTRESS_ENABLE
 
-        // reduce all batches
-        this->p_batch_mutex[0].lock();
-        for (int i = 1; i < this->m_max_batches; ++i)
-        {
-            this->p_batch_mutex[i].lock();
-            for (int j = 0; j < this->m_ncells; j++)
-                summatrix( this->p_current_grid[j], this->p_current_grid[j+i*this->m_ncells], this->p_current_grid[j] );
-        }
-
-        if (this->m_spatatom == mds_spat)
-        {
-            for (int i = 0; i < this->m_ncells; i++)
-                summatrix( this->p_sum_grid[i], this->p_current_grid[i], this->p_sum_grid[i] );
-        }
-        else
-        {
-            // initialize the voro container
-            double vor_box[3];
-            vor_box[0] = this->m_box[0][0];
-            vor_box[1] = this->m_box[1][1];
-            vor_box[2] = this->m_box[2][2];
-            
-            double gfxy,gfxz;
-            gfxy = vor_box[1]/vor_box[0];
-            gfxz = vor_box[2]/vor_box[0];
-
-            // need to count the number of sites without radius 0.0
-            int vcells = 0;
-            for (int i = 0; i < this->m_ncells; ++i)
+            // reduce all batches
+            for (int i = 1; i < this->m_max_batches; ++i)
             {
-                if (this->p_radii[i] > 0.0)
-                    vcells += 1;
+                for (int j = 0; j < this->m_ncells; j++)
+                    summatrix( this->p_current_grid[j], this->p_current_grid[j+i*this->m_ncells], this->p_current_grid[j] );
             }
 
-            int gridn[3];
-            gridn[0] = pow(this->m_ncells/(3*gfxy*gfxz), 1/3.0);
-            gridn[1] = gridn[0]*gfxy;
-            gridn[2] = gridn[0]*gfxz;
-
-            // create the voronoi objects
-            voro::particle_order vorpo = voro::particle_order(this->m_ncells);
-            voro::container_poly vorcon = voro::container_poly(0.0, vor_box[0], 0.0, vor_box[1], 0.0, vor_box[2], gridn[0], gridn[1], gridn[2], this->m_periodic[0], this->m_periodic[1], this->m_periodic[2], 8);
-            // fill the container
-            int voro_cells = 0;
-            for (int i = 0; i < this->m_ncells; ++i)
+            if (this->m_spatatom == mds_spat)
             {
-                if (this->p_radii[i] > 0.0)
+                for (int i = 0; i < this->m_ncells; i++)
+                    summatrix( this->p_sum_grid[i], this->p_current_grid[i], this->p_sum_grid[i] );
+            }
+            else
+            {
+                // initialize the voro container
+                double vor_box[3];
+                vor_box[0] = this->m_box[0][0];
+                vor_box[1] = this->m_box[1][1];
+                vor_box[2] = this->m_box[2][2];
+                
+                double gfxy,gfxz;
+                gfxy = vor_box[1]/vor_box[0];
+                gfxz = vor_box[2]/vor_box[0];
+
+                // need to count the number of sites without radius 0.0
+                int vcells = 0;
+                for (int i = 0; i < this->m_ncells; ++i)
                 {
-                    voro_cells += 1;
-                    double px = this->p_positions[3*i];
-                    double py = this->p_positions[3*i+1];
-                    double pz = this->p_positions[3*i+2];
-
-                    // we are scaling the radii down to 1/100th the size here so that the number of voronoi cells is the same as
-                    // the number of atoms with non-zero radii. This is because voro++ does a check and if two particles are within
-                    // a distance less than the sum of their radii, they are put in the same voronoi cell, which does not allow
-                    // the calculation of volumes of every particle in the system
-                    vorcon.put(vorpo, i, px, py, pz, 0.01*this->p_radii[i]);
+                    if (this->p_radii[i] > 0.0)
+                        vcells += 1;
                 }
-            }
 
-            voro::voronoicell c;
-            voro::c_loop_order vl(vorcon, vorpo);
+                int gridn[3];
+                gridn[0] = pow(this->m_ncells/(3*gfxy*gfxz), 1/3.0);
+                gridn[1] = gridn[0]*gfxy;
+                gridn[2] = gridn[0]*gfxz;
 
-            // the particle/cell id
-            int pid = 0;
-
-            // track the particle/cell id of atom with largest volume in this molecule
-            int this_molecule = this->p_molecule_id[pid];
-            int last_pid = 0;
-            double last_volume = 0.0;
-
-            int cells_computed = 0;
-            if (vl.start())
-            {
-                do{
-                    if (this->p_radii[pid] > 0.0 && vorcon.compute_cell(c,vl))
+                // create the voronoi objects
+                voro::particle_order vorpo = voro::particle_order(this->m_ncells);
+                voro::container_poly vorcon = voro::container_poly(0.0, vor_box[0], 0.0, vor_box[1], 0.0, vor_box[2], gridn[0], gridn[1], gridn[2], this->m_periodic[0], this->m_periodic[1], this->m_periodic[2], 8);
+                // fill the container
+                int voro_cells = 0;
+                for (int i = 0; i < this->m_ncells; ++i)
+                {
+                    if (this->p_radii[i] > 0.0)
                     {
-                        // count the cells
-                        cells_computed += 1;
+                        voro_cells += 1;
+                        double px = this->p_positions[3*i];
+                        double py = this->p_positions[3*i+1];
+                        double pz = this->p_positions[3*i+2];
 
-                        // get the volume of this cell
-                        last_volume = c.volume();
-                        last_pid = pid;
-
-                        // mark the last volume encountered
-                        this_molecule = this->p_molecule_id[pid];
-
-                        scalematrix( this->p_current_grid[pid], 1.0/last_volume, this->p_current_grid[pid] );
-                        summatrix( this->p_sum_grid[pid], this->p_current_grid[pid], this->p_sum_grid[pid] );
-                    
-                        // add the volume
-                        this->p_sum_volume[pid] += last_volume;
+                        // we are scaling the radii down to 1/100th the size here so that the number of voronoi cells is the same as
+                        // the number of atoms with non-zero radii. This is because voro++ does a check and if two particles are within
+                        // a distance less than the sum of their radii, they are put in the same voronoi cell, which does not allow
+                        // the calculation of volumes of every particle in the system
+                        vorcon.put(vorpo, i, px, py, pz, 0.01*this->p_radii[i]);
                     }
-                    else
-                    {
-                        // check that we are working on the same molecule
-                        if (this_molecule != this->p_molecule_id[pid])
+                }
+
+                voro::voronoicell c;
+                voro::c_loop_order vl(vorcon, vorpo);
+
+                // the particle/cell id
+                int pid = 0;
+
+                // track the particle/cell id of atom with largest volume in this molecule
+                int this_molecule = this->p_molecule_id[pid];
+                int last_pid = 0;
+                double last_volume = 0.0;
+
+                int cells_computed = 0;
+                if (vl.start())
+                {
+                    do{
+                        if (this->p_radii[pid] > 0.0 && vorcon.compute_cell(c,vl))
                         {
-                            this->m_ierr = 13;
-                            std::cout << "ERROR:: radius of zero encountered, but last atom molecule was not this molecule" << std::endl;
+                            // count the cells
+                            cells_computed += 1;
+
+                            // get the volume of this cell
+                            last_volume = c.volume();
+                            last_pid = pid;
+
+                            // mark the last volume encountered
+                            this_molecule = this->p_molecule_id[pid];
+
+                            scalematrix( this->p_current_grid[pid], 1.0/last_volume, this->p_current_grid[pid] );
+                            summatrix( this->p_sum_grid[pid], this->p_current_grid[pid], this->p_sum_grid[pid] );
+                        
+                            // add the volume
+                            this->p_sum_volume[pid] += last_volume;
                         }
                         else
                         {
-                            scalematrix( this->p_current_grid[pid], 1.0/last_volume, this->p_current_grid[pid] );
-                            summatrix( this->p_sum_grid[last_pid], this->p_current_grid[pid], this->p_sum_grid[last_pid] );
+                            // check that we are working on the same molecule
+                            if (this_molecule != this->p_molecule_id[pid])
+                            {
+                                this->m_ierr = 13;
+                                std::cout << "ERROR:: radius of zero encountered, but last atom molecule was not this molecule" << std::endl;
+                            }
+                            else
+                            {
+                                scalematrix( this->p_current_grid[pid], 1.0/last_volume, this->p_current_grid[pid] );
+                                summatrix( this->p_sum_grid[last_pid], this->p_current_grid[pid], this->p_sum_grid[last_pid] );
+                            }
                         }
-                    }
-                    
-                    // always increment the particle count
-                    pid += 1;
-                }while(vl.inc());
+                        
+                        // always increment the particle count
+                        pid += 1;
+                    }while(vl.inc());
 
-                // should do an error check here
-                if (pid != this->m_nAtoms)
-                {
-                    this->m_ierr = 11;
-                    std::cout << "ERROR:: number of atoms processed does not match number of sites" << std::endl;
+                    // should do an error check here
+                    if (pid != this->m_nAtoms)
+                    {
+                        this->m_ierr = 11;
+                        std::cout << "ERROR:: number of atoms processed does not match number of sites" << std::endl;
+                    }
                 }
             }
 
-//            std::cout << "Cells computed this frame: " << cells_computed << std::endl;
-        }
+            for (int i = 0; i < this->m_max_batches; ++i)
+            {
+                for(int j = 0; j < this->m_ncells; ++j)
+                    zeromatrix (this->p_current_grid[i*this->m_ncells+j]);
+            }
 
-        for (int i = 0; i < this->m_max_batches; ++i)
-        {
-            for(int j = 0; j < this->m_ncells; ++j)
-                zeromatrix (this->p_current_grid[i*this->m_ncells+j]);
-            this->p_batch_mutex[i].unlock();
+            this->m_nframes ++;
         }
-
-        this->m_nframes ++;
+        
+        // every thread must process this latch before exiting
+        static barrier sumgrid_exit(this->m_max_batches);
+        sumgrid_exit.count_down_and_wait();
     }
 }
 
 void StressGrid::DispersionCorrection (double shift)
 {
-    std::lock_guard<std::mutex> lock_guard(this->m_mutex_state);
-
     if (this->m_nodispcor == false)
     {
+        // select the correct grid
+        int batch_id = this->m_thread_map[std::this_thread::get_id()];
+        dmatrix * grid = this->p_current_grid+batch_id*this->m_ncells;
+
+        // add shift to grid
         for(int i = 0; i < this->m_ncells; i++)
         {
             for(int m = 0; m < 3; m++)
-                this->p_current_grid[i][m][m] += shift;
+                grid[i][m][m] += shift;
         }
     }
 }
@@ -481,23 +496,33 @@ void StressGrid::DispersionCorrection (double shift)
 //printing files) and set the number of frames to zero
 void StressGrid::Reset ( )
 {
-    std::lock_guard<std::mutex> lock(this->m_mutex_state);
-    if ( !this->m_ierr )
+    if ( !this->m_ierr)
     {
-        for( int i=0; i<this->m_ncells; i++ )
-        {
-            zeromatrix ( this->p_sum_grid[i]     );
-            zeromatrix ( this->p_current_grid[i] );
-        }
-        
-        if (this->m_spatatom == mds_atom)
+        // every thread must process this latch before proceeding
+        static barrier reset_entry(this->m_max_batches);
+        reset_entry.count_down_and_wait();
+
+        if (this->m_thread_map[std::this_thread::get_id()] == 0)
         {
             for( int i=0; i<this->m_ncells; i++ )
-                this->p_sum_volume[i] = 0.0;
+            {
+                zeromatrix ( this->p_sum_grid[i]     );
+                zeromatrix ( this->p_current_grid[i] );
+            }
+            
+            if (this->m_spatatom == mds_atom)
+            {
+                for( int i=0; i<this->m_ncells; i++ )
+                    this->p_sum_volume[i] = 0.0;
+            }
+            this->m_nframes = 0;
+            
+            this->m_nreset ++;
         }
-        this->m_nframes = 0;
         
-        this->m_nreset ++;
+        // every thread must process this latch before exiting
+        static barrier reset_exit(this->m_max_batches);
+        reset_exit.count_down_and_wait();
     }
 }
 
@@ -505,66 +530,75 @@ void StressGrid::Reset ( )
 //Writes file with average stress to grid using the filename set by the user
 void StressGrid::Write ( )
 {
-    std::lock_guard<std::mutex> lock(this->m_mutex_state);
-    if ( !this->m_ierr )
+    if ( !this->m_ierr)
     {
-        int                Dtype=1;
-        dmatrix            avgbox;
-        std::string        outname;
-        std::ostringstream outnumber;
-        FILE              *outfile;
-        double             factor;
-        
-        outnumber << this->m_nreset;
-        
-        //Change output format if the user specifies a filename with a .dat extension
-        outname = this->m_filename + outnumber.str();
-        if (outname.find(".dat") == std::string::npos)
-            outname = outname + "." + mds_fileext;
+        // every thread must process this latch before proceeding
+        static barrier write_entry(this->m_max_batches);
+        write_entry.count_down_and_wait();
 
-        outfile = fopen(outname.c_str(), "wb" );
-        
-        if (this->m_spatatom == mds_spat)
-            Dtype = 1;
-        else if (this->m_spatatom == mds_atom)
-            Dtype = 2;
-        
-        fwrite(&Dtype, sizeof(int), 1, outfile);
-        
-        //Divide sumbox with respect to the number of frames to get the avg
-        scalematrix( this->m_sumbox, 1.0/this->m_nframes, avgbox);
+        if (this->m_thread_map[std::this_thread::get_id()] == 0)
+        {
+            int                Dtype=1;
+            dmatrix            avgbox;
+            std::string        outname;
+            std::ostringstream outnumber;
+            FILE              *outfile;
+            double             factor;
+            
+            outnumber << this->m_nreset;
+            
+            //Change output format if the user specifies a filename with a .dat extension
+            outname = this->m_filename + outnumber.str();
+            if (outname.find(".dat") == std::string::npos)
+                outname = outname + "." + mds_fileext;
 
-        fwrite(avgbox, sizeof(dmatrix), 1, outfile);
-        if (this->m_spatatom == mds_spat)
-        {
-            fwrite(&this->m_nx, sizeof(this->m_nx), 1, outfile);
-            fwrite(&this->m_ny, sizeof(this->m_ny), 1, outfile);
-            fwrite(&this->m_nz, sizeof(this->m_nz), 1, outfile);
-        }
-        else
-        {
-            fwrite(&this->m_ncells, sizeof(int), 1, outfile);
-        }
+            outfile = fopen(outname.c_str(), "wb" );
+            
+            if (this->m_spatatom == mds_spat)
+                Dtype = 1;
+            else if (this->m_spatatom == mds_atom)
+                Dtype = 2;
+            
+            fwrite(&Dtype, sizeof(int), 1, outfile);
+            
+            //Divide sumbox with respect to the number of frames to get the avg
+            scalematrix( this->m_sumbox, 1.0/this->m_nframes, avgbox);
 
-        factor = mds_units/this->m_nframes;
-        
-        for ( int i = 0; i < this->m_ncells; i++ )
-        {
-            scalematrix(this->p_sum_grid[i], factor, this->p_sum_grid[i]);
-        }
-        
-        fwrite(this->p_sum_grid, sizeof(dmatrix), this->m_ncells, outfile);
+            fwrite(avgbox, sizeof(dmatrix), 1, outfile);
+            if (this->m_spatatom == mds_spat)
+            {
+                fwrite(&this->m_nx, sizeof(this->m_nx), 1, outfile);
+                fwrite(&this->m_ny, sizeof(this->m_ny), 1, outfile);
+                fwrite(&this->m_nz, sizeof(this->m_nz), 1, outfile);
+            }
+            else
+            {
+                fwrite(&this->m_ncells, sizeof(int), 1, outfile);
+            }
 
-        // append the volume data
-        if (this->m_spatatom == mds_atom)
-        {
+            factor = mds_units/this->m_nframes;
+            
             for ( int i = 0; i < this->m_ncells; i++ )
-                this->p_sum_volume[i] /= this->m_nframes;
-            fwrite(this->p_sum_volume, sizeof(double), this->m_ncells, outfile);
+            {
+                scalematrix(this->p_sum_grid[i], factor, this->p_sum_grid[i]);
+            }
+            
+            fwrite(this->p_sum_grid, sizeof(dmatrix), this->m_ncells, outfile);
+
+            // append the volume data
+            if (this->m_spatatom == mds_atom)
+            {
+                for ( int i = 0; i < this->m_ncells; i++ )
+                    this->p_sum_volume[i] /= this->m_nframes;
+                fwrite(this->p_sum_volume, sizeof(double), this->m_ncells, outfile);
+            }
+            
+            fclose(outfile);
         }
-        
-        fclose(outfile);
-        
+
+        // every thread must process this latch before exiting
+        static barrier write_exit(this->m_max_batches);
+        write_exit.count_down_and_wait();
     }
 }
 
@@ -639,16 +673,12 @@ void StressGrid::AddVoronoiAtom(double px, double py, double pz, int atomID, int
 // atomIDs -> labels of the atoms
 void StressGrid::DistributeInteraction(int nAtoms, darray *R, darray *F, int *atomIDs = NULL)
 {
-
     int    n;
     int    i,j;
     double temp;
-    int batch_id = 0;
-    while (this->p_batch_mutex[batch_id].try_lock() == false)
-        batch_id = (batch_id+1) % this->m_max_batches;
-
     dmatrix stress;
 
+    int batch_id = this->m_thread_map[std::this_thread::get_id()];
     if ( nAtoms > this->m_maxClust )
     {
         std::cout << "ERROR::StressGrid: Distribute Interaction has been called with a number of atoms larger than the maximum cluster size previously set, nAtoms=" << nAtoms << " and maxClust=" << this->m_maxClust << "\n";
@@ -665,10 +695,7 @@ void StressGrid::DistributeInteraction(int nAtoms, darray *R, darray *F, int *at
             {
 
                 case 2:
-                    //if (R[0][2] > 9.0 && R[1][2] > 9.0 && R[0][2] < 12.0 && R[1][2] < 12.0)
-                    {
-                        this->DistributePairInteraction( R[0], R[1], F[0], batch_id );
-                    }
+                    this->DistributePairInteraction( R[0], R[1], F[0], batch_id );
                     break;
 
                 case 3:
@@ -747,9 +774,6 @@ void StressGrid::DistributeInteraction(int nAtoms, darray *R, darray *F, int *at
         }
     }
 
-    // unlock
-    this->p_batch_mutex[batch_id].unlock();
-
     return;
 }
 
@@ -764,7 +788,6 @@ void StressGrid::DistributeInteraction(int nAtoms, darray *R, darray *F, int *at
 // F       -> forces on the atoms
 void StressGrid::ComputeNbodyPairForces(int nAtoms, darray *R, darray *F, int *atomIDs = NULL)
 {
-    std::lock_guard<std::mutex> lock(m_mutex_state);
     this->DistributeNBody( nAtoms, R, F, false, 0);
 }
 
@@ -1018,10 +1041,8 @@ void StressGrid::DistributeKinetic(double mass, darray x, darray va, darray vb =
             xd[1] = xc[1]-this->m_gridsp[1];
             xd[2] = xc[2]-this->m_gridsp[2];
             
-            // lock this batch
-            int batch_id = 0;
-            while (this->p_batch_mutex[batch_id].try_lock() == false)
-                batch_id = (batch_id+1) % this->m_max_batches;
+            // get the batch id
+            int batch_id = this->m_thread_map[std::this_thread::get_id()];
 
             // select grid based on batch index
             dmatrix * grid = this->p_current_grid+batch_id*this->m_ncells;
@@ -1035,8 +1056,6 @@ void StressGrid::DistributeKinetic(double mass, darray x, darray va, darray vb =
             scalesummatrix( C*xd[0]*xc[1]*xd[2],stress,grid[iim1+jjp1+kkm1]);
             scalesummatrix( C*xd[0]*xd[1]*xc[2],stress,grid[iim1+jjm1+kkp1]);
             scalesummatrix(-C*xd[0]*xd[1]*xd[2],stress,grid[iim1+jjm1+kkm1]);
-        
-            this->p_batch_mutex[batch_id].unlock();
         }
         else if (this->m_spatatom == mds_atom)
         {
@@ -1567,8 +1586,7 @@ void StressGrid::DistributeN5(darray Ra, darray Rb, darray Rc, darray Rd, darray
 // General function to decompose N-body potentials (it can be used to compute higher order terms coming from EAM for instance)
 void StressGrid::DistributeNBody ( int nPart, darray *R, darray *F, bool distribute_stress, int batch_id)
 {
-    printf("calling DistributeNBody\n");
-    std::lock_guard<std::mutex> lock(this->m_mutex_lapack);
+    std::lock_guard<std::mutex> lock(this->m_mutex_state);
 
     int i,j,k, iD, jD, n;
     darray F_ij_temp;
@@ -1576,7 +1594,6 @@ void StressGrid::DistributeNBody ( int nPart, darray *R, darray *F, bool distrib
     // grow the temp state as needed
     if (nPart > this->m_maxpart)
     {
-        printf("allocated space\n");
         if (this->p_Amat  != nullptr) delete [] this->p_Amat;
         if (this->p_AmatT != nullptr) delete [] this->p_AmatT;
         if (this->p_bvec  != nullptr) delete [] this->p_bvec;
@@ -1595,10 +1612,6 @@ void StressGrid::DistributeNBody ( int nPart, darray *R, darray *F, bool distrib
         this->p_Uij  = new darray [maxcols];
         
         this->m_maxpart = nPart;
-    }
-    else
-    {
-        printf("did not allocate space\n");
     }
 
     // zero the pairwise force and pairwise position arrays
@@ -1700,7 +1713,6 @@ void StressGrid::DistributeNBody ( int nPart, darray *R, darray *F, bool distrib
             }
         }
     }
-    printf("exiting DistributeNBody\n");
 }
 //----------------------------------------------------------------------------------------
 

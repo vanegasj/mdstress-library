@@ -1,5 +1,7 @@
-#pragma once
+#ifndef mds_custress_h
+#define mds_custress_h
 
+#include "mds_common.h"
 #include "mds_defines.h"
 
 // used to allocate space on device, initialize it and deallocate it
@@ -13,3 +15,5 @@ void custress_distribute_pair_interaction(const mds::darray xi, const mds::darra
 
 // sum grid copies batches any remainder and copies grid from custress to mdstresslib
 void custress_sum_grid(mds::dmatrix * current_grid);
+
+#endif // mds_custress_h

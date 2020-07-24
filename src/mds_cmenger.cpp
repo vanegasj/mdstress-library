@@ -21,7 +21,6 @@
 =========================================================================*/
 
 #include "mds_cmenger.h"
-#include <stdio.h>
 //----------------------------------------------------------------------------------------
 // FIVE BODY POTENTIALS -> CALEY-MENGER DERIVATIVES FOR cCFD
 // Calculate the derivative of the Caley-Menger determinant for the 5-particles case with respect to d12

@@ -19,11 +19,11 @@
      torres.sanchez.a@gmail.com
      juan.m.vanegas@gmail.com
 =========================================================================*/
-#ifndef __mdslapack_h
-#define __mdslapack_h
+#ifndef mds_lapack_h
+#define mds_lapack_h
 
-#include <math.h>
-#include <iostream>
+#include "mds_common.h"
+#include "mds_defines.h"
 
 #ifndef F77_FUNC
 #define F77_FUNC(name,NAME) name ## _
@@ -47,13 +47,62 @@ class mds::Lapack
 public:
 
     /** Calls dgelsd to solve an under/over-determined system of equations */
-    int SolveMinNorm   ( int m, int n, double* A, double *b );
+    int SolveMinNorm(int m, int n, double* A,double *b ) 
+    {
+        int     leading;
+        int     rank;
+        int     nRHS = 1;
+        int     info ;
+
+        leading = mds_max(m,n);
+        
+        info  =  0;
+        
+        F77_FUNC(dgelsd,DGELSD)(&m, &n, &nRHS, A, &m, b, &leading, this->darray, &this->eps1, &rank, work, &this->lwork, this->iwork, &info );
+        
+        return info;
+    }
+
     /** Calls dgeqp3 to compute the QR decomposition of a matrix through column pivoting */
-    int QRDecomposition( int m, int n, double* A, double *tau );
+    int QRDecomposition(int m, int n, double* A, double *tau) 
+    {
+        int info;
+
+        for (int i = 0; i < n; i++ ) 
+            this->iarray[i] = 0;
+            
+        info = 0;
+        F77_FUNC(dgeqp3,DGEQP3)(&m, &n, A, &m, this->iarray, tau, this->work, &this->lwork, &info);
+                
+        return info;
+    }
+
     /** Calls domqr to multiply Q or QT times a matrix/vector using the compressed structure by LAPACK*/
-    int MultiplyQb(char side, char trans, int m, int n, int k, double *A, int rA, double *tau, double* C);
+    int MultiplyQb(char side, char trans, int m, int n, int k, double *A, int rA, double *tau, double* C)
+    {
+        int info;
+        
+        info = 0;
+        
+        F77_FUNC(dormqr,DORMQR)(&side, &trans, &m, &n, &k, A, &rA, tau, C, &m, this->work, &this->lwork, &info);
+
+        return info;
+    }
+
     /** Computes the projection onto the image of the transpose of matrix A (eliminates components in the NULL space)*/
-    int QQTb( int rowsA, int colsA, int rowsB, int rank, double *A, double *b );
+    int QQTb( int rowsA, int colsA, int rowsB, int rank, double *A, double *b ) 
+    {
+        this->QRDecomposition(rowsA, colsA, A, this->darray);
+        
+        this->MultiplyQb('L', 'T', rowsB, 1, rank, A, rowsA, this->darray, b);   
+        
+        for (int i = rank; i < rowsB; i++ )
+            b[i] = 0.0;
+        
+        this->MultiplyQb('L', 'N', rowsB, 1, rank, A, rowsA, this->darray, b);
+        
+        return 0;
+    }
     
     /** Constructor */
     Lapack( int nRowMax, int nColMax );
@@ -72,5 +121,5 @@ private:
     double  eps1;   //< mds_eps
 };
 
-#endif // __mdslapack_h
+#endif // mds_lapack_h
 

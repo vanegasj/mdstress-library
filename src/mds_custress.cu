@@ -1,9 +1,4 @@
-#include <string.h>
-#include <assert.h>
 #include <cuda.h>
-#include <stdio.h>
-#include <iostream>
-#include <mutex>
 
 #include "mds_custress.h"
 #include "mds_basicops.h"
@@ -102,8 +97,7 @@ uint_t h_nbatches = 0;
 uint_t        *h_bindex       = nullptr;
 batcharrays_t *h_batch        = nullptr;
 cu_smatrix    *h_sum_grid     = nullptr;
-cudaEvent_t   *h_mem_event    = nullptr;
-std::mutex    *h_mutex_kernel = nullptr;
+//cudaEvent_t   *h_mem_event    = nullptr;
 double_t      *h_length_max   = nullptr;
 
 // device global memory is not, so minimize access here
@@ -330,19 +324,11 @@ void custress_init(size_t nbatches_min, size_t ncells, int nx, int ny, int nz)
     h_bindex    = new uint_t[h_nbatches];
     h_batch     = new batcharrays_t[h_nbatches];
     h_sum_grid  = new cu_smatrix[h_ncells];
-    h_mem_event = new cudaEvent_t[h_nbatches];
-    h_mutex_kernel = new std::mutex[h_nbatches];
+    //h_mem_event = new cudaEvent_t[h_nbatches];
     h_length_max = new double_t[h_nbatches];
 
     // initialize device
     checkCuda(cudaSetDevice(0));
-
-    // create events and streams
-    for (int i = 0; i < h_nbatches; ++i) 
-    {
-        checkCuda(cudaEventCreate(&h_mem_event[i]));
-        checkCuda(cudaEventRecord(h_mem_event[i]));
-    }
 
     // allocate global memory
     checkCuda(cudaMalloc((void**)&d_batch,sizeof(batcharrays_t[h_nbatches])));
@@ -355,6 +341,13 @@ void custress_init(size_t nbatches_min, size_t ncells, int nx, int ny, int nz)
     // initialize global memory
     checkCuda(cudaMemset(d_sum_grid, 0, sizeof(cu_smatrix[h_ncells])));
     checkCuda(cudaMemset(d_batch,    0, sizeof(batcharrays_t[h_nbatches])));
+    
+    // create events
+    for (int i = 0; i < h_nbatches; ++i) 
+    {
+        //checkCuda(cudaEventCreate(&h_mem_event[i]));
+        //checkCuda(cudaEventRecord(h_mem_event[i]));
+    }
 
     // initialize host memory
     for (int i = 0; i < h_nbatches; ++i) h_bindex[i] = 0;
@@ -377,7 +370,7 @@ void custress_clear()
     {
         for (int i = 0; i < h_nbatches; ++i)
         {
-            checkCuda(cudaEventDestroy(h_mem_event[i]));
+            //checkCuda(cudaEventDestroy(h_mem_event[i]));
         }
         
         // free global memory
@@ -387,18 +380,16 @@ void custress_clear()
         // free host memory
         if (h_batch != nullptr) free(h_batch);
         if (h_sum_grid != nullptr) free(h_sum_grid);
-        if (h_mem_event != nullptr) free(h_mem_event);
-        if (h_mutex_kernel != nullptr) free(h_mutex_kernel);
+        //if (h_mem_event != nullptr) free(h_mem_event);
         if (h_length_max != nullptr)  free(h_length_max);
         
         // set host and device pointers to null
         h_bindex       = nullptr;
         h_batch        = nullptr;
         h_sum_grid     = nullptr;
-        h_mem_event    = nullptr;
+        //h_mem_event    = nullptr;
         d_batch        = nullptr;
         d_sum_grid     = nullptr;
-        h_mutex_kernel = nullptr;
         h_length_max   = nullptr;
 
         // zero the host parameters
@@ -499,10 +490,7 @@ void custress_distribute_pair_interaction(const mds::darray xi, const mds::darra
     int batch_id = 0;
     while (this_length > h_length_max[batch_id] && batch_id < h_nbatches-1u) batch_id++;*/
     
-    // acquire lock, or signal that lock was not acquired
-    h_mutex_kernel[batch_id].lock();
-
-    // synchronize with last transfer
+    // synchronize with last transfer (Memcpy used instead)
     //checkCuda(cudaEventSynchronize(h_mem_event[batch_id]));
 
     // store for later processing
@@ -520,20 +508,18 @@ void custress_distribute_pair_interaction(const mds::darray xi, const mds::darra
     // if bindex is cu_batchsize we process
     if (h_bindex[batch_id] == cu_batchsize)
     {
-        // transfer the grid to host
-        checkCuda(cudaMemcpyAsync(
+        // transfer the grid to host, synchronous call which blocks
+        checkCuda(cudaMemcpy(
                 &d_batch[batch_id],
                 &h_batch[batch_id],
                 sizeof(batcharrays_t),
                 cudaMemcpyHostToDevice));
-        checkCuda(cudaEventRecord(h_mem_event[batch_id]));
+        //checkCuda(cudaEventRecord(h_mem_event[batch_id]));
 
         // execute with a single element processed by each streaming multiprocessor
         process_batch<<<batch_blocks,batch_threads>>>(h_bindex[batch_id], &d_batch[batch_id], d_sum_grid);
         h_bindex[batch_id] = 0;
     }
-
-    h_mutex_kernel[batch_id].unlock();
 }
 
 void custress_sum_grid(mds::dmatrix * current_grid)
@@ -541,7 +527,6 @@ void custress_sum_grid(mds::dmatrix * current_grid)
     // finish off any remaining pairs
     for (int i = 0; i < h_nbatches; ++i)
     {
-        h_mutex_kernel[i].lock();
         if (h_bindex[i] > 0)
         {
             // transfer the batch to device
@@ -556,7 +541,6 @@ void custress_sum_grid(mds::dmatrix * current_grid)
             
             h_bindex[i] = 0;
         }
-        h_mutex_kernel[i].unlock();
     }
     
     // synchronize entire devies

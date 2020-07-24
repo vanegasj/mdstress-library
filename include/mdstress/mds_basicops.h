@@ -20,11 +20,11 @@
      juan.m.vanegas@gmail.com
 =========================================================================*/
 
-#ifndef __basicops_h
-#define __basicops_h
+#ifndef mds_basicops_h
+#define mds_basicops_h
 
+#include "mds_common.h"
 #include "mds_defines.h"
-#include <math.h>
 
 namespace mds
 {
@@ -184,4 +184,4 @@ namespace mds
     }
 }
 
-#endif // __basicops_h
+#endif // mds_basicops_h

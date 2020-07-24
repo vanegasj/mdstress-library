@@ -20,8 +20,8 @@
      juan.m.vanegas@gmail.com
 =========================================================================*/
 
-#ifndef __defines_h
-#define __defines_h
+#ifndef mds_defines_h
+#define mds_defines_h
 
 namespace mds
 {   
@@ -86,14 +86,8 @@ namespace mds
     typedef double  darray[3];
     typedef double  dmatrix[3][3];
 
-    typedef struct {
-        darray Ri[mds_batchsize];
-        darray Rj[mds_batchsize];
-        darray Fij[mds_batchsize];
-    } batcharrays;
-    
     class  StressGrid;
     class  StressGridPython;
     class  Lapack;
 }
-#endif // __defines_h
+#endif // mds_defines_h

@@ -20,11 +20,11 @@
      juan.m.vanegas@gmail.com
 =========================================================================*/
 
-#ifndef __caleymenger_h
-#define __caleymenger_h
+#ifndef mds_cmenger_h 
+#define mds_cmenger_h
 
+#include "mds_common.h"
 #include "mds_defines.h"
-#include <math.h>
 
 namespace mds
 {
@@ -32,4 +32,4 @@ namespace mds
     void   ShapeSpace5Normal(double d12,double d13,double d14,double d15,double d23,double d24,double d25,double d34,double d35,double d45, double *normal);
 }
 
-#endif
+#endif // mds_cmenger_h
