@@ -236,6 +236,12 @@ class  mds::StressGrid
             std::lock_guard<std::mutex> lock(m_mutex_state);
             this->m_filename.assign(filename);
         }
+        
+        void EnableCuda()
+        {
+            std::lock_guard<std::mutex> lock(m_mutex_state);
+            this->m_cuda = true;
+        }
 
         void DisableDispersionCorrection()
         {
@@ -359,6 +365,7 @@ class  mds::StressGrid
         int         m_contrib;        ///< which contribution
         std::string m_filename;       ///< body of the filename where the stress is stored
         bool        m_nodispcor;      ///< disables dispersion correction if set to true
+        bool        m_cuda;           ///< enables cuda
         barray      m_periodic;       ///< mark dimensions as periodic
         double      m_mindihangle;
         int         m_maxpart;        ///< used to allocate Rij and Fij

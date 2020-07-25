@@ -83,6 +83,7 @@ StressGrid::StressGrid()
     this->p_positions    = NULL;
     
     this->m_nodispcor   = false;
+    this->m_cuda        = false;
     this->m_periodic[0] = false;
     this->m_periodic[1] = false;
     this->m_periodic[2] = false;
@@ -135,7 +136,8 @@ void StressGrid::Clear()
     this->h_lapack       = NULL;
 
 #ifdef CUSTRESS_ENABLE
-    custress_clear();
+    if (this->m_cuda)
+        custress_clear();
 #endif//CUSTRESS_ENABLE
 }
 
@@ -264,7 +266,8 @@ void StressGrid::Init()
         for (int i=0; i <this->m_max_threads; ++i)
             this->h_lapack[i] = new Lapack (mds_ndim*this->m_maxClust,(this->m_maxClust*(this->m_maxClust-1))/2);
 #ifdef CUSTRESS_ENABLE
-        custress_init(this->m_max_threads, this->m_ncells, this->m_nx, this->m_ny, this->m_nz);
+        if (this->m_cuda)
+            custress_init(this->m_max_threads, this->m_ncells, this->m_nx, this->m_ny, this->m_nz);
 #endif//CUSTRESS_ENABLE
     }
 }
@@ -273,7 +276,8 @@ void StressGrid::SetPeriodicBoundaries(bool x, bool y, bool z, bool enforce)
 { 
     std::lock_guard<std::mutex> lock(m_mutex_state);
 #ifdef CUSTRESS_ENABLE
-    custress_set_periodic(x, y, z, enforce);
+    if (this->m_cuda)
+        custress_set_periodic(x, y, z, enforce);
 #endif//CUSTRESS_ENABLE
     this->m_periodic[0] = x;
     this->m_periodic[1] = y;
@@ -308,7 +312,8 @@ void StressGrid::UpdateBoxSpacings ( dmatrix box )
 
             summatrix( this->m_box, this->m_sumbox, this->m_sumbox );
 #ifdef CUSTRESS_ENABLE
-            custress_update_box_spacings(this->m_box, this->m_invbox, this->m_gridsp);
+            if (this->m_cuda)
+                custress_update_box_spacings(this->m_box, this->m_invbox, this->m_gridsp);
 #endif//CUSTRESS_ENABLE
         }
         
@@ -331,7 +336,8 @@ void StressGrid::SumGrid ( )
         if (this->m_thread_map[std::this_thread::get_id()] == 0)
         {
 #ifdef CUSTRESS_ENABLE
-            custress_sum_grid(this->p_current_grid);
+            if (this->m_cuda)
+                custress_sum_grid(this->p_current_grid);
 #endif//CUSTRESS_ENABLE
 
             // reduce all batches
@@ -796,8 +802,10 @@ void StressGrid::ComputeNbodyPairForces(int nAtoms, darray *R, darray *F, int *a
 void StressGrid::DistributePairInteraction( darray xi, darray xj, darray F, int batch_id )
 {
 #ifdef CUSTRESS_ENABLE
-    custress_distribute_pair_interaction(xi,xj,F,batch_id);
-#else
+    if (this->m_cuda)
+        custress_distribute_pair_interaction(xi,xj,F,batch_id);
+    else {
+#endif
     double oldt,newt,factor;
     int cmp0x,cmp1x,cmp2x,iX,index;
     darray t,d_cgrid,diff;
@@ -955,6 +963,8 @@ again:
         entered_again = true;
         newt = 1.0;
         goto again;
+    }
+#ifdef CUSTRESS_ENABLE
     }
 #endif
 }
