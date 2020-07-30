@@ -72,7 +72,7 @@ typedef single_t cu_smatrix[3][3];
 typedef double_t cu_darray[3];
 typedef double_t cu_dmatrix[3][3];
 
-#define cu_batchsize 4096
+#define cu_batchsize 8192
 #define cu_threads_per_block 128
 typedef struct {
     cu_sarray Ri[cu_batchsize];
@@ -402,8 +402,40 @@ void custress_clear()
     }
 }
 
+// gpu kernel
+__global__ static void process_batch(uint_t max_index, const batcharrays_t * __restrict__ batch, cu_smatrix * current_grid)
+{
+    auto index = blockIdx.x*cu_threads_per_block+threadIdx.x;
+
+    // guard execution
+    if (index < max_index)
+        BatchPairInteraction(batch->Ri[index], batch->Rj[index], batch->Fij[index], current_grid);
+}
+
 void custress_update_box_spacings(const mds::dmatrix box, const mds::dmatrix invbox, const mds::darray gridsp)
 {
+    // empty current batches
+    for (int i = 0; i < h_nbatches; ++i)
+    {
+        if (h_bindex[i] > 0 && h_bindex[i] != cu_batchsize)
+        {
+            // transfer the batch to device
+            checkCuda(cudaMemcpyAsync(
+                    &d_batch[i],
+                    &h_batch[i],
+                    sizeof(batcharrays_t),
+                    cudaMemcpyHostToDevice,
+                    h_stream[i]) );
+            checkCuda(cudaEventRecord(h_mem_event[i],h_stream[i]));
+
+            // execute with a single element processed by each streaming multiprocessor
+            process_batch<<<batch_blocks,batch_threads,0u,h_stream[i]>>>(h_bindex[i], &d_batch[i], d_sum_grid+i*h_ncells);
+            
+            // set the batchindex to batchsize to trigger an event sync in distribute pair
+            h_bindex[i] = cu_batchsize;
+        }
+    }
+
     // convert to custress types
     cu_smatrix cu_box = {
         {(single_t)box[0][0], (single_t)box[0][1], (single_t)box[0][2]},
@@ -430,16 +462,6 @@ void custress_update_box_spacings(const mds::dmatrix box, const mds::dmatrix inv
     checkCuda(cudaMemcpyToSymbol(c_box,    cu_box,    sizeof(cu_smatrix)));
     checkCuda(cudaMemcpyToSymbol(c_invbox, cu_invbox, sizeof(cu_smatrix)));
     checkCuda(cudaMemcpyToSymbol(c_gridsp, cu_gridsp, sizeof(cu_gridsp)));
-}
-
-// gpu kernel
-__global__ static void process_batch(uint_t max_index, const batcharrays_t * __restrict__ batch, cu_smatrix * current_grid)
-{
-    auto index = blockIdx.x*cu_threads_per_block+threadIdx.x;
-
-    // guard execution
-    if (index < max_index)
-        BatchPairInteraction(batch->Ri[index], batch->Rj[index], batch->Fij[index], current_grid);
 }
 
 __global__ static void reduce_grids(uint_t nbatches, uint_t ncells, cu_smatrix * current_grid)
@@ -535,7 +557,7 @@ void custress_sum_grid(mds::dmatrix * current_grid)
     // finish off any remaining pairs
     for (int i = 0; i < h_nbatches; ++i)
     {
-        if (h_bindex[i] > 0)
+        if (h_bindex[i] > 0 && h_bindex[i] != cu_batchsize)
         {
             // transfer the batch to device
             checkCuda(cudaMemcpyAsync(

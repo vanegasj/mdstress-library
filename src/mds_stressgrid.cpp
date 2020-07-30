@@ -803,8 +803,21 @@ void StressGrid::ComputeNbodyPairForces(int nAtoms, darray *R, darray *F, int *a
 // F    -> pairwise force
 void StressGrid::DistributePairInteraction( darray xi, darray xj, darray F, int batch_id )
 {
+    iarray c;  //director
+    iarray i1; //grid cell corresponding to particle J (B)
+    iarray i2; //grid cell corresponding to particle J (B)
+    
+    // calculate the grid coordinates (no pbc) for the extreme points
+    this->GridCoord(xi, &i1[0], &i1[1], &i1[2]);
+    this->GridCoord(xj, &i2[0], &i2[1], &i2[2]);
+
+    // c is a vector that guide the advance in each coordinate (+1 if it has to advance in this coordinate, -1 if it has to go back or 0 if it has to do nothing)
+    c[0] = (i2[0]>i1[0])-(i1[0]>i2[0]);
+    c[1] = (i2[1]>i1[1])-(i1[1]>i2[1]);
+    c[2] = (i2[2]>i1[2])-(i1[2]>i2[2]);
+    
 #ifdef CUSTRESS_ENABLE
-    if (this->m_cuda)
+    if (this->m_cuda && ( c[0]*i1[0] + c[1]*i1[1] + c[2]*i1[2] < c[0]*i2[0] + c[1]*i2[1] + c[2]*i2[2]) )
         custress_distribute_pair_interaction(xi,xj,F,batch_id);
     else {
 #endif
@@ -821,15 +834,16 @@ void StressGrid::DistributePairInteraction( darray xi, darray xj, darray F, int 
     // vectors and a single coefficient
     double C;
     double D[8];
-
-    iarray i1; //grid cell corresponding to particle I (A)
-    iarray i2; //grid cell corresponding to particle J (B)
-    iarray x;  //cell during spreding
     iarray xn; //next cell during spreading
-    iarray c;  //director
-    
-    dmatrix stress;
+    iarray x;  //cell during spreding
 
+    dmatrix stress;
+    
+    // First cross point with aplane (if there is at least one i.e. c[i] != 0)
+    x[0] = i1[0];
+    x[1] = i1[1];
+    x[2] = i1[2];
+    
     //------------------------------------------------------------------------------------
     // Calculate the stress tensor
     diffarray( xj, xi, diff, this->m_box, this->m_periodic);
@@ -846,24 +860,10 @@ void StressGrid::DistributePairInteraction( darray xi, darray xj, darray F, int 
     //------------------------------------------------------------------------------------
     // Distribute the stress
 
-    // calculate the grid coordinates (no pbc) for the extreme points
-    this->GridCoord(xi, &i1[0], &i1[1], &i1[2]);
-    this->GridCoord(xj, &i2[0], &i2[1], &i2[2]);
-
     // d_cgrid = vector from the center of the present cell to the initial point
     d_cgrid[0] = xi[0]-(i1[0]+0.5)*this->m_gridsp[0];
     d_cgrid[1] = xi[1]-(i1[1]+0.5)*this->m_gridsp[1];
     d_cgrid[2] = xi[2]-(i1[2]+0.5)*this->m_gridsp[2];
-    
-    // First cross point with aplane (if there is at least one i.e. c[i] != 0)
-    x[0] = i1[0];
-    x[1] = i1[1];
-    x[2] = i1[2];
-
-    // c is a vector that guide the advance in each coordinate (+1 if it has to advance in this coordinate, -1 if it has to go back or 0 if it has to do nothing)
-    c[0] = (i2[0]>i1[0])-(i1[0]>i2[0]);
-    c[1] = (i2[1]>i1[1])-(i1[1]>i2[1]);
-    c[2] = (i2[2]>i1[2])-(i1[2]>i2[2]);
     
     // label of the next cell is 1 step further than the previous in this direction
     xn[0] = i1[0]+(c[0]+1)/2;
