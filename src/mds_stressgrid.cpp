@@ -460,11 +460,8 @@ void StressGrid::SumGrid ( )
                 }
             }
 
-            for (int i = 0; i < this->m_max_threads; ++i)
-            {
-                for(int j = 0; j < this->m_ncells; ++j)
-                    zeromatrix (this->p_current_grid[i*this->m_ncells+j]);
-            }
+            for(int i = 0; i < this->m_ncells*this->m_max_threads; ++i)
+                zeromatrix (this->p_current_grid[i]);
 
             this->m_nframes ++;
         }
@@ -498,17 +495,22 @@ void StressGrid::Reset ( )
 {
     if ( !this->m_ierr)
     {
+        // get the thread id
+        int thread_id = this->m_thread_map[std::this_thread::get_id()];
+
         // every thread must process this latch before proceeding
         static barrier reset_entry(this->m_max_threads);
         reset_entry.count_down_and_wait();
+        
+        // every thread zeros its own current grid
+        for( int i=0; i<this->m_ncells; i++ )
+            zeromatrix ( this->p_current_grid[i+thread_id*this->m_max_threads] );
 
-        if (this->m_thread_map[std::this_thread::get_id()] == 0)
+        if (thread_id == 0)
         {
+            // thread 0 deals with the sum grid
             for( int i=0; i<this->m_ncells; i++ )
-            {
                 zeromatrix ( this->p_sum_grid[i]     );
-                zeromatrix ( this->p_current_grid[i] );
-            }
             
             if (this->m_spatatom == mds_atom)
             {

@@ -582,4 +582,7 @@ void custress_sum_grid(mds::dmatrix * current_grid)
         current_grid[i][2][1] += (double)h_sum_grid[i][2][1];
         current_grid[i][2][2] += (double)h_sum_grid[i][2][2];
     }
+    
+    // zero grids on device
+    checkCuda(cudaMemset(d_sum_grid, 0, sizeof(cu_smatrix[h_nbatches*h_ncells])));
 }
