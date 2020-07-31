@@ -81,8 +81,7 @@ class  mds::StressGrid
         {
             std::lock_guard<std::mutex> lock(m_mutex_state);
             this->m_thread_map[std::this_thread::get_id()] = thread_id;
-            if (thread_id == 0)
-                this->m_max_threads = max_threads;
+            this->m_max_threads = max_threads;
         }
         //@}
         
