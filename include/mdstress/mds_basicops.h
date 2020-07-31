@@ -132,6 +132,11 @@ namespace mds
         c[2][1] += a * b[2][1];\
         c[2][2] += a * b[2][2]
     
+    #define scalesumarray(a,b,c)\
+        c[0] += a * b[0];\
+        c[1] += a * b[1];\
+        c[2] += a * b[2];
+    
     static inline void inversematrix ( dmatrix A, dmatrix iA)
     {
         double det = 0.0;
@@ -167,6 +172,13 @@ namespace mds
         A[2][1] = 0.0;
         A[2][2] = 0.0;
     }
+    
+    static inline void zeroarray ( darray A )
+    {
+        A[0] = 0.0;
+        A[1] = 0.0;
+        A[2] = 0.0;
+    }
 
     static inline bool iszeromatrix ( dmatrix A )
     {   
@@ -178,10 +190,7 @@ namespace mds
     }
 
     // Modulo operation
-    static inline int modulo (int a, int b)
-    {
-        return (a+b) % b;
-    }
+    #define modulo(a,b) ((a+b) % b)
 }
 
 #endif // mds_basicops_h

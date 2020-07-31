@@ -343,6 +343,16 @@ class  mds::StressGrid
         void DistributeKinetic   ( double mass, darray x, darray va, darray vb, int atomID  );
         //@}
         
+        /** DistributeEwald
+         *
+         * Distributes ewald contributions onto the grid
+         * Requires:
+         * mass       -> mass of the particle
+         * x          -> position of the atom
+         * F          -> ewald forces on the atoms
+         * atomID     -> ID of the atom (optional, only needed if calculating stress/atom) */
+        void DistributeEwald ( darray x, darray F, int atomID  );
+        
         /** Constructor */
         StressGrid( );
 
@@ -374,26 +384,28 @@ class  mds::StressGrid
     
         /** @name Outputs*/
         //@{
-        int      m_ierr;         ///< error type: 0, 1, etc (See GetError() function)
-        int      m_nframes;      ///< Number of frames
-        int      m_nreset;       ///< Number of resets (for writing files)
-        dmatrix  m_sumbox;       ///< Average box
-        dmatrix  m_invbox;       ///< Inverse of the box
-        double   m_gridsp[7];    ///< grid spacing
-        double   m_invgridsp;    ///< inverse of grid spacing
-        Lapack **h_lapack;       ///< mds_lapack: solves underdetermined/overdetermined systems of equations and projects solution onto shape space
-        double  *p_Amat;         ///< matrix for linear systems (for systems with more than 5 particles)
-        double  *p_AmatT;        ///< transpose of the matrix (used for projecting solution onto the shape space)
-        double  *p_bvec;         ///< vector for solving the linear system    
-        darray  *p_Rij;          ///< distance vectors
-        darray  *p_Fij;          ///< force vectors
-        darray  *p_Uij;          ///< distance vectors
-        dmatrix *p_current_grid; ///< Grid (either nx*ny*nz or nAtoms)
-        dmatrix *p_sum_grid;     ///< Sum Grid
-        double  *p_sum_volume;   ///< Sum of volumes when using mds_atom
-        double  *p_radii;        ///< the radius of an atomic site
-        double  *p_positions;    ///< the position of an atomic site
-        int     *p_molecule_id;  ///< The molecule an atomic site belongs to
+        int      m_ierr;          ///< error type: 0, 1, etc (See GetError() function)
+        int      m_nframes;       ///< Number of frames
+        int      m_nreset;        ///< Number of resets (for writing files)
+        dmatrix  m_sumbox;        ///< Average box
+        dmatrix  m_invbox;        ///< Inverse of the box
+        double   m_gridsp[7];     ///< grid spacing
+        double   m_invgridsp;     ///< inverse of grid spacing
+        Lapack **h_lapack;        ///< mds_lapack: solves underdetermined/overdetermined systems of equations and projects solution onto shape space
+        double  *p_Amat;          ///< matrix for linear systems (for systems with more than 5 particles)
+        double  *p_AmatT;         ///< transpose of the matrix (used for projecting solution onto the shape space)
+        double  *p_bvec;          ///< vector for solving the linear system    
+        darray  *p_Rij;           ///< distance vectors
+        darray  *p_Fij;           ///< force vectors
+        darray  *p_Uij;           ///< distance vectors
+        dmatrix *p_current_grid;  ///< Grid (either nx*ny*nz or nAtoms)
+        darray  *p_current_gride; ///< Grid (either nx*ny*nz or nAtoms) (ewald)
+        dmatrix *p_sum_grid;      ///< Sum Grid
+        darray  *p_sum_gride;     ///< Sum Grid (ewald)
+        double  *p_sum_volume;    ///< Sum of volumes when using mds_atom
+        double  *p_radii;         ///< the radius of an atomic site
+        double  *p_positions;     ///< the position of an atomic site
+        int     *p_molecule_id;   ///< The molecule an atomic site belongs to
         //@}
         
         /** @name Threads*/
