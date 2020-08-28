@@ -1,5 +1,6 @@
 #include "mds_custress.h"
 #include <cuda.h>
+#include <math.h>
 
 // some macros to check for errors
 #define checkCuda(a) __checkCuda(a, __FILE__, __LINE__)
@@ -78,7 +79,7 @@ typedef struct {
     cu_sarray Ri[cu_batchsize];
     cu_sarray Rj[cu_batchsize];
     cu_sarray Fij[cu_batchsize];
-} batcharrays_t;
+} cu_batches_t;
 
 // device constant memory is cached
 __constant__ cu_barray  c_periodic;
@@ -88,19 +89,19 @@ __constant__ cu_smatrix c_invbox;
 __constant__ single_t   c_gridsp[8];
 
 // host parameters
-uint_t h_ncells = 0;
-uint_t h_nbatches = 0;
+size_t h_ncells = 0;
+size_t h_nbatches = 0;
 
 // host memory
 uint_t        *h_bindex       = nullptr;
-batcharrays_t *h_batch        = nullptr;
+cu_batches_t *h_batch        = nullptr;
 cu_smatrix    *h_sum_grid     = nullptr;
 cudaEvent_t   *h_mem_event    = nullptr;
 cudaStream_t  *h_stream       = nullptr;
 double_t      *h_length_max   = nullptr;
 
 // device global memory is not, so minimize access here
-batcharrays_t *d_batch    = nullptr;
+cu_batches_t *d_batch    = nullptr;
 cu_smatrix    *d_sum_grid = nullptr;
 
 // cuda context
@@ -217,11 +218,10 @@ __device__ static inline void BatchPairInteraction(
     double_t oldt;
     int_t cmp0x,cmp1x,cmp2x,iX;
 
-    cu_darray t;
+    cu_darray t, t_c1, t_c2;
     cu_sarray d_cgrid;
     cu_sarray diff;
 
-    cu_iarray i1; //grid cell corresponding to particle I (A)
     cu_iarray i2; //grid cell corresponding to particle J (B)
     cu_iarray x;  //cell during spreading
     cu_iarray xn; //next cell during spreading
@@ -246,44 +246,47 @@ __device__ static inline void BatchPairInteraction(
     // Distribute the stress
 
     // calculate the grid coordinates (no pbc) for the extreme points
-    grid_coord(xi, i1[0], i1[1], i1[2]);
+    grid_coord(xi, x[0], x[1], x[2]);
     grid_coord(xj, i2[0], i2[1], i2[2]);
 
     // d_cgrid = vector from the center of the present cell to the initial point
-    d_cgrid[0] = xi[0]-(i1[0]+singleval(0.5))*c_gridsp[0];
-    d_cgrid[1] = xi[1]-(i1[1]+singleval(0.5))*c_gridsp[1];
-    d_cgrid[2] = xi[2]-(i1[2]+singleval(0.5))*c_gridsp[2];
+    d_cgrid[0] = xi[0]-(x[0]+singleval(0.5))*c_gridsp[0];
+    d_cgrid[1] = xi[1]-(x[1]+singleval(0.5))*c_gridsp[1];
+    d_cgrid[2] = xi[2]-(x[2]+singleval(0.5))*c_gridsp[2];
     
-    // First cross point with aplane (if there is at least one i.e. c[i] != 0)
-    x[0] = i1[0];
-    x[1] = i1[1];
-    x[2] = i1[2];
-
     // c is a vector that guide the advance in each coordinate (+1 if it has to advance in this coordinate, -1 if it has to go back or 0 if it has to do nothing)
-    c[0] = (i2[0]>i1[0])-(i1[0]>i2[0]);
-    c[1] = (i2[1]>i1[1])-(i1[1]>i2[1]);
-    c[2] = (i2[2]>i1[2])-(i1[2]>i2[2]);
+    c[0] = (i2[0]>x[0])-(x[0]>i2[0]);
+    c[1] = (i2[1]>x[1])-(x[1]>i2[1]);
+    c[2] = (i2[2]>x[2])-(x[2]>i2[2]);
     
     // label of the next cell is 1 step further than the previous in this direction
-    xn[0] = i1[0]+(c[0]+1)/2;
-    xn[1] = i1[1]+(c[1]+1)/2;
-    xn[2] = i1[2]+(c[2]+1)/2;
+    xn[0] = x[0]+(c[0]+1)/2;
+    xn[1] = x[1]+(c[1]+1)/2;
+    xn[2] = x[2]+(c[2]+1)/2;
+    
+    t_c1[0] = xi[0] / (xi[0]-xj[0]);
+    t_c1[1] = xi[1] / (xi[1]-xj[1]);
+    t_c1[2] = xi[2] / (xi[2]-xj[2]);
+    t_c2[0] = c_gridsp[0] / (xi[0]-xj[0]);
+    t_c2[1] = c_gridsp[1] / (xi[1]-xj[1]);
+    t_c2[2] = c_gridsp[2] / (xi[2]-xj[2]);
 
     // parametric time of crossing
-    t[0] = (xi[0]-xn[0] * (double_t)c_gridsp[0])/(xi[0]-xj[0]);
-    t[1] = (xi[1]-xn[1] * (double_t)c_gridsp[1])/(xi[1]-xj[1]);
-    t[2] = (xi[2]-xn[2] * (double_t)c_gridsp[2])/(xi[2]-xj[2]);
+    t[0] = t_c1[0]-xn[0]*t_c2[0];
+    t[1] = t_c1[1]-xn[1]*t_c2[1];
+    t[2] = t_c1[2]-xn[2]*t_c2[2];
         
     // this sets the time larger than 1 if there is no crossing
     t[0] = (c[0] == 0)*doubleval(1.1) + (c[0] != 0)*t[0];
     t[1] = (c[1] == 0)*doubleval(1.1) + (c[1] != 0)*t[1];
     t[2] = (c[2] == 0)*doubleval(1.1) + (c[2] != 0)*t[2];
     
-    // track previous time of crossing and check that sum is complete (?)
+    // track previous time of crossing
     oldt = doubleval(0.0); 
 
     // while we don't reach the last point...
-    while( c[0]*x[0] + c[1]*x[1] + c[2]*x[2] < c[0]*i2[0] + c[1]*i2[1] + c[2]*i2[2] )
+    int iterations = c[0]*(i2[0]-x[0]) + c[1]*(i2[1]-x[1]) + c[2]*(i2[2]-x[2]);
+    for (int count = 0; count < iterations; ++count)
     {
         // figure out index
         cmp0x = ((t[0]<t[1]+cu_eps) + (t[0]<t[2]+cu_eps))/2;
@@ -302,7 +305,7 @@ __device__ static inline void BatchPairInteraction(
         xn[iX] += c[iX];
 
         // Next cross point:
-        t[iX] = (xi[iX]-xn[iX] * (double_t)c_gridsp[iX])/(xi[iX]-xj[iX]);
+        t[iX] = t_c1[iX]-xn[iX]*t_c2[iX];
     }
 
     // Distribute the last contribution
@@ -321,7 +324,7 @@ void custress_init(size_t nbatches_min, size_t ncells, int nx, int ny, int nz)
 
     // allocate host memory
     h_bindex    = new uint_t[h_nbatches];
-    h_batch     = new batcharrays_t[h_nbatches];
+    h_batch     = new cu_batches_t[h_nbatches];
     h_sum_grid  = new cu_smatrix[h_nbatches*h_ncells];
     h_mem_event = new cudaEvent_t[h_nbatches];
     h_stream    = new cudaStream_t[h_nbatches];
@@ -339,7 +342,7 @@ void custress_init(size_t nbatches_min, size_t ncells, int nx, int ny, int nz)
     }
 
     // allocate global memory
-    checkCuda(cudaMalloc((void**)&d_batch,sizeof(batcharrays_t[h_nbatches])));
+    checkCuda(cudaMalloc((void**)&d_batch,sizeof(cu_batches_t[h_nbatches])));
     checkCuda(cudaMalloc((void**)&d_sum_grid,sizeof(cu_smatrix[h_nbatches*h_ncells])));
     
     // copy symbols
@@ -348,13 +351,13 @@ void custress_init(size_t nbatches_min, size_t ncells, int nx, int ny, int nz)
 
     // initialize global memory
     checkCuda(cudaMemset(d_sum_grid, 0, sizeof(cu_smatrix[h_nbatches*h_ncells])));
-    checkCuda(cudaMemset(d_batch,    0, sizeof(batcharrays_t[h_nbatches])));
+    checkCuda(cudaMemset(d_batch,    0, sizeof(cu_batches_t[h_nbatches])));
 
     // initialize host memory
     for (int i = 0; i < h_nbatches; ++i) h_bindex[i] = 0;
     for (int i = 0; i < h_nbatches; ++i) h_length_max[i] = doubleval(0.0);
     memset(h_sum_grid, 0, sizeof(cu_smatrix[h_nbatches*h_ncells]));
-    memset(h_batch,    0, sizeof(batcharrays_t[h_nbatches]));
+    memset(h_batch,    0, sizeof(cu_batches_t[h_nbatches]));
 }
 
 void custress_set_periodic(bool x, bool y, bool z, bool enforce)
@@ -403,7 +406,7 @@ void custress_clear()
 }
 
 // gpu kernel
-__global__ static void process_batch(uint_t max_index, const batcharrays_t * __restrict__ batch, cu_smatrix * current_grid)
+__global__ static void process_batch(uint_t max_index, const cu_batches_t * __restrict__ batch, cu_smatrix * current_grid)
 {
     auto index = blockIdx.x*cu_threads_per_block+threadIdx.x;
 
@@ -423,7 +426,7 @@ void custress_update_box_spacings(const mds::dmatrix box, const mds::dmatrix inv
             checkCuda(cudaMemcpyAsync(
                     &d_batch[i],
                     &h_batch[i],
-                    sizeof(batcharrays_t),
+                    sizeof(cu_batches_t),
                     cudaMemcpyHostToDevice,
                     h_stream[i]) );
             checkCuda(cudaEventRecord(h_mem_event[i],h_stream[i]));
@@ -500,22 +503,6 @@ __global__ static void reduce_grids(uint_t nbatches, uint_t ncells, cu_smatrix *
 //std::mutex h_length_mutex;
 void custress_distribute_pair_interaction(const mds::darray xi, const mds::darray xj, const mds::darray Fij, int batch_id)
 {
-    // calculate the diff
-    /*double_t this_length =
-        (xi[0]-xj[0])*(xi[0]-xj[0])+
-        (xi[1]-xj[1])*(xi[1]-xj[1])+
-        (xi[2]-xj[2])*(xi[2]-xj[2]);
-    
-    if (this_length > h_length_max[h_nbatches-1u])
-    {
-        std::lock_guard<std::mutex> lock(h_length_mutex);
-        for (int bin = 0; bin < h_nbatches; ++bin)
-            h_length_max[bin] = (bin+1)*(this_length/h_nbatches);
-    }
-    
-    int batch_id = 0;
-    while (this_length > h_length_max[batch_id] && batch_id < h_nbatches-1u) batch_id++;*/
-    
     // acquire lock, or signal that lock was not acquired
     if (h_bindex[batch_id] == cu_batchsize)
     {
@@ -542,7 +529,7 @@ void custress_distribute_pair_interaction(const mds::darray xi, const mds::darra
         checkCuda(cudaMemcpyAsync(
                 &d_batch[batch_id],
                 &h_batch[batch_id],
-                sizeof(batcharrays_t),
+                sizeof(cu_batches_t),
                 cudaMemcpyHostToDevice,
                 h_stream[batch_id]));
         checkCuda(cudaEventRecord(h_mem_event[batch_id],h_stream[batch_id]));
@@ -563,7 +550,7 @@ void custress_sum_grid(mds::dmatrix * current_grid)
             checkCuda(cudaMemcpyAsync(
                     &d_batch[i],
                     &h_batch[i],
-                    sizeof(batcharrays_t),
+                    sizeof(cu_batches_t),
                     cudaMemcpyHostToDevice,
                     h_stream[i]) );
 
@@ -582,7 +569,6 @@ void custress_sum_grid(mds::dmatrix * current_grid)
     reduce_blocks += (reduce_blocks*cu_threads_per_block < h_ncells) ? 1 : 0;
     
     reduce_grids<<<reduce_blocks, cu_threads_per_block>>>(h_nbatches, h_ncells, d_sum_grid);
-    //checkCuda(cudaDeviceSynchronize());
     
     // transfer the grid to host
     checkCuda(cudaMemcpy(
@@ -607,4 +593,14 @@ void custress_sum_grid(mds::dmatrix * current_grid)
     
     // zero grids on device
     checkCuda(cudaMemset(d_sum_grid, 0, sizeof(cu_smatrix[h_nbatches*h_ncells])));
+}
+
+bool custress_is_ready(int batch_id){
+    bool ret = true;
+    if (h_bindex[batch_id] == cu_batchsize)
+    {
+       if (cudaSuccess != checkCuda(cudaEventQuery(h_mem_event[batch_id])))
+           ret = false;
+    }
+    return ret;
 }

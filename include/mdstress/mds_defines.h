@@ -79,8 +79,6 @@ namespace mds
 
     #define mds_fileext "mds"
 
-    #define mds_batchsize 2048
-    
     typedef bool    barray[4];
     typedef int     iarray[3];
     typedef double  darray[3];

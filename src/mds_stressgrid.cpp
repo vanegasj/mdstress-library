@@ -864,6 +864,15 @@ void StressGrid::ComputeNbodyPairForces(int nAtoms, darray *R, darray *F, int *a
 // F    -> pairwise force
 void StressGrid::DistributePairInteraction( darray xi, darray xj, darray F, int batch_id )
 {
+#ifdef CUSTRESS_ENABLE
+    if (this->m_cuda && custress_is_ready(batch_id))
+    {
+        // calculate the iterations
+        //int iterations = c[0]*(i2[0]-i1[0]) + c[1]*(i2[1]-i1[1]) + c[2]*(i2[2]-i1[2])+1;
+        custress_distribute_pair_interaction(xi,xj,F,batch_id);
+        return;
+    }
+#endif
     iarray c;  //director
     iarray i1; //grid cell corresponding to particle J (B)
     iarray i2; //grid cell corresponding to particle J (B)
@@ -876,15 +885,10 @@ void StressGrid::DistributePairInteraction( darray xi, darray xj, darray F, int 
     c[0] = (i2[0]>i1[0])-(i1[0]>i2[0]);
     c[1] = (i2[1]>i1[1])-(i1[1]>i2[1]);
     c[2] = (i2[2]>i1[2])-(i1[2]>i2[2]);
-    
-#ifdef CUSTRESS_ENABLE
-    if (this->m_cuda && ( c[0]*i1[0] + c[1]*i1[1] + c[2]*i1[2] < c[0]*i2[0] + c[1]*i2[1] + c[2]*i2[2]) )
-        custress_distribute_pair_interaction(xi,xj,F,batch_id);
-    else {
-#endif
+
     double oldt,newt,factor;
     int cmp0x,cmp1x,cmp2x,iX,index;
-    darray t,d_cgrid,diff;
+    darray t,t_c1,t_c2,d_cgrid,diff;
     
     // scalars used to prepare vectors
     double t12,t22, dt1, dt2, dt3, dt4;
@@ -931,10 +935,18 @@ void StressGrid::DistributePairInteraction( darray xi, darray xj, darray F, int 
     xn[1] = i1[1]+(c[1]+1)/2;
     xn[2] = i1[2]+(c[2]+1)/2;
 
+    // get the t_coeffs for use with t
+    t_c1[0] = xi[0] / (xi[0]-xj[0]);
+    t_c1[1] = xi[1] / (xi[1]-xj[1]);
+    t_c1[2] = xi[2] / (xi[2]-xj[2]);
+    t_c2[0] = this->m_gridsp[0] / (xi[0]-xj[0]);
+    t_c2[1] = this->m_gridsp[1] / (xi[1]-xj[1]);
+    t_c2[2] = this->m_gridsp[2] / (xi[2]-xj[2]);
+
     // parametric time of crossing
-    t[0] = (xi[0]-xn[0] * this->m_gridsp[0])/(xi[0]-xj[0]);
-    t[1] = (xi[1]-xn[1] * this->m_gridsp[1])/(xi[1]-xj[1]);
-    t[2] = (xi[2]-xn[2] * this->m_gridsp[2])/(xi[2]-xj[2]);
+    t[0] = t_c1[0]-xn[0]*t_c2[0];
+    t[1] = t_c1[1]-xn[1]*t_c2[1];
+    t[2] = t_c1[2]-xn[2]*t_c2[2];
         
     // this sets the time larger than 1 if there is no crossing
     t[0] = (c[0] == 0.0)*1.1 + (c[0] != 0.0)*t[0];
@@ -942,7 +954,7 @@ void StressGrid::DistributePairInteraction( darray xi, darray xj, darray F, int 
     t[2] = (c[2] == 0.0)*1.1 + (c[2] != 0.0)*t[2];
     
     // track previous time of crossing and check that sum is complete (?)
-    oldt      = 0.0; 
+    oldt = 0.0; 
 
     // now the position/spatial constants
     axy = diff[0]*diff[1]; axz = diff[0]*diff[2]; ayz = diff[1]*diff[2];
@@ -1016,7 +1028,7 @@ again:
             xn[iX] += c[iX];
 
             // Next cross point:
-            t[iX] = (xi[iX]-xn[iX]*m_gridsp[iX])/(xi[iX]-xj[iX]);
+            t[iX] = t_c1[iX]-xn[iX]*t_c2[iX];
         }
     }
 
@@ -1027,9 +1039,6 @@ again:
         newt = 1.0;
         goto again;
     }
-#ifdef CUSTRESS_ENABLE
-    }
-#endif
 }
 
 //----------------------------------------------------------------------------------------
