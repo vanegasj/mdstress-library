@@ -113,24 +113,24 @@ class  mds::StressGrid
         void SetNumberOfGridCellsX(int nx)
         {
             std::lock_guard<std::mutex> lock(m_mutex_state);
-            this->m_nx = nx;
+            this->m_nxyz[0] = nx;
         }
         void SetNumberOfGridCellsY(int ny)
         {
             std::lock_guard<std::mutex> lock(m_mutex_state);
-            this->m_ny = ny;
+            this->m_nxyz[1] = ny;
         }
         void SetNumberOfGridCellsZ(int nz)
         {
             std::lock_guard<std::mutex> lock(m_mutex_state);
-            this->m_nz = nz;
+            this->m_nxyz[2] = nz;
         }
         int  GetNumberOfGridCellsX( )
-        {   return this->m_nx; }
+        {   return this->m_nxyz[0]; }
         int  GetNumberOfGridCellsY( )
-        {   return this->m_ny; }
+        {   return this->m_nxyz[1]; }
         int  GetNumberOfGridCellsZ( )
-        {   return this->m_nz; }
+        {   return this->m_nxyz[2]; }
         //@}
         
         /** Set/Get spacing in each direction: */
@@ -362,9 +362,8 @@ class  mds::StressGrid
         /** @name Inputs*/
         //@{
         int         m_nAtoms;         ///< Number of atoms
-        int         m_nx;             ///< Number of grid cells in the x direction
-        int         m_ny;             ///< Number of grid cells in the y direction
-        int         m_nz;             ///< Number of grid cells in the z direction
+        iarray      m_nxyz;           ///< Number of grid cells in the x direction
+        int         m_griddim;        ///< the type of grid
         long        m_ncells;         ///< Total number of cells in the calculation
         int         m_maxClust;
         double      m_spacing;        ///< spacing requested for the grid
@@ -427,6 +426,8 @@ class  mds::StressGrid
          * R2   -> position of particle J (B)
          * F    -> pairwise force */
         void DistributePairInteraction     ( darray R1, darray R2, darray F, int batch_id );
+        void DistributePairInteraction1D   ( darray R1, darray R2, darray F, int batch_id );
+        void DistributePairInteraction3D   ( darray R1, darray R2, darray F, int batch_id );
         
         /** Decompose 3-body potentials (angles)*/
         void DistributeN3                  ( darray Ra, darray Rb, darray Rc, darray Fa, darray Fb, darray Fc, int batch_id );

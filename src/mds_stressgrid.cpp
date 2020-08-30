@@ -34,9 +34,10 @@ using namespace mds;
 //Constructor
 StressGrid::StressGrid()
 {
-    this->m_nx = 0;
-    this->m_ny = 0;
-    this->m_nz = 0;
+    this->m_nxyz[0] = 0;
+    this->m_nxyz[1] = 0;
+    this->m_nxyz[2] = 0;
+    this->m_griddim = mds_griddim_xyz;
     this->m_maxClust = mds_maxpart;
     this->m_gridsp[0] = 0.0;
     this->m_gridsp[1] = 0.0;
@@ -157,13 +158,13 @@ int StressGrid::CheckSettings()
     }
     if ( this->m_spatatom == mds_spat )
     {
-        if ( this->m_nx < 0 || this->m_ny < 0 || this->m_nz < 0)
+        if ( this->m_nxyz[0] < 0 || this->m_nxyz[1] < 0 || this->m_nxyz[2] < 0)
         {
-            std::cout << "ERROR::StressGrid: The number of grid cells are negative: (nx,ny,nz)=" << " ( " <<this->m_nx << ", " << this->m_ny << ", " <<this->m_nz << " )\n"; 
+            std::cout << "ERROR::StressGrid: The number of grid cells are negative: (nx,ny,nz)=" << " ( " <<this->m_nxyz[0] << ", " << this->m_nxyz[1] << ", " <<this->m_nxyz[2] << " )\n"; 
             return 2;
         }
         
-        if ( this->m_nx == 0 && this->m_ny == 0 && this->m_nz == 0)
+        if ( this->m_nxyz[0] == 0 && this->m_nxyz[1] == 0 && this->m_nxyz[2] == 0)
         {
             if ( this->m_spacing < mds_eps )
             {
@@ -221,15 +222,26 @@ void StressGrid::Init()
         //Sizes
         if (this->m_spatatom == mds_spat)
         {
-            if(this->m_nx == 0)   this->m_nx = static_cast<int>(this->m_box[0][0]/this->m_spacing);
-            if(this->m_ny == 0)   this->m_ny = static_cast<int>(this->m_box[1][1]/this->m_spacing);
-            if(this->m_nz == 0)   this->m_nz = static_cast<int>(this->m_box[2][2]/this->m_spacing);
+            if(this->m_nxyz[0] == 0)   this->m_nxyz[0] = static_cast<int>(this->m_box[0][0]/this->m_spacing);
+            if(this->m_nxyz[1] == 0)   this->m_nxyz[1] = static_cast<int>(this->m_box[1][1]/this->m_spacing);
+            if(this->m_nxyz[2] == 0)   this->m_nxyz[2] = static_cast<int>(this->m_box[2][2]/this->m_spacing);
             
-            this->m_ncells = this->m_nx*this->m_ny*this->m_nz;
+            if(this->m_nxyz[0]==0)  this->m_nxyz[0]=1;
+            if(this->m_nxyz[1]==0)  this->m_nxyz[1]=1;
+            if(this->m_nxyz[2]==0)  this->m_nxyz[2]=1;
+            
+            this->m_ncells = this->m_nxyz[0]*this->m_nxyz[1]*this->m_nxyz[2];
 
-            if(this->m_nx==0)  this->m_nx=1;
-            if(this->m_ny==0)  this->m_ny=1;
-            if(this->m_nz==0)  this->m_nz=1;
+            if (this->m_ncells == this->m_nxyz[0])
+                this->m_griddim = mds_griddim_xxx;
+            else
+            if (this->m_ncells == this->m_nxyz[1])
+                this->m_griddim = mds_griddim_yyy;
+            else
+            if (this->m_ncells == this->m_nxyz[2])
+                this->m_griddim = mds_griddim_zzz;
+            else
+                this->m_griddim = mds_griddim_xyz;
         }
         else
         {
@@ -281,7 +293,7 @@ void StressGrid::Init()
             this->h_lapack[i] = new Lapack (mds_ndim*this->m_maxClust,(this->m_maxClust*(this->m_maxClust-1))/2);
 #ifdef CUSTRESS_ENABLE
         if (this->m_cuda)
-            custress_init(this->m_max_threads, this->m_ncells, this->m_nx, this->m_ny, this->m_nz);
+            custress_init(this->m_max_threads, this->m_ncells, this->m_nxyz[0], this->m_nxyz[1], this->m_nxyz[2]);
 #endif//CUSTRESS_ENABLE
     }
 }
@@ -314,9 +326,9 @@ void StressGrid::UpdateBoxSpacings ( dmatrix box )
             copymatrix( box, this->m_box);
             inversematrix( this->m_box, this->m_invbox );
 
-            this->m_gridsp[0] = this->m_box[0][0]/static_cast<double>(this->m_nx);
-            this->m_gridsp[1] = this->m_box[1][1]/static_cast<double>(this->m_ny);
-            this->m_gridsp[2] = this->m_box[2][2]/static_cast<double>(this->m_nz);
+            this->m_gridsp[0] = this->m_box[0][0]/static_cast<double>(this->m_nxyz[0]);
+            this->m_gridsp[1] = this->m_box[1][1]/static_cast<double>(this->m_nxyz[1]);
+            this->m_gridsp[2] = this->m_box[2][2]/static_cast<double>(this->m_nxyz[2]);
             this->m_gridsp[3] = this->m_gridsp[0]*this->m_gridsp[1];
             this->m_gridsp[4] = this->m_gridsp[0]*this->m_gridsp[2];
             this->m_gridsp[5] = this->m_gridsp[1]*this->m_gridsp[2];
@@ -623,12 +635,12 @@ void StressGrid::Write ( )
             fwrite(avgbox, sizeof(dmatrix), 1, ewald_outfile);
             if (this->m_spatatom == mds_spat)
             {
-                fwrite(&this->m_nx, sizeof(this->m_nx), 1, outfile);
-                fwrite(&this->m_ny, sizeof(this->m_ny), 1, outfile);
-                fwrite(&this->m_nz, sizeof(this->m_nz), 1, outfile);
-                fwrite(&this->m_nx, sizeof(this->m_nx), 1, ewald_outfile);
-                fwrite(&this->m_ny, sizeof(this->m_ny), 1, ewald_outfile);
-                fwrite(&this->m_nz, sizeof(this->m_nz), 1, ewald_outfile);
+                fwrite(&this->m_nxyz[0], sizeof(this->m_nxyz[0]), 1, outfile);
+                fwrite(&this->m_nxyz[1], sizeof(this->m_nxyz[1]), 1, outfile);
+                fwrite(&this->m_nxyz[2], sizeof(this->m_nxyz[2]), 1, outfile);
+                fwrite(&this->m_nxyz[0], sizeof(this->m_nxyz[0]), 1, ewald_outfile);
+                fwrite(&this->m_nxyz[1], sizeof(this->m_nxyz[1]), 1, ewald_outfile);
+                fwrite(&this->m_nxyz[2], sizeof(this->m_nxyz[2]), 1, ewald_outfile);
             }
             else
             {
@@ -868,50 +880,25 @@ void StressGrid::DistributePairInteraction( darray xi, darray xj, darray F, int 
     if (this->m_cuda && custress_is_ready(batch_id))
     {
         // calculate the iterations
-        //int iterations = c[0]*(i2[0]-i1[0]) + c[1]*(i2[1]-i1[1]) + c[2]*(i2[2]-i1[2])+1;
         custress_distribute_pair_interaction(xi,xj,F,batch_id);
         return;
     }
 #endif
-    iarray c;  //director
-    iarray i1; //grid cell corresponding to particle J (B)
-    iarray i2; //grid cell corresponding to particle J (B)
-    
-    // calculate the grid coordinates (no pbc) for the extreme points
-    this->GridCoord(xi, &i1[0], &i1[1], &i1[2]);
-    this->GridCoord(xj, &i2[0], &i2[1], &i2[2]);
-
-    // c is a vector that guide the advance in each coordinate (+1 if it has to advance in this coordinate, -1 if it has to go back or 0 if it has to do nothing)
-    c[0] = (i2[0]>i1[0])-(i1[0]>i2[0]);
-    c[1] = (i2[1]>i1[1])-(i1[1]>i2[1]);
-    c[2] = (i2[2]>i1[2])-(i1[2]>i2[2]);
-
-    double oldt,newt,factor;
-    int cmp0x,cmp1x,cmp2x,iX,index;
-    darray t,t_c1,t_c2,d_cgrid,diff;
-    
-    // scalars used to prepare vectors
-    double t12,t22, dt1, dt2, dt3, dt4;
-    double axy, axz, ayz, axyz;
-    double bxy, bxz, byz, bxyz;
-    int iip1, iim1, jjp1, jjm1, kkp1, kkm1;
-
-    // vectors and a single coefficient
-    double C;
-    double D[8];
-    iarray xn; //next cell during spreading
-    iarray x;  //cell during spreding
-
-    dmatrix stress;
-    
-    // First cross point with aplane (if there is at least one i.e. c[i] != 0)
-    x[0] = i1[0];
-    x[1] = i1[1];
-    x[2] = i1[2];
+    if (this->m_griddim == mds_griddim_xyz)
+        DistributePairInteraction3D(xi,xj,F,batch_id);
+    else
+        DistributePairInteraction1D(xi,xj,F,batch_id);
+}
+void StressGrid::DistributePairInteraction1D(darray xi, darray xj, darray F, int batch_id )
+{
+    // select grid based on batch index
+    dmatrix * grid = this->p_current_grid+batch_id*this->m_ncells;
     
     //------------------------------------------------------------------------------------
     // Calculate the stress tensor
+    darray diff;
     diffarray( xj, xi, diff, this->m_box, this->m_periodic);
+    dmatrix stress;
     stress[0][0] = F[0]*diff[0];
     stress[1][0] = F[1]*diff[0];
     stress[2][0] = F[2]*diff[0];
@@ -922,91 +909,159 @@ void StressGrid::DistributePairInteraction( darray xi, darray xj, darray F, int 
     stress[1][2] = F[1]*diff[2];
     stress[2][2] = F[2]*diff[2];
 
+    // calculate the grid coordinates (no pbc) for the extreme points
+    int x = this->m_nxyz[this->m_griddim] * xi[this->m_griddim] * this->m_invbox[this->m_griddim][this->m_griddim] - (xi[this->m_griddim] < 0.0);
+    const int i2 = this->m_nxyz[this->m_griddim] * xj[this->m_griddim] * this->m_invbox[this->m_griddim][this->m_griddim] - (xj[this->m_griddim] < 0.0);
+    const int c = (i2>x)-(x>i2);
+    const double t_c1 = xi[this->m_griddim] / (xi[this->m_griddim]-xj[this->m_griddim]);
+    const double t_c2 = this->m_gridsp[this->m_griddim] / (xi[this->m_griddim]-xj[this->m_griddim]);
+    const double C = 0.5*this->m_invgridsp*this->m_invgridsp;
+    double d_cgrid = xi[this->m_griddim]-(x+0.5)*this->m_gridsp[this->m_griddim];
+    int xn = x+(c+1)/2;
+
     //------------------------------------------------------------------------------------
     // Distribute the stress
 
-    // d_cgrid = vector from the center of the present cell to the initial point
-    d_cgrid[0] = xi[0]-(i1[0]+0.5)*this->m_gridsp[0];
-    d_cgrid[1] = xi[1]-(i1[1]+0.5)*this->m_gridsp[1];
-    d_cgrid[2] = xi[2]-(i1[2]+0.5)*this->m_gridsp[2];
-    
-    // label of the next cell is 1 step further than the previous in this direction
-    xn[0] = i1[0]+(c[0]+1)/2;
-    xn[1] = i1[1]+(c[1]+1)/2;
-    xn[2] = i1[2]+(c[2]+1)/2;
+    // track previous time of crossing and check that sum is complete (?)
+    double oldt = 0.0; 
 
-    // get the t_coeffs for use with t
+    // fix the number of iterations
+    const int iterations = c*(i2-x);
+    for (int count = 0; count <= iterations; ++count)
+    {
+        // there is always iterations+1, where the last iteration deals
+        // with any residual
+        double newt = (iterations == count) ? 1.0 : t_c1-xn*t_c2;
+
+        // work out the parametric time constants
+        const double t12 = oldt*oldt;
+        const double t22 = newt*newt;
+        const double dt1 = newt - oldt;
+        const double dt2 = t22 - t12;
+
+        const int p1 = ((x + 1 + this->m_nxyz[this->m_griddim]) % this->m_nxyz[this->m_griddim]);
+        const int m1 = ((x + this->m_nxyz[this->m_griddim]) % this->m_nxyz[this->m_griddim]);
+
+        // the composite constants in terms of i, j, k
+        const double D1 = this->m_gridsp[5-this->m_griddim]*(2.0*d_cgrid*dt1+diff[this->m_griddim]*dt2);
+        const double D2 = this->m_gridsp[6]*dt1;
+        scalesummatrix(C*( D1 + D2), stress, grid[p1]);
+        scalesummatrix(C*(-D1 + D2), stress, grid[m1]);
+        
+        d_cgrid -= c * m_gridsp[this->m_griddim];
+        oldt = newt;
+        
+        x += c;
+        xn += c;
+    }
+}
+void StressGrid::DistributePairInteraction3D(darray xi, darray xj, darray F, int batch_id )
+{
+    // this is the 3D case
+    dmatrix * grid = this->p_current_grid+batch_id*this->m_ncells;
+    
+    //------------------------------------------------------------------------------------
+    // Calculate the stress tensor
+    darray diff;
+    diffarray( xj, xi, diff, this->m_box, this->m_periodic);
+
+    dmatrix stress;
+    stress[0][0] = F[0]*diff[0];
+    stress[1][0] = F[1]*diff[0];
+    stress[2][0] = F[2]*diff[0];
+    stress[0][1] = F[0]*diff[1];
+    stress[1][1] = F[1]*diff[1];
+    stress[2][1] = F[2]*diff[1];
+    stress[0][2] = F[0]*diff[2];
+    stress[1][2] = F[1]*diff[2];
+    stress[2][2] = F[2]*diff[2];
+
+    // calculate the grid coordinates (no pbc) for the extreme points
+    iarray x, xn, i2, c;
+    darray t,t_c1,t_c2,d_cgrid;
+    x[0] = this->m_nxyz[0] * xi[0] * this->m_invbox[0][0] - (xi[0] < 0.0);
+    x[1] = this->m_nxyz[1] * xi[1] * this->m_invbox[1][1] - (xi[1] < 0.0);
+    x[2] = this->m_nxyz[2] * xi[2] * this->m_invbox[2][2] - (xi[2] < 0.0);
+    i2[0] = this->m_nxyz[0] * xj[0] * this->m_invbox[0][0] - (xj[0] < 0.0);
+    i2[1] = this->m_nxyz[1] * xj[1] * this->m_invbox[1][1] - (xj[1] < 0.0);
+    i2[2] = this->m_nxyz[2] * xj[2] * this->m_invbox[2][2] - (xj[2] < 0.0);
+    c[0] = (i2[0]>x[0])-(x[0]>i2[0]);
+    c[1] = (i2[1]>x[1])-(x[1]>i2[1]);
+    c[2] = (i2[2]>x[2])-(x[2]>i2[2]);
+    d_cgrid[0] = xi[0]-(x[0]+0.5)*this->m_gridsp[0];
+    d_cgrid[1] = xi[1]-(x[1]+0.5)*this->m_gridsp[1];
+    d_cgrid[2] = xi[2]-(x[2]+0.5)*this->m_gridsp[2];
+    xn[0] = x[0]+(c[0]+1)/2;
+    xn[1] = x[1]+(c[1]+1)/2;
+    xn[2] = x[2]+(c[2]+1)/2;
+
+    // calculate parametric time in each dimension, and related constants
     t_c1[0] = xi[0] / (xi[0]-xj[0]);
     t_c1[1] = xi[1] / (xi[1]-xj[1]);
     t_c1[2] = xi[2] / (xi[2]-xj[2]);
     t_c2[0] = this->m_gridsp[0] / (xi[0]-xj[0]);
     t_c2[1] = this->m_gridsp[1] / (xi[1]-xj[1]);
     t_c2[2] = this->m_gridsp[2] / (xi[2]-xj[2]);
+    t[0] = (c[0] == 0) ? 1.1 : t_c1[0]-xn[0]*t_c2[0];
+    t[1] = (c[1] == 0) ? 1.1 : t_c1[1]-xn[1]*t_c2[1];
+    t[2] = (c[2] == 0) ? 1.1 : t_c1[2]-xn[2]*t_c2[2];
 
-    // parametric time of crossing
-    t[0] = t_c1[0]-xn[0]*t_c2[0];
-    t[1] = t_c1[1]-xn[1]*t_c2[1];
-    t[2] = t_c1[2]-xn[2]*t_c2[2];
-        
-    // this sets the time larger than 1 if there is no crossing
-    t[0] = (c[0] == 0.0)*1.1 + (c[0] != 0.0)*t[0];
-    t[1] = (c[1] == 0.0)*1.1 + (c[1] != 0.0)*t[1];
-    t[2] = (c[2] == 0.0)*1.1 + (c[2] != 0.0)*t[2];
-    
-    // track previous time of crossing and check that sum is complete (?)
-    oldt = 0.0; 
+    //------------------------------------------------------------------------------------
+    // Distribute the stress
 
     // now the position/spatial constants
-    axy = diff[0]*diff[1]; axz = diff[0]*diff[2]; ayz = diff[1]*diff[2];
-    axyz = diff[0]*ayz; 
+    const double C = 0.125*this->m_invgridsp*this->m_invgridsp;
+    const double axy = diff[0]*diff[1];
+    const double axz = diff[0]*diff[2];
+    const double ayz = diff[1]*diff[2];
+    const double axyz = diff[0]*ayz; 
     
-    // select grid based on batch index
-    dmatrix * grid = this->p_current_grid+batch_id*this->m_ncells;
+    // track previous time of crossing
+    double oldt = 0.0; 
     
-    // while we don't reach the last point...
-    bool entered_again = false;
-    while( c[0]*x[0] + c[1]*x[1] + c[2]*x[2] < c[0]*i2[0] + c[1]*i2[1] + c[2]*i2[2] )
+    const int iterations = c[0]*(i2[0]-x[0]) + c[1]*(i2[1]-x[1]) + c[2]*(i2[2]-x[2]);
+    for (int count = 0; count <= iterations; ++count)
     {
         // figure out index
-        cmp0x = ((t[0]<t[1]+mds_eps) + (t[0]<t[2]+mds_eps))/2;
-        cmp1x = ((t[1]<t[0]+mds_eps) + (t[1]<t[2]+mds_eps))/2;
-        cmp2x = ((t[2]<t[0]+mds_eps) + (t[2]<t[1]+mds_eps))/2;
-        iX = (1-cmp0x)*(cmp1x+2*(1-cmp1x)*cmp2x);
-        newt = t[iX];
-again:
+        const int cmp0x = ((t[0]<t[1]+mds_eps) + (t[0]<t[2]+mds_eps))/2;
+        const int cmp1x = ((t[1]<t[0]+mds_eps) + (t[1]<t[2]+mds_eps))/2;
+        const int cmp2x = ((t[2]<t[0]+mds_eps) + (t[2]<t[1]+mds_eps))/2;
+        const int iX = (1-cmp0x)*(cmp1x+2*(1-cmp1x)*cmp2x);
+        const double newt = (iterations == count) ? 1.0 : t[iX];
 
-        // distribute the contribution
         // work out the parametric time constants
-        t12 = oldt*oldt;
-        t22 = newt*newt;
-        dt1 = newt - oldt;
-        dt2 = t22 - t12;
-        dt3 = 4.0*(t22*newt - t12*oldt)/3.0;
-        dt4 = t22*t22 - t12*t12;
+        const double t12 = oldt*oldt;
+        const double t22 = newt*newt;
+        const double dt1 = newt - oldt;
+        const double dt2 = t22 - t12;
+        const double dt3 = 4.0*(t22*newt - t12*oldt)/3.0;
+        const double dt4 = t22*t22 - t12*t12;
 
-        bxy = d_cgrid[0]*d_cgrid[1]; bxz = d_cgrid[0]*d_cgrid[2]; byz = d_cgrid[1]*d_cgrid[2];
-        bxyz = d_cgrid[0]*byz;
-        
-        C = 0.125*this->m_invgridsp*this->m_invgridsp;
-        
-        // and the index constants
-        iip1 = ((x[0] + 1 + this->m_nx) % this->m_nx)*this->m_ny*this->m_nz;
-        jjp1 = ((x[1] + 1 + this->m_ny) % this->m_ny)*this->m_nz;
-        kkp1 = ((x[2] + 1 + this->m_nz) % this->m_nz);
-        iim1 = ((x[0] + this->m_nx) % this->m_nx)*this->m_ny*this->m_nz;
-        jjm1 = ((x[1] + this->m_ny) % this->m_ny)*this->m_nz;
-        kkm1 = ((x[2] + this->m_nz) % this->m_nz);
+        // additional constants
+        const double bxy = d_cgrid[0]*d_cgrid[1];
+        const double bxz = d_cgrid[0]*d_cgrid[2];
+        const double byz = d_cgrid[1]*d_cgrid[2];
+        const double bxyz = d_cgrid[0]*byz;
+    
+        const int iip1 = ((x[0] + 1 + this->m_nxyz[0]) % this->m_nxyz[0])*this->m_nxyz[1]*this->m_nxyz[2];
+        const int jjp1 = ((x[1] + 1 + this->m_nxyz[1]) % this->m_nxyz[1])*this->m_nxyz[2];
+        const int kkp1 = ((x[2] + 1 + this->m_nxyz[2]) % this->m_nxyz[2]);
+        const int iim1 = ((x[0] + this->m_nxyz[0]) % this->m_nxyz[0])*this->m_nxyz[1]*this->m_nxyz[2];
+        const int jjm1 = ((x[1] + this->m_nxyz[1]) % this->m_nxyz[1])*this->m_nxyz[2];
+        const int kkm1 = ((x[2] + this->m_nxyz[2]) % this->m_nxyz[2]);
 
         // the composite constants in terms of i, j, k
-        D[0] = 8.0*bxyz*dt1 + 4.0*(diff[0]*byz+diff[1]*bxz+diff[2]*bxy)*dt2
-            + 2.0*(d_cgrid[0]*ayz+d_cgrid[1]*axz+d_cgrid[2]*axy)*dt3 + 2.0*axyz*dt4;
-        D[1] = this->m_gridsp[0]*(4.0*byz*dt1 + 2.0*(diff[1]*d_cgrid[2]+diff[2]*d_cgrid[1])*dt2 + ayz*dt3);
-        D[2] = this->m_gridsp[1]*(4.0*bxz*dt1 + 2.0*(diff[0]*d_cgrid[2]+diff[2]*d_cgrid[0])*dt2 + axz*dt3);
-        D[3] = this->m_gridsp[2]*(4.0*bxy*dt1 + 2.0*(diff[0]*d_cgrid[1]+diff[1]*d_cgrid[0])*dt2 + axy*dt3);
-        D[4] = this->m_gridsp[3]*(2.0*d_cgrid[2]*dt1+diff[2]*dt2);
-        D[5] = this->m_gridsp[4]*(2.0*d_cgrid[1]*dt1+diff[1]*dt2);
-        D[6] = this->m_gridsp[5]*(2.0*d_cgrid[0]*dt1+diff[0]*dt2);
-        D[7] = this->m_gridsp[6]*dt1;
+        const double D[8] = {
+            8.0*bxyz*dt1 + 4.0*(diff[0]*byz+diff[1]*bxz+diff[2]*bxy)*dt2
+                + 2.0*(d_cgrid[0]*ayz+d_cgrid[1]*axz+d_cgrid[2]*axy)*dt3 + 2.0*axyz*dt4,
+            this->m_gridsp[0]*(4.0*byz*dt1 + 2.0*(diff[1]*d_cgrid[2]+diff[2]*d_cgrid[1])*dt2 + ayz*dt3),
+            this->m_gridsp[1]*(4.0*bxz*dt1 + 2.0*(diff[0]*d_cgrid[2]+diff[2]*d_cgrid[0])*dt2 + axz*dt3),
+            this->m_gridsp[2]*(4.0*bxy*dt1 + 2.0*(diff[0]*d_cgrid[1]+diff[1]*d_cgrid[0])*dt2 + axy*dt3),
+            this->m_gridsp[3]*(2.0*d_cgrid[2]*dt1+diff[2]*dt2),
+            this->m_gridsp[4]*(2.0*d_cgrid[1]*dt1+diff[1]*dt2),
+            this->m_gridsp[5]*(2.0*d_cgrid[0]*dt1+diff[0]*dt2),
+            this->m_gridsp[6]*dt1,
+        };
 
         // perform the sums into the grid
         scalesummatrix(C*( D[0] + D[1] + D[2] + D[3] + D[4] + D[5] + D[6] + D[7]), stress, grid[iip1 + jjp1 + kkp1]);
@@ -1018,28 +1073,17 @@ again:
         scalesummatrix(C*( D[0] - D[1] - D[2] + D[3] + D[4] - D[5] - D[6] + D[7]), stress, grid[iim1 + jjm1 + kkp1]);
         scalesummatrix(C*(-D[0] + D[1] + D[2] + D[3] - D[4] - D[5] - D[6] + D[7]), stress, grid[iim1 + jjm1 + kkm1]);
 
-        // move to next cross point
-        if (entered_again == false)
-        {
-            d_cgrid[iX] -= c[iX] * m_gridsp[iX];
-            oldt = t[iX];
-            
-            x[iX] += c[iX];
-            xn[iX] += c[iX];
+        d_cgrid[iX] -= c[iX] * m_gridsp[iX];
+        oldt = t[iX];
+        
+        x[iX] += c[iX];
+        xn[iX] += c[iX];
 
-            // Next cross point:
-            t[iX] = t_c1[iX]-xn[iX]*t_c2[iX];
-        }
-    }
-
-    // complete the last distribution
-    if (entered_again == false)
-    {
-        entered_again = true;
-        newt = 1.0;
-        goto again;
+        // Next cross point:
+        t[iX] = t_c1[iX]-xn[iX]*t_c2[iX];
     }
 }
+
 
 //----------------------------------------------------------------------------------------
 // DistributeKinetic
@@ -1104,12 +1148,12 @@ void StressGrid::DistributeKinetic(double mass, darray x, darray va, darray vb =
             this->GridCoord(x,&i1[0],&i1[1],&i1[2]);
             
             // and the index constants
-            iip1 = ((i1[0] + 1 + this->m_nx) % this->m_nx)*this->m_ny*this->m_nz;
-            jjp1 = ((i1[1] + 1 + this->m_ny) % this->m_ny)*this->m_nz;
-            kkp1 = ((i1[2] + 1 + this->m_nz) % this->m_nz);
-            iim1 = ((i1[0] + this->m_nx) % this->m_nx)*this->m_ny*this->m_nz;
-            jjm1 = ((i1[1] + this->m_ny) % this->m_ny)*this->m_nz;
-            kkm1 = ((i1[2] + this->m_nz) % this->m_nz);
+            iip1 = ((i1[0] + 1 + this->m_nxyz[0]) % this->m_nxyz[0])*this->m_nxyz[1]*this->m_nxyz[2];
+            jjp1 = ((i1[1] + 1 + this->m_nxyz[1]) % this->m_nxyz[1])*this->m_nxyz[2];
+            kkp1 = ((i1[2] + 1 + this->m_nxyz[2]) % this->m_nxyz[2]);
+            iim1 = ((i1[0] + this->m_nxyz[0]) % this->m_nxyz[0])*this->m_nxyz[1]*this->m_nxyz[2];
+            jjm1 = ((i1[1] + this->m_nxyz[1]) % this->m_nxyz[1])*this->m_nxyz[2];
+            kkm1 = ((i1[2] + this->m_nxyz[2]) % this->m_nxyz[2]);
             
             // xc = vector from the corner of the point to the corner of the cell
             C = this->m_invgridsp * this->m_invgridsp;
@@ -1181,12 +1225,12 @@ void StressGrid::DistributeEwald ( darray x, darray F, int atomID  )
             this->GridCoord(x,&i1[0],&i1[1],&i1[2]);
             
             // and the index constants
-            iip1 = ((i1[0] + 1 + this->m_nx) % this->m_nx)*this->m_ny*this->m_nz;
-            jjp1 = ((i1[1] + 1 + this->m_ny) % this->m_ny)*this->m_nz;
-            kkp1 = ((i1[2] + 1 + this->m_nz) % this->m_nz);
-            iim1 = ((i1[0] + this->m_nx) % this->m_nx)*this->m_ny*this->m_nz;
-            jjm1 = ((i1[1] + this->m_ny) % this->m_ny)*this->m_nz;
-            kkm1 = ((i1[2] + this->m_nz) % this->m_nz);
+            iip1 = ((i1[0] + 1 + this->m_nxyz[0]) % this->m_nxyz[0])*this->m_nxyz[1]*this->m_nxyz[2];
+            jjp1 = ((i1[1] + 1 + this->m_nxyz[1]) % this->m_nxyz[1])*this->m_nxyz[2];
+            kkp1 = ((i1[2] + 1 + this->m_nxyz[2]) % this->m_nxyz[2]);
+            iim1 = ((i1[0] + this->m_nxyz[0]) % this->m_nxyz[0])*this->m_nxyz[1]*this->m_nxyz[2];
+            jjm1 = ((i1[1] + this->m_nxyz[1]) % this->m_nxyz[1])*this->m_nxyz[2];
+            kkm1 = ((i1[2] + this->m_nxyz[2]) % this->m_nxyz[2]);
             
             // xc = vector from the corner of the point to the corner of the cell
             C = this->m_invgridsp * this->m_invgridsp;
@@ -1876,9 +1920,9 @@ void StressGrid::GridCoord( darray pt, int *i, int *j, int *k )
     fractional indices are invbox * coordinate;
     grid indices are then nx*f_ind[0], etc.
     */
-    *i = static_cast<int>(this->m_nx * pt[0] * this->m_invbox[0][0]);
-    *j = static_cast<int>(this->m_ny * pt[1] * this->m_invbox[1][1]);
-    *k = static_cast<int>(this->m_nz * pt[2] * this->m_invbox[2][2]);
+    *i = static_cast<int>(this->m_nxyz[0] * pt[0] * this->m_invbox[0][0]);
+    *j = static_cast<int>(this->m_nxyz[1] * pt[1] * this->m_invbox[1][1]);
+    *k = static_cast<int>(this->m_nxyz[2] * pt[2] * this->m_invbox[2][2]);
 
     *i = (pt[0] < 0) ? *i-1 : *i;
     *j = (pt[1] < 0) ? *j-1 : *j;

@@ -79,6 +79,11 @@ namespace mds
 
     #define mds_fileext "mds"
 
+    #define mds_griddim_xxx 0
+    #define mds_griddim_yyy 1
+    #define mds_griddim_zzz 2
+    #define mds_griddim_xyz 3
+
     typedef bool    barray[4];
     typedef int     iarray[3];
     typedef double  darray[3];
