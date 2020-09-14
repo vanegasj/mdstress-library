@@ -75,7 +75,8 @@ typedef double_t cu_darray[3];
 typedef double_t cu_dmatrix[3][3];
 
 #define cu_batchsize 8192
-#define cu_threads_per_block 128
+#define cu_threads_per_block 32
+#define cu_batches_per_thread 1
 typedef struct {
     cu_sarray Ri[cu_batchsize];
     cu_sarray Rj[cu_batchsize];
@@ -106,7 +107,7 @@ cu_batches_t *d_batch    = nullptr;
 cu_smatrix    *d_sum_grid = nullptr;
 
 // cuda context
-const dim3 batch_blocks = {cu_batchsize/cu_threads_per_block,1,1};
+const dim3 batch_blocks = {cu_batchsize/(cu_threads_per_block*cu_batches_per_thread),1,1};
 const dim3 batch_threads = {cu_threads_per_block,1,1};
 
 __device__ static inline void diff_array(
@@ -126,277 +127,6 @@ __device__ static inline void diff_array(
         c[1] += (c_periodic[1] == true && c[1] <= -doubleval(0.5)*c_box[1][1]) ? c_box[1][1] : singleval(0.0);
         c[2] -= (c_periodic[2] == true && c[2] >   doubleval(0.5)*c_box[2][2]) ? c_box[2][2] : singleval(0.0);
         c[2] += (c_periodic[2] == true && c[2] <= -doubleval(0.5)*c_box[2][2]) ? c_box[2][2] : singleval(0.0);
-    }
-}
-
-__device__ static inline void BatchPairInteraction_1d(
-        uint_t dim,
-        const cu_sarray xi,
-        const cu_sarray xj,
-        const cu_sarray F,
-        cu_smatrix * current_grid)
-{
-    double_t oldt, newt, t_c1, t_c2;
-    double_t d_cgrid;
-    cu_sarray diff;
-
-    int_t i2; //grid cell corresponding to particle J (B)
-    int_t x;  //cell during spreading
-    int_t xn; //next cell during spreading
-    int_t c;  //director
-    
-    cu_smatrix stress;
-    
-    // scalars used to prepare vectors
-    single_t t12,t22, dt1, dt2;
-    int_t kkp1, kkm1;
-
-    // vectors and a single coefficient
-    single_t D[2];
-    single_t factor[2];
-
-    //------------------------------------------------------------------------------------
-    // Calculate the stress tensor
-    diff_array(xj, xi, diff);
-    stress[0][0] = F[0]*diff[0];
-    stress[1][0] = F[1]*diff[0];
-    stress[2][0] = F[2]*diff[0];
-    stress[0][1] = F[0]*diff[1];
-    stress[1][1] = F[1]*diff[1];
-    stress[2][1] = F[2]*diff[1];
-    stress[0][2] = F[0]*diff[2];
-    stress[1][2] = F[1]*diff[2];
-    stress[2][2] = F[2]*diff[2];
-
-    //------------------------------------------------------------------------------------
-    // Distribute the stress
-
-    // calculate the grid coordinates (no pbc) for the extreme points
-    x = c_nxyz[dim] * xi[dim] * c_invbox[dim][dim] - (xi[dim] < doubleval(0.0));
-    i2 = c_nxyz[dim] * xj[dim] * c_invbox[dim][dim] - (xj[dim] < doubleval(0.0));
-
-    // d_cgrid = vector from the center of the present cell to the initial point
-    d_cgrid = xi[dim]-(x+singleval(0.5))*c_gridsp[dim];
-    
-    // c is a vector that guide the advance in each coordinate (+1 if it has to advance in this coordinate, -1 if it has to go back or 0 if it has to do nothing)
-    c = (i2>x)-(x>i2);
-    
-    // label of the next cell is 1 step further than the previous in this direction
-    xn = x+(c+1)/2;
-    
-    t_c1 = xi[dim] / (xi[dim]-xj[dim]);
-    t_c2 = c_gridsp[dim] / (xi[dim]-xj[dim]);
-
-    // parametric time of crossing
-    oldt = doubleval(0.0); 
-    newt = (c == 0) ? doubleval(1.1) : t_c1-xn*t_c2;
-
-    // while we don't reach the last point...
-    int iterations = c*(i2-x);
-    for (int count = 0; count <= iterations; ++count)
-    {
-        // figure out index
-        newt = (iterations == count) ? doubleval(1.0) : newt;
-
-        // distribute the contribution
-        // work out the parametric time constants
-        t12 = oldt*oldt;
-        t22 = newt*newt;
-        dt1 = newt-oldt;
-        dt2 = t22 - t12;
-        
-        // and the index constants
-        kkp1 = ((x + 1 + c_nxyz[dim]) % c_nxyz[dim]);
-        kkm1 = ((x + c_nxyz[dim]) % c_nxyz[dim]);
-
-        // the composite constants in terms of i, j, k
-        D[0] = c_gridsp[5-dim]*(singleval(2.0)*d_cgrid*dt1+diff[dim]*dt2);
-        D[1] = c_gridsp[6]*dt1;
-
-        // prepare the factors
-        factor[0] = singleval(4.0)*c_gridsp[7]*( D[0] + D[1]);
-        factor[1] = singleval(4.0)*c_gridsp[7]*(-D[0] + D[1]);
-
-        // perform the sums into the grid
-        cu_ssmatm(factor[0], stress, current_grid[kkp1]);
-        cu_ssmatm(factor[1], stress, current_grid[kkm1]);
-
-        // move to next cross point
-        d_cgrid -= c * (single_t)c_gridsp[dim];
-        oldt = newt;
-        
-        x += c;
-        xn += c;
-
-        // Next cross point:
-        newt = t_c1-xn*t_c2;
-    }
-}
-
-__device__ static inline void BatchPairInteraction_3d(
-        const cu_sarray xi,
-        const cu_sarray xj,
-        const cu_sarray F,
-        cu_smatrix * current_grid)
-{
-    double_t oldt, newt;
-    int_t cmp0x,cmp1x,cmp2x,iX;
-
-    cu_darray t, t_c1, t_c2;
-    cu_sarray d_cgrid;
-    cu_sarray diff;
-
-    cu_iarray i2; //grid cell corresponding to particle J (B)
-    cu_iarray x;  //cell during spreading
-    cu_iarray xn; //next cell during spreading
-    cu_iarray c;  //director
-    
-    cu_smatrix stress;
-    
-    // scalars used to prepare vectors
-    single_t t12,t22, dt1, dt2, dt3, dt4;
-    single_t axy, axz, ayz, axyz;
-    single_t bxy, bxz, byz, bxyz;
-    int_t iip1, iim1, jjp1, jjm1, kkp1, kkm1;
-
-    // vectors and a single coefficient
-    single_t D[8];
-    single_t factor[8];
-
-    //------------------------------------------------------------------------------------
-    // Calculate the stress tensor
-    diff_array(xj, xi, diff);
-    stress[0][0] = F[0]*diff[0];
-    stress[1][0] = F[1]*diff[0];
-    stress[2][0] = F[2]*diff[0];
-    stress[0][1] = F[0]*diff[1];
-    stress[1][1] = F[1]*diff[1];
-    stress[2][1] = F[2]*diff[1];
-    stress[0][2] = F[0]*diff[2];
-    stress[1][2] = F[1]*diff[2];
-    stress[2][2] = F[2]*diff[2];
-
-    //------------------------------------------------------------------------------------
-    // Distribute the stress
-
-    // calculate the grid coordinates (no pbc) for the extreme points
-    x[0] = c_nxyz[0] * xi[0] * c_invbox[0][0] - (xi[0] < doubleval(0.0));
-    x[1] = c_nxyz[1] * xi[1] * c_invbox[1][1] - (xi[1] < doubleval(0.0));
-    x[2] = c_nxyz[2] * xi[2] * c_invbox[2][2] - (xi[2] < doubleval(0.0));
-    i2[0] = c_nxyz[0] * xj[0] * c_invbox[0][0] - (xj[0] < doubleval(0.0));
-    i2[1] = c_nxyz[1] * xj[1] * c_invbox[1][1] - (xj[1] < doubleval(0.0));
-    i2[2] = c_nxyz[2] * xj[2] * c_invbox[2][2] - (xj[2] < doubleval(0.0));
-
-    // d_cgrid = vector from the center of the present cell to the initial point
-    d_cgrid[0] = xi[0]-(x[0]+singleval(0.5))*c_gridsp[0];
-    d_cgrid[1] = xi[1]-(x[1]+singleval(0.5))*c_gridsp[1];
-    d_cgrid[2] = xi[2]-(x[2]+singleval(0.5))*c_gridsp[2];
-    
-    // c is a vector that guide the advance in each coordinate (+1 if it has to advance in this coordinate, -1 if it has to go back or 0 if it has to do nothing)
-    c[0] = (i2[0]>x[0])-(x[0]>i2[0]);
-    c[1] = (i2[1]>x[1])-(x[1]>i2[1]);
-    c[2] = (i2[2]>x[2])-(x[2]>i2[2]);
-    
-    // label of the next cell is 1 step further than the previous in this direction
-    xn[0] = x[0]+(c[0]+1)/2;
-    xn[1] = x[1]+(c[1]+1)/2;
-    xn[2] = x[2]+(c[2]+1)/2;
-    
-    t_c1[0] = xi[0] / (xi[0]-xj[0]);
-    t_c1[1] = xi[1] / (xi[1]-xj[1]);
-    t_c1[2] = xi[2] / (xi[2]-xj[2]);
-    t_c2[0] = c_gridsp[0] / (xi[0]-xj[0]);
-    t_c2[1] = c_gridsp[1] / (xi[1]-xj[1]);
-    t_c2[2] = c_gridsp[2] / (xi[2]-xj[2]);
-
-    // parametric time of crossing
-    t[0] = t_c1[0]-xn[0]*t_c2[0];
-    t[1] = t_c1[1]-xn[1]*t_c2[1];
-    t[2] = t_c1[2]-xn[2]*t_c2[2];
-        
-    // this sets the time larger than 1 if there is no crossing
-    t[0] = (c[0] == 0)*doubleval(1.1) + (c[0] != 0)*t[0];
-    t[1] = (c[1] == 0)*doubleval(1.1) + (c[1] != 0)*t[1];
-    t[2] = (c[2] == 0)*doubleval(1.1) + (c[2] != 0)*t[2];
-    
-    // track previous time of crossing
-    oldt = doubleval(0.0); 
-
-    // while we don't reach the last point...
-    int iterations = c[0]*(i2[0]-x[0]) + c[1]*(i2[1]-x[1]) + c[2]*(i2[2]-x[2]);
-    for (int count = 0; count <= iterations; ++count)
-    {
-        // figure out index
-        cmp0x = ((t[0]<t[1]+cu_eps) + (t[0]<t[2]+cu_eps))/2;
-        cmp1x = ((t[1]<t[0]+cu_eps) + (t[1]<t[2]+cu_eps))/2;
-        cmp2x = ((t[2]<t[0]+cu_eps) + (t[2]<t[1]+cu_eps))/2;
-        iX = (1-cmp0x)*(cmp1x+2*(1-cmp1x)*cmp2x);
-
-        // last iteration of loop distributes the remainder
-        newt = (iterations == count) ? doubleval(1.0) : t[iX];
-
-        // distribute the contribution
-        // work out the parametric time constants
-        t12 = oldt*oldt;
-        t22 = newt*newt;
-        dt1 = newt - oldt;
-        dt2 = t22 - t12;
-        dt3 = singleval(4.0)*(t22*newt - t12*oldt)/singleval(3.0);
-        dt4 = t22*t22 - t12*t12;
-        
-        // now the position/spatial constants
-        axy = diff[0]*diff[1]; axz = diff[0]*diff[2]; ayz = diff[1]*diff[2];
-        bxy = d_cgrid[0]*d_cgrid[1]; bxz = d_cgrid[0]*d_cgrid[2]; byz = d_cgrid[1]*d_cgrid[2];
-        axyz = diff[0]*ayz; bxyz = d_cgrid[0]*byz;
-
-        // and the index constants
-        iip1 = ((x[0] + 1 + c_nxyz[0]) % c_nxyz[0])*c_nxyz[1]*c_nxyz[2];
-        jjp1 = ((x[1] + 1 + c_nxyz[1]) % c_nxyz[1])*c_nxyz[2];
-        kkp1 = ((x[2] + 1 + c_nxyz[2]) % c_nxyz[2]);
-        iim1 = ((x[0] + c_nxyz[0]) % c_nxyz[0])*c_nxyz[1]*c_nxyz[2];
-        jjm1 = ((x[1] + c_nxyz[1]) % c_nxyz[1])*c_nxyz[2];
-        kkm1 = ((x[2] + c_nxyz[2]) % c_nxyz[2]);
-        
-        // the composite constants in terms of i, j, k
-        D[0] = singleval(8.0)*bxyz*dt1 + singleval(4.0)*(diff[0]*byz+diff[1]*bxz+diff[2]*bxy)*dt2
-            + singleval(2.0)*(d_cgrid[0]*ayz+d_cgrid[1]*axz+d_cgrid[2]*axy)*dt3 + singleval(2.0)*axyz*dt4;
-        D[1] = c_gridsp[0]*(singleval(4.0)*byz*dt1 + singleval(2.0)*(diff[1]*d_cgrid[2]+diff[2]*d_cgrid[1])*dt2 + ayz*dt3);
-        D[2] = c_gridsp[1]*(singleval(4.0)*bxz*dt1 + singleval(2.0)*(diff[0]*d_cgrid[2]+diff[2]*d_cgrid[0])*dt2 + axz*dt3);
-        D[3] = c_gridsp[2]*(singleval(4.0)*bxy*dt1 + singleval(2.0)*(diff[0]*d_cgrid[1]+diff[1]*d_cgrid[0])*dt2 + axy*dt3);
-        D[4] = c_gridsp[3]*(singleval(2.0)*d_cgrid[2]*dt1+diff[2]*dt2);
-        D[5] = c_gridsp[4]*(singleval(2.0)*d_cgrid[1]*dt1+diff[1]*dt2);
-        D[6] = c_gridsp[5]*(singleval(2.0)*d_cgrid[0]*dt1+diff[0]*dt2);
-        D[7] = c_gridsp[6]*dt1;
-
-        // prepare the factors
-        factor[0] = c_gridsp[7]*( D[0] + D[1] + D[2] + D[3] + D[4] + D[5] + D[6] + D[7]);
-        factor[1] = c_gridsp[7]*(-D[0] - D[1] - D[2] + D[3] - D[4] + D[5] + D[6] + D[7]);
-        factor[2] = c_gridsp[7]*(-D[0] - D[1] + D[2] - D[3] + D[4] - D[5] + D[6] + D[7]);
-        factor[3] = c_gridsp[7]*( D[0] + D[1] - D[2] - D[3] - D[4] - D[5] + D[6] + D[7]);
-        factor[4] = c_gridsp[7]*(-D[0] + D[1] - D[2] - D[3] + D[4] + D[5] - D[6] + D[7]);
-        factor[5] = c_gridsp[7]*( D[0] - D[1] + D[2] - D[3] - D[4] + D[5] - D[6] + D[7]);
-        factor[6] = c_gridsp[7]*( D[0] - D[1] - D[2] + D[3] + D[4] - D[5] - D[6] + D[7]);
-        factor[7] = c_gridsp[7]*(-D[0] + D[1] + D[2] + D[3] - D[4] - D[5] - D[6] + D[7]);
-
-        // perform the sums into the grid
-        cu_ssmatm(factor[0], stress, current_grid[iip1 + jjp1 + kkp1]);
-        cu_ssmatm(factor[1], stress, current_grid[iip1 + jjp1 + kkm1]);
-        cu_ssmatm(factor[2], stress, current_grid[iip1 + jjm1 + kkp1]);
-        cu_ssmatm(factor[3], stress, current_grid[iip1 + jjm1 + kkm1]);
-        cu_ssmatm(factor[4], stress, current_grid[iim1 + jjp1 + kkp1]);
-        cu_ssmatm(factor[5], stress, current_grid[iim1 + jjp1 + kkm1]);
-        cu_ssmatm(factor[6], stress, current_grid[iim1 + jjm1 + kkp1]);
-        cu_ssmatm(factor[7], stress, current_grid[iim1 + jjm1 + kkm1]);
-
-        // move to next cross point
-        d_cgrid[iX] -= c[iX] * (single_t)c_gridsp[iX];
-        oldt = t[iX];
-        
-        x[iX] += c[iX];
-        xn[iX] += c[iX];
-
-        // Next cross point:
-        t[iX] = t_c1[iX]-xn[iX]*t_c2[iX];
     }
 }
 
@@ -508,19 +238,280 @@ void custress_clear()
 // gpu kernel
 __global__ static void process_batch_1d(uint_t dim, uint_t max_index, const cu_batches_t * __restrict__ batch, cu_smatrix * current_grid)
 {
-    auto index = blockIdx.x*cu_threads_per_block+threadIdx.x;
-
-    // guard execution
+    int index = blockIdx.x*cu_threads_per_block+threadIdx.x;
     if (index < max_index)
-        BatchPairInteraction_1d(dim, batch->Ri[index], batch->Rj[index], batch->Fij[index], current_grid);
+    {
+        const cu_sarray xi = {batch->Ri[index][0], batch->Ri[index][1], batch->Ri[index][2]};
+        const cu_sarray xj = {batch->Rj[index][0], batch->Rj[index][1], batch->Rj[index][2]};
+        const cu_sarray F = {batch->Fij[index][0], batch->Fij[index][1], batch->Fij[index][2]};
+        
+        double_t oldt, newt, t_c1, t_c2;
+        double_t d_cgrid;
+        cu_sarray diff;
+
+        int_t i2; //grid cell corresponding to particle J (B)
+        int_t x;  //cell during spreading
+        int_t xn; //next cell during spreading
+        int_t c;  //director
+        
+        cu_smatrix stress;
+        
+        // scalars used to prepare vectors
+        single_t t12,t22, dt1, dt2;
+        int_t kkp1, kkm1;
+
+        // vectors and a single coefficient
+        single_t D[2];
+        single_t factor[2];
+
+        //------------------------------------------------------------------------------------
+        // Calculate the stress tensor
+        diff_array(xj, xi, diff);
+        stress[0][0] = F[0]*diff[0];
+        stress[1][0] = F[1]*diff[0];
+        stress[2][0] = F[2]*diff[0];
+        stress[0][1] = F[0]*diff[1];
+        stress[1][1] = F[1]*diff[1];
+        stress[2][1] = F[2]*diff[1];
+        stress[0][2] = F[0]*diff[2];
+        stress[1][2] = F[1]*diff[2];
+        stress[2][2] = F[2]*diff[2];
+
+        //------------------------------------------------------------------------------------
+        // Distribute the stress
+
+        // calculate the grid coordinates (no pbc) for the extreme points
+        x = c_nxyz[dim] * xi[dim] * c_invbox[dim][dim] - (xi[dim] < doubleval(0.0));
+        i2 = c_nxyz[dim] * xj[dim] * c_invbox[dim][dim] - (xj[dim] < doubleval(0.0));
+
+        // d_cgrid = vector from the center of the present cell to the initial point
+        d_cgrid = xi[dim]-(x+singleval(0.5))*c_gridsp[dim];
+        
+        // c is a vector that guide the advance in each coordinate (+1 if it has to advance in this coordinate, -1 if it has to go back or 0 if it has to do nothing)
+        c = (i2>x)-(x>i2);
+        
+        // label of the next cell is 1 step further than the previous in this direction
+        xn = x+(c+1)/2;
+        
+        t_c1 = xi[dim] / (xi[dim]-xj[dim]);
+        t_c2 = c_gridsp[dim] / (xi[dim]-xj[dim]);
+
+        // parametric time of crossing
+        oldt = doubleval(0.0); 
+        newt = (c == 0) ? doubleval(1.1) : t_c1-xn*t_c2;
+
+        // while we don't reach the last point...
+        int iterations = c*(i2-x);
+        for (int count = 0; count <= iterations; ++count)
+        {
+            // figure out index
+            newt = (iterations == count) ? doubleval(1.0) : newt;
+
+            // distribute the contribution
+            // work out the parametric time constants
+            t12 = oldt*oldt;
+            t22 = newt*newt;
+            dt1 = newt-oldt;
+            dt2 = t22 - t12;
+            
+            // and the index constants
+            kkp1 = ((x + 1 + c_nxyz[dim]) % c_nxyz[dim]);
+            kkm1 = ((x + c_nxyz[dim]) % c_nxyz[dim]);
+
+            // the composite constants in terms of i, j, k
+            D[0] = c_gridsp[5-dim]*(singleval(2.0)*d_cgrid*dt1+diff[dim]*dt2);
+            D[1] = c_gridsp[6]*dt1;
+
+            // prepare the factors
+            factor[0] = singleval(4.0)*c_gridsp[7]*( D[0] + D[1]);
+            factor[1] = singleval(4.0)*c_gridsp[7]*(-D[0] + D[1]);
+
+            // perform the sums into the grid
+            cu_ssmatm(factor[0], stress, current_grid[kkp1]);
+            cu_ssmatm(factor[1], stress, current_grid[kkm1]);
+
+            // move to next cross point
+            d_cgrid -= c * (single_t)c_gridsp[dim];
+            oldt = newt;
+            
+            x += c;
+            xn += c;
+
+            // Next cross point:
+            newt = t_c1-xn*t_c2;
+        }
+    }
 }
+
 __global__ static void process_batch_3d(uint_t max_index, const cu_batches_t * __restrict__ batch, cu_smatrix * current_grid)
 {
-    auto index = blockIdx.x*cu_threads_per_block+threadIdx.x;
-
-    // guard execution
+    int index = blockIdx.x*cu_threads_per_block+threadIdx.x;
     if (index < max_index)
-        BatchPairInteraction_3d(batch->Ri[index], batch->Rj[index], batch->Fij[index], current_grid);
+    {
+        const cu_sarray xi = {batch->Ri[index][0], batch->Ri[index][1], batch->Ri[index][2]};
+        const cu_sarray xj = {batch->Rj[index][0], batch->Rj[index][1], batch->Rj[index][2]};
+        const cu_sarray F = {batch->Fij[index][0], batch->Fij[index][1], batch->Fij[index][2]};
+
+        double_t oldt, newt;
+        int_t cmp0x,cmp1x,cmp2x,iX;
+
+        cu_darray t, t_c1, t_c2;
+        cu_sarray d_cgrid;
+        cu_sarray diff;
+
+        cu_iarray i2; //grid cell corresponding to particle J (B)
+        cu_iarray x;  //cell during spreading
+        cu_iarray xn; //next cell during spreading
+        cu_iarray c;  //director
+        
+        cu_smatrix stress;
+        
+        // scalars used to prepare vectors
+        single_t t12,t22, dt1, dt2, dt3, dt4;
+        single_t axy, axz, ayz, axyz;
+        single_t bxy, bxz, byz, bxyz;
+        int_t iip1, iim1, jjp1, jjm1, kkp1, kkm1;
+
+        // vectors and a single coefficient
+        single_t D[8];
+        single_t factor[8];
+
+        //------------------------------------------------------------------------------------
+        // Calculate the stress tensor
+        diff_array(xj, xi, diff);
+        stress[0][0] = F[0]*diff[0];
+        stress[1][0] = F[1]*diff[0];
+        stress[2][0] = F[2]*diff[0];
+        stress[0][1] = F[0]*diff[1];
+        stress[1][1] = F[1]*diff[1];
+        stress[2][1] = F[2]*diff[1];
+        stress[0][2] = F[0]*diff[2];
+        stress[1][2] = F[1]*diff[2];
+        stress[2][2] = F[2]*diff[2];
+
+        //------------------------------------------------------------------------------------
+        // Distribute the stress
+
+        // calculate the grid coordinates (no pbc) for the extreme points
+        x[0] = c_nxyz[0] * xi[0] * c_invbox[0][0] - (xi[0] < doubleval(0.0));
+        x[1] = c_nxyz[1] * xi[1] * c_invbox[1][1] - (xi[1] < doubleval(0.0));
+        x[2] = c_nxyz[2] * xi[2] * c_invbox[2][2] - (xi[2] < doubleval(0.0));
+        i2[0] = c_nxyz[0] * xj[0] * c_invbox[0][0] - (xj[0] < doubleval(0.0));
+        i2[1] = c_nxyz[1] * xj[1] * c_invbox[1][1] - (xj[1] < doubleval(0.0));
+        i2[2] = c_nxyz[2] * xj[2] * c_invbox[2][2] - (xj[2] < doubleval(0.0));
+
+        // d_cgrid = vector from the center of the present cell to the initial point
+        d_cgrid[0] = xi[0]-(x[0]+singleval(0.5))*c_gridsp[0];
+        d_cgrid[1] = xi[1]-(x[1]+singleval(0.5))*c_gridsp[1];
+        d_cgrid[2] = xi[2]-(x[2]+singleval(0.5))*c_gridsp[2];
+        
+        // c is a vector that guide the advance in each coordinate (+1 if it has to advance in this coordinate, -1 if it has to go back or 0 if it has to do nothing)
+        c[0] = (i2[0]>x[0])-(x[0]>i2[0]);
+        c[1] = (i2[1]>x[1])-(x[1]>i2[1]);
+        c[2] = (i2[2]>x[2])-(x[2]>i2[2]);
+        
+        // label of the next cell is 1 step further than the previous in this direction
+        xn[0] = x[0]+(c[0]+1)/2;
+        xn[1] = x[1]+(c[1]+1)/2;
+        xn[2] = x[2]+(c[2]+1)/2;
+        
+        t_c1[0] = xi[0] / (xi[0]-xj[0]);
+        t_c1[1] = xi[1] / (xi[1]-xj[1]);
+        t_c1[2] = xi[2] / (xi[2]-xj[2]);
+        t_c2[0] = c_gridsp[0] / (xi[0]-xj[0]);
+        t_c2[1] = c_gridsp[1] / (xi[1]-xj[1]);
+        t_c2[2] = c_gridsp[2] / (xi[2]-xj[2]);
+
+        // parametric time of crossing
+        t[0] = t_c1[0]-xn[0]*t_c2[0];
+        t[1] = t_c1[1]-xn[1]*t_c2[1];
+        t[2] = t_c1[2]-xn[2]*t_c2[2];
+            
+        // this sets the time larger than 1 if there is no crossing
+        t[0] = (c[0] == 0)*doubleval(1.1) + (c[0] != 0)*t[0];
+        t[1] = (c[1] == 0)*doubleval(1.1) + (c[1] != 0)*t[1];
+        t[2] = (c[2] == 0)*doubleval(1.1) + (c[2] != 0)*t[2];
+        
+        // track previous time of crossing
+        oldt = doubleval(0.0); 
+
+        // while we don't reach the last point...
+        int iterations = c[0]*(i2[0]-x[0]) + c[1]*(i2[1]-x[1]) + c[2]*(i2[2]-x[2]);
+        for (int count = 0; count <= iterations; ++count)
+        {
+            // figure out index
+            cmp0x = ((t[0]<t[1]+cu_eps) + (t[0]<t[2]+cu_eps))/2;
+            cmp1x = ((t[1]<t[0]+cu_eps) + (t[1]<t[2]+cu_eps))/2;
+            cmp2x = ((t[2]<t[0]+cu_eps) + (t[2]<t[1]+cu_eps))/2;
+            iX = (1-cmp0x)*(cmp1x+2*(1-cmp1x)*cmp2x);
+
+            // last iteration of loop distributes the remainder
+            newt = (iterations == count) ? doubleval(1.0) : t[iX];
+
+            // distribute the contribution
+            // work out the parametric time constants
+            t12 = oldt*oldt;
+            t22 = newt*newt;
+            dt1 = newt - oldt;
+            dt2 = t22 - t12;
+            dt3 = singleval(4.0)*(t22*newt - t12*oldt)/singleval(3.0);
+            dt4 = t22*t22 - t12*t12;
+            
+            // now the position/spatial constants
+            axy = diff[0]*diff[1]; axz = diff[0]*diff[2]; ayz = diff[1]*diff[2];
+            bxy = d_cgrid[0]*d_cgrid[1]; bxz = d_cgrid[0]*d_cgrid[2]; byz = d_cgrid[1]*d_cgrid[2];
+            axyz = diff[0]*ayz; bxyz = d_cgrid[0]*byz;
+
+            // and the index constants
+            iip1 = ((x[0] + 1 + c_nxyz[0]) % c_nxyz[0])*c_nxyz[1]*c_nxyz[2];
+            jjp1 = ((x[1] + 1 + c_nxyz[1]) % c_nxyz[1])*c_nxyz[2];
+            kkp1 = ((x[2] + 1 + c_nxyz[2]) % c_nxyz[2]);
+            iim1 = ((x[0] + c_nxyz[0]) % c_nxyz[0])*c_nxyz[1]*c_nxyz[2];
+            jjm1 = ((x[1] + c_nxyz[1]) % c_nxyz[1])*c_nxyz[2];
+            kkm1 = ((x[2] + c_nxyz[2]) % c_nxyz[2]);
+            
+            // the composite constants in terms of i, j, k
+            D[0] = singleval(8.0)*bxyz*dt1 + singleval(4.0)*(diff[0]*byz+diff[1]*bxz+diff[2]*bxy)*dt2
+                + singleval(2.0)*(d_cgrid[0]*ayz+d_cgrid[1]*axz+d_cgrid[2]*axy)*dt3 + singleval(2.0)*axyz*dt4;
+            D[1] = c_gridsp[0]*(singleval(4.0)*byz*dt1 + singleval(2.0)*(diff[1]*d_cgrid[2]+diff[2]*d_cgrid[1])*dt2 + ayz*dt3);
+            D[2] = c_gridsp[1]*(singleval(4.0)*bxz*dt1 + singleval(2.0)*(diff[0]*d_cgrid[2]+diff[2]*d_cgrid[0])*dt2 + axz*dt3);
+            D[3] = c_gridsp[2]*(singleval(4.0)*bxy*dt1 + singleval(2.0)*(diff[0]*d_cgrid[1]+diff[1]*d_cgrid[0])*dt2 + axy*dt3);
+            D[4] = c_gridsp[3]*(singleval(2.0)*d_cgrid[2]*dt1+diff[2]*dt2);
+            D[5] = c_gridsp[4]*(singleval(2.0)*d_cgrid[1]*dt1+diff[1]*dt2);
+            D[6] = c_gridsp[5]*(singleval(2.0)*d_cgrid[0]*dt1+diff[0]*dt2);
+            D[7] = c_gridsp[6]*dt1;
+
+            // prepare the factors
+            factor[0] = c_gridsp[7]*( D[0] + D[1] + D[2] + D[3] + D[4] + D[5] + D[6] + D[7]);
+            factor[1] = c_gridsp[7]*(-D[0] - D[1] - D[2] + D[3] - D[4] + D[5] + D[6] + D[7]);
+            factor[2] = c_gridsp[7]*(-D[0] - D[1] + D[2] - D[3] + D[4] - D[5] + D[6] + D[7]);
+            factor[3] = c_gridsp[7]*( D[0] + D[1] - D[2] - D[3] - D[4] - D[5] + D[6] + D[7]);
+            factor[4] = c_gridsp[7]*(-D[0] + D[1] - D[2] - D[3] + D[4] + D[5] - D[6] + D[7]);
+            factor[5] = c_gridsp[7]*( D[0] - D[1] + D[2] - D[3] - D[4] + D[5] - D[6] + D[7]);
+            factor[6] = c_gridsp[7]*( D[0] - D[1] - D[2] + D[3] + D[4] - D[5] - D[6] + D[7]);
+            factor[7] = c_gridsp[7]*(-D[0] + D[1] + D[2] + D[3] - D[4] - D[5] - D[6] + D[7]);
+
+            // perform the sums into the grid
+            cu_ssmatm(factor[0], stress, current_grid[iip1 + jjp1 + kkp1]);
+            cu_ssmatm(factor[1], stress, current_grid[iip1 + jjp1 + kkm1]);
+            cu_ssmatm(factor[2], stress, current_grid[iip1 + jjm1 + kkp1]);
+            cu_ssmatm(factor[3], stress, current_grid[iip1 + jjm1 + kkm1]);
+            cu_ssmatm(factor[4], stress, current_grid[iim1 + jjp1 + kkp1]);
+            cu_ssmatm(factor[5], stress, current_grid[iim1 + jjp1 + kkm1]);
+            cu_ssmatm(factor[6], stress, current_grid[iim1 + jjm1 + kkp1]);
+            cu_ssmatm(factor[7], stress, current_grid[iim1 + jjm1 + kkm1]);
+
+            // move to next cross point
+            d_cgrid[iX] -= c[iX] * (single_t)c_gridsp[iX];
+            oldt = t[iX];
+            
+            x[iX] += c[iX];
+            xn[iX] += c[iX];
+
+            // Next cross point:
+            t[iX] = t_c1[iX]-xn[iX]*t_c2[iX];
+        }
+    }
 }
 
 void custress_update_box_spacings(const mds::dmatrix box, const mds::dmatrix invbox, const mds::darray gridsp)
