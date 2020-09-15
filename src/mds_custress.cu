@@ -76,7 +76,6 @@ typedef double_t cu_dmatrix[3][3];
 
 #define cu_batchsize 8192
 #define cu_threads_per_block 32
-#define cu_batches_per_thread 1
 typedef struct {
     cu_sarray Ri[cu_batchsize];
     cu_sarray Rj[cu_batchsize];
@@ -97,17 +96,17 @@ size_t h_griddim = 3;
 
 // host memory
 uint_t        *h_bindex       = nullptr;
-cu_batches_t *h_batch        = nullptr;
+cu_batches_t  *h_batch        = nullptr;
 cu_smatrix    *h_sum_grid     = nullptr;
 cudaEvent_t   *h_mem_event    = nullptr;
 cudaStream_t  *h_stream       = nullptr;
 
 // device global memory is not, so minimize access here
-cu_batches_t *d_batch    = nullptr;
+cu_batches_t  *d_batch    = nullptr;
 cu_smatrix    *d_sum_grid = nullptr;
 
 // cuda context
-const dim3 batch_blocks = {cu_batchsize/(cu_threads_per_block*cu_batches_per_thread),1,1};
+const dim3 batch_blocks = {cu_batchsize/cu_threads_per_block,1,1};
 const dim3 batch_threads = {cu_threads_per_block,1,1};
 
 __device__ static inline void diff_array(
@@ -121,12 +120,12 @@ __device__ static inline void diff_array(
 
     if (c_periodic[3] == true)
     {
-        c[0] -= (c_periodic[0] == true && c[0] >   doubleval(0.5)*c_box[0][0]) ? c_box[0][0] : singleval(0.0);
-        c[0] += (c_periodic[0] == true && c[0] <= -doubleval(0.5)*c_box[0][0]) ? c_box[0][0] : singleval(0.0);
-        c[1] -= (c_periodic[1] == true && c[1] >   doubleval(0.5)*c_box[1][1]) ? c_box[1][1] : singleval(0.0);
-        c[1] += (c_periodic[1] == true && c[1] <= -doubleval(0.5)*c_box[1][1]) ? c_box[1][1] : singleval(0.0);
-        c[2] -= (c_periodic[2] == true && c[2] >   doubleval(0.5)*c_box[2][2]) ? c_box[2][2] : singleval(0.0);
-        c[2] += (c_periodic[2] == true && c[2] <= -doubleval(0.5)*c_box[2][2]) ? c_box[2][2] : singleval(0.0);
+        c[0] -= (c_periodic[0] == true && c[0] >   singleval(0.5)*c_box[0][0]) ? c_box[0][0] : singleval(0.0);
+        c[0] += (c_periodic[0] == true && c[0] <= -singleval(0.5)*c_box[0][0]) ? c_box[0][0] : singleval(0.0);
+        c[1] -= (c_periodic[1] == true && c[1] >   singleval(0.5)*c_box[1][1]) ? c_box[1][1] : singleval(0.0);
+        c[1] += (c_periodic[1] == true && c[1] <= -singleval(0.5)*c_box[1][1]) ? c_box[1][1] : singleval(0.0);
+        c[2] -= (c_periodic[2] == true && c[2] >   singleval(0.5)*c_box[2][2]) ? c_box[2][2] : singleval(0.0);
+        c[2] += (c_periodic[2] == true && c[2] <= -singleval(0.5)*c_box[2][2]) ? c_box[2][2] : singleval(0.0);
     }
 }
 
@@ -142,7 +141,6 @@ void custress_init(size_t nbatches_min, size_t ncells, int nx, int ny, int nz)
 
     // allocate host memory
     h_bindex    = new uint_t[h_nbatches];
-    //h_batch = new cu_batches_t[h_nbatches];
     checkCuda(cudaMallocHost((void**)&h_batch, sizeof(cu_batches_t[h_nbatches])));
     h_sum_grid  = new cu_smatrix[h_nbatches*h_ncells];
     h_mem_event = new cudaEvent_t[h_nbatches];
@@ -162,6 +160,7 @@ void custress_init(size_t nbatches_min, size_t ncells, int nx, int ny, int nz)
 
     // initialize device
     checkCuda(cudaSetDevice(0));
+    checkCuda(cudaDeviceSetCacheConfig(cudaFuncCachePreferL1));
 
     // create events and streams
     for (int i = 0; i < h_nbatches; ++i) 
@@ -236,7 +235,9 @@ void custress_clear()
 }
 
 // gpu kernel
-__global__ static void process_batch_1d(uint_t dim, uint_t max_index, const cu_batches_t * __restrict__ batch, cu_smatrix * current_grid)
+__global__ static void
+__launch_bounds__(cu_threads_per_block, 32)
+process_batch_1d(uint_t dim, uint_t max_index, const cu_batches_t * __restrict__ batch, cu_smatrix * current_grid)
 {
     int index = blockIdx.x*cu_threads_per_block+threadIdx.x;
     if (index < max_index)
@@ -343,7 +344,9 @@ __global__ static void process_batch_1d(uint_t dim, uint_t max_index, const cu_b
     }
 }
 
-__global__ static void process_batch_3d(uint_t max_index, const cu_batches_t * __restrict__ batch, cu_smatrix * current_grid)
+__global__ static void
+__launch_bounds__(cu_threads_per_block, 16)
+process_batch_3d(uint_t max_index, const cu_batches_t * __restrict__ batch, cu_smatrix * __restrict__ current_grid)
 {
     int index = blockIdx.x*cu_threads_per_block+threadIdx.x;
     if (index < max_index)
@@ -569,7 +572,7 @@ void custress_update_box_spacings(const mds::dmatrix box, const mds::dmatrix inv
     checkCuda(cudaMemcpyToSymbol(c_gridsp, cu_gridsp, sizeof(cu_gridsp)));
 }
 
-__global__ static void reduce_grids(uint_t nbatches, uint_t nsingles, single_t * singles)
+__global__ static void reduce_grids(uint_t nbatches, uint_t nsingles, single_t * __restrict__ singles)
 {
     auto index = blockIdx.x*cu_threads_per_block+threadIdx.x;
     single_t this_single = singleval(0.0);
@@ -589,10 +592,7 @@ void custress_distribute_pair_interaction(const mds::darray xi, const mds::darra
 {
     // acquire lock, or signal that lock was not acquired
     if (h_bindex[batch_id] == cu_batchsize)
-    {
-        checkCuda(cudaEventSynchronize(h_mem_event[batch_id]));
         h_bindex[batch_id] = 0;
-    }
 
     // store for later processing
     h_batch[batch_id].Ri[h_bindex[batch_id]][0] = (single_t)xi[0];
