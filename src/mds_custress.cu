@@ -76,10 +76,15 @@ typedef double_t cu_dmatrix[3][3];
 
 #define cu_batchsize 8192
 #define cu_threads_per_block 32
+
 typedef struct {
-    cu_sarray Ri[cu_batchsize];
-    cu_sarray Rj[cu_batchsize];
-    cu_sarray Fij[cu_batchsize];
+    cu_sarray Ri;
+    cu_sarray Rj;
+    cu_sarray Fij;
+} cu_pair_t;
+
+typedef struct {
+    cu_pair_t pair[cu_batchsize];
 } cu_batches_t;
 
 // device constant memory is cached
@@ -242,9 +247,9 @@ process_batch_1d(uint_t dim, uint_t max_index, const cu_batches_t * __restrict__
     int index = blockIdx.x*cu_threads_per_block+threadIdx.x;
     if (index < max_index)
     {
-        const cu_sarray xi = {batch->Ri[index][0], batch->Ri[index][1], batch->Ri[index][2]};
-        const cu_sarray xj = {batch->Rj[index][0], batch->Rj[index][1], batch->Rj[index][2]};
-        const cu_sarray F = {batch->Fij[index][0], batch->Fij[index][1], batch->Fij[index][2]};
+        const cu_sarray xi = {batch->pair[index].Ri[0], batch->pair[index].Ri[1], batch->pair[index].Ri[2]};
+        const cu_sarray xj = {batch->pair[index].Rj[0], batch->pair[index].Rj[1], batch->pair[index].Rj[2]};
+        const cu_sarray F = {batch->pair[index].Fij[0], batch->pair[index].Fij[1], batch->pair[index].Fij[2]};
         
         double_t oldt, newt, t_c1, t_c2;
         double_t d_cgrid;
@@ -345,15 +350,14 @@ process_batch_1d(uint_t dim, uint_t max_index, const cu_batches_t * __restrict__
 }
 
 __global__ static void
-__launch_bounds__(cu_threads_per_block, 16)
 process_batch_3d(uint_t max_index, const cu_batches_t * __restrict__ batch, cu_smatrix * __restrict__ current_grid)
 {
     int index = blockIdx.x*cu_threads_per_block+threadIdx.x;
     if (index < max_index)
     {
-        const cu_sarray xi = {batch->Ri[index][0], batch->Ri[index][1], batch->Ri[index][2]};
-        const cu_sarray xj = {batch->Rj[index][0], batch->Rj[index][1], batch->Rj[index][2]};
-        const cu_sarray F = {batch->Fij[index][0], batch->Fij[index][1], batch->Fij[index][2]};
+        const cu_sarray xi = {batch->pair[index].Ri[0], batch->pair[index].Ri[1], batch->pair[index].Ri[2]};
+        const cu_sarray xj = {batch->pair[index].Rj[0], batch->pair[index].Rj[1], batch->pair[index].Rj[2]};
+        const cu_sarray F = {batch->pair[index].Fij[0], batch->pair[index].Fij[1], batch->pair[index].Fij[2]};
 
         double_t oldt, newt;
         int_t cmp0x,cmp1x,cmp2x,iX;
@@ -587,23 +591,26 @@ __global__ static void reduce_grids(uint_t nbatches, uint_t nsingles, single_t *
 }
 
 // launches GPU kernel
-//std::mutex h_length_mutex;
-void custress_distribute_pair_interaction(const mds::darray xi, const mds::darray xj, const mds::darray Fij, int batch_id)
+bool custress_distribute_pair_interaction(const mds::darray xi, const mds::darray xj, const mds::darray Fij, int batch_id)
 {
-    // acquire lock, or signal that lock was not acquired
     if (h_bindex[batch_id] == cu_batchsize)
-        h_bindex[batch_id] = 0;
+    {
+       if (cudaSuccess != checkCuda(cudaEventQuery(h_mem_event[batch_id])))
+           return false;
+       else
+           h_bindex[batch_id] = 0;
+    }
 
     // store for later processing
-    h_batch[batch_id].Ri[h_bindex[batch_id]][0] = (single_t)xi[0];
-    h_batch[batch_id].Ri[h_bindex[batch_id]][1] = (single_t)xi[1];
-    h_batch[batch_id].Ri[h_bindex[batch_id]][2] = (single_t)xi[2];
-    h_batch[batch_id].Rj[h_bindex[batch_id]][0] = (single_t)xj[0];
-    h_batch[batch_id].Rj[h_bindex[batch_id]][1] = (single_t)xj[1];
-    h_batch[batch_id].Rj[h_bindex[batch_id]][2] = (single_t)xj[2];
-    h_batch[batch_id].Fij[h_bindex[batch_id]][0] = (single_t)Fij[0];
-    h_batch[batch_id].Fij[h_bindex[batch_id]][1] = (single_t)Fij[1];
-    h_batch[batch_id].Fij[h_bindex[batch_id]][2] = (single_t)Fij[2];
+    h_batch[batch_id].pair[h_bindex[batch_id]].Ri[0] = (single_t)xi[0];
+    h_batch[batch_id].pair[h_bindex[batch_id]].Ri[1] = (single_t)xi[1];
+    h_batch[batch_id].pair[h_bindex[batch_id]].Ri[2] = (single_t)xi[2];
+    h_batch[batch_id].pair[h_bindex[batch_id]].Rj[0] = (single_t)xj[0];
+    h_batch[batch_id].pair[h_bindex[batch_id]].Rj[1] = (single_t)xj[1];
+    h_batch[batch_id].pair[h_bindex[batch_id]].Rj[2] = (single_t)xj[2];
+    h_batch[batch_id].pair[h_bindex[batch_id]].Fij[0] = (single_t)Fij[0];
+    h_batch[batch_id].pair[h_bindex[batch_id]].Fij[1] = (single_t)Fij[1];
+    h_batch[batch_id].pair[h_bindex[batch_id]].Fij[2] = (single_t)Fij[2];
     h_bindex[batch_id] += 1;
 
     // if bindex is cu_batchsize we process
@@ -624,6 +631,8 @@ void custress_distribute_pair_interaction(const mds::darray xi, const mds::darra
         else
             process_batch_3d<<<batch_blocks,batch_threads,0u,h_stream[batch_id]>>>(h_bindex[batch_id], &d_batch[batch_id], d_sum_grid+batch_id*h_ncells);
     }
+
+    return true;
 }
 
 void custress_sum_grid(mds::dmatrix * current_grid)
@@ -653,7 +662,6 @@ void custress_sum_grid(mds::dmatrix * current_grid)
     
     // synchronize entire devies
     checkCuda(cudaDeviceSynchronize());
-
     // sum grids on device and transfer
     size_t nsingles = h_ncells*(sizeof(cu_smatrix)/sizeof(single_t));
     size_t reduce_blocks = nsingles/(size_t)cu_threads_per_block;
@@ -684,14 +692,4 @@ void custress_sum_grid(mds::dmatrix * current_grid)
     
     // zero grids on device
     checkCuda(cudaMemset(d_sum_grid, 0, sizeof(cu_smatrix[h_nbatches*h_ncells])));
-}
-
-bool custress_is_ready(int batch_id){
-    bool ret = true;
-    if (h_bindex[batch_id] == cu_batchsize)
-    {
-       if (cudaSuccess != checkCuda(cudaEventQuery(h_mem_event[batch_id])))
-           ret = false;
-    }
-    return ret;
 }

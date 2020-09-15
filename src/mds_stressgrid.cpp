@@ -877,18 +877,15 @@ void StressGrid::ComputeNbodyPairForces(int nAtoms, darray *R, darray *F, int *a
 void StressGrid::DistributePairInteraction( darray xi, darray xj, darray F, int batch_id )
 {
 #ifdef CUSTRESS_ENABLE
-    if (this->m_cuda && custress_is_ready(batch_id))
-    {
-        // calculate the iterations
-        custress_distribute_pair_interaction(xi,xj,F,batch_id);
+    if (this->m_cuda && custress_distribute_pair_interaction(xi,xj,F,batch_id))
         return;
-    }
 #endif
     if (this->m_griddim == mds_griddim_xyz)
         DistributePairInteraction3D(xi,xj,F,batch_id);
     else
         DistributePairInteraction1D(xi,xj,F,batch_id);
 }
+
 void StressGrid::DistributePairInteraction1D(darray xi, darray xj, darray F, int batch_id )
 {
     // select grid based on batch index
