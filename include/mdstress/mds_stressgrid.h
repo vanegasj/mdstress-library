@@ -131,6 +131,27 @@ class  mds::StressGrid
         {   return this->m_nxyz[1]; }
         int  GetNumberOfGridCellsZ( )
         {   return this->m_nxyz[2]; }
+        void SetNumberOfGridCellsXC(int nxc)
+        {
+            std::lock_guard<std::mutex> lock(m_mutex_state);
+            this->m_nxyzc[0] = nxc;
+        }
+        void SetNumberOfGridCellsYC(int nyc)
+        {
+            std::lock_guard<std::mutex> lock(m_mutex_state);
+            this->m_nxyzc[1] = nyc;
+        }
+        void SetNumberOfGridCellsZC(int nzc)
+        {
+            std::lock_guard<std::mutex> lock(m_mutex_state);
+            this->m_nxyzc[2] = nzc;
+        }
+        int  GetNumberOfGridCellsXC( )
+        {   return this->m_nxyzc[0]; }
+        int  GetNumberOfGridCellsYC( )
+        {   return this->m_nxyzc[1]; }
+        int  GetNumberOfGridCellsZC( )
+        {   return this->m_nxyzc[2]; }
         //@}
         
         /** Set/Get spacing in each direction: */
@@ -146,6 +167,17 @@ class  mds::StressGrid
         {   return this->m_gridsp[1]; }
         double  GetSpacingZ( )
         {   return this->m_gridsp[2]; }
+        void SetSpacingc(double dc)
+        {
+            std::lock_guard<std::mutex> lock(m_mutex_state);
+            this->m_spacingc = dc;
+        }
+        double  GetSpacingXC( )
+        {   return this->m_gridspc[0]; }
+        double  GetSpacingYC( )
+        {   return this->m_gridspc[1]; }
+        double  GetSpacingZC( )
+        {   return this->m_gridspc[2]; }
         //@}        
         
          /**Set/Get force decomposition */
@@ -342,15 +374,14 @@ class  mds::StressGrid
         void DistributeKinetic   ( double mass, darray x, darray va, darray vb, int atomID  );
         //@}
         
-        /** DistributeEwald
+        /** DistributeCharge
          *
-         * Distributes ewald contributions onto the grid
+         * Distributes charge contributions onto a grid
          * Requires:
-         * mass       -> mass of the particle
          * x          -> position of the atom
-         * F          -> ewald forces on the atoms
+         * charge     -> atomic charge
          * atomID     -> ID of the atom (optional, only needed if calculating stress/atom) */
-        void DistributeEwald ( darray x, darray F, int atomID  );
+        void DistributeCharge    ( darray x, double charge );
         
         /** Constructor */
         StressGrid( );
@@ -363,10 +394,13 @@ class  mds::StressGrid
         //@{
         int         m_nAtoms;         ///< Number of atoms
         iarray      m_nxyz;           ///< Number of grid cells in the x direction
+        iarray      m_nxyzc;          ///< Number of grid cells in the x direction
         int         m_griddim;        ///< the type of grid
         long        m_ncells;         ///< Total number of cells in the calculation
+        long        m_ncellsc;        ///< Total number of cells in the charge grid
         int         m_maxClust;
         double      m_spacing;        ///< spacing requested for the grid
+        double      m_spacingc;       ///< spacing requested for the charge grid
         dmatrix     m_box;            ///< Actual box
         int         m_spatatom;       ///< enSpat or enAtom
         int         m_fdecomp;        ///< which force decomposition
@@ -388,7 +422,9 @@ class  mds::StressGrid
         dmatrix  m_sumbox;        ///< Average box
         dmatrix  m_invbox;        ///< Inverse of the box
         double   m_gridsp[7];     ///< grid spacing
+        double   m_gridspc[7];    ///< grid spacing
         double   m_invgridsp;     ///< inverse of grid spacing
+        double   m_invgridspc;    ///< inverse of grid spacing
         Lapack **h_lapack;        ///< mds_lapack: solves underdetermined/overdetermined systems of equations and projects solution onto shape space
         double  *p_Amat;          ///< matrix for linear systems (for systems with more than 5 particles)
         double  *p_AmatT;         ///< transpose of the matrix (used for projecting solution onto the shape space)
@@ -397,9 +433,9 @@ class  mds::StressGrid
         darray  *p_Fij;           ///< force vectors
         darray  *p_Uij;           ///< distance vectors
         dmatrix *p_current_grid;  ///< Grid (either nx*ny*nz or nAtoms)
-        darray  *p_current_gride; ///< Grid (either nx*ny*nz or nAtoms) (ewald)
+        double  *p_current_gridc; ///< Grid (either nx*ny*nz or nAtoms) (ewald)
         dmatrix *p_sum_grid;      ///< Sum Grid
-        darray  *p_sum_gride;     ///< Sum Grid (ewald)
+        double  *p_sum_gridc;     ///< Sum Grid (charge)
         double  *p_sum_volume;    ///< Sum of volumes when using mds_atom
         double  *p_radii;         ///< the radius of an atomic site
         double  *p_positions;     ///< the position of an atomic site
@@ -443,11 +479,5 @@ class  mds::StressGrid
         
         /** General function to decompose N-body potentials (it can be used to compute higher order terms coming from EAM for instance) */
         void DistributeNBody               ( int nPart, darray *R, darray *F, bool distritube_stress, int batch_id);
-        
-        //AUXILIARY FUNCTIONS
-        
-        /** Finds the indices on the grid for a given set of coordinates */
-        void GridCoord(darray pt, int *i, int *j, int *k);
-
 };
 #endif // mds_stressgrid_h

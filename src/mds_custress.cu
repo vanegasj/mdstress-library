@@ -251,9 +251,7 @@ process_batch_1d(uint_t dim, uint_t max_index, const cu_batches_t * __restrict__
     int index = blockIdx.x*cu_threads_per_block+threadIdx.x;
     if (index < max_index)
     {
-        const cu_sarray xi = {batch->pair[index].Ri[0], batch->pair[index].Ri[1], batch->pair[index].Ri[2]};
-        const cu_sarray xj = {batch->pair[index].Rj[0], batch->pair[index].Rj[1], batch->pair[index].Rj[2]};
-        const cu_sarray F = {batch->pair[index].Fij[0], batch->pair[index].Fij[1], batch->pair[index].Fij[2]};
+        cu_pair_t this_pair = batch->pair[index];
         
         double_t oldt, newt, t_c1, t_c2;
         double_t d_cgrid;
@@ -276,26 +274,26 @@ process_batch_1d(uint_t dim, uint_t max_index, const cu_batches_t * __restrict__
 
         //------------------------------------------------------------------------------------
         // Calculate the stress tensor
-        diff_array(xj, xi, diff);
-        stress[0][0] = F[0]*diff[0];
-        stress[1][0] = F[1]*diff[0];
-        stress[2][0] = F[2]*diff[0];
-        stress[0][1] = F[0]*diff[1];
-        stress[1][1] = F[1]*diff[1];
-        stress[2][1] = F[2]*diff[1];
-        stress[0][2] = F[0]*diff[2];
-        stress[1][2] = F[1]*diff[2];
-        stress[2][2] = F[2]*diff[2];
+        diff_array(this_pair.Rj, this_pair.Ri, diff);
+        stress[0][0] = this_pair.Fij[0]*diff[0];
+        stress[1][0] = this_pair.Fij[1]*diff[0];
+        stress[2][0] = this_pair.Fij[2]*diff[0];
+        stress[0][1] = this_pair.Fij[0]*diff[1];
+        stress[1][1] = this_pair.Fij[1]*diff[1];
+        stress[2][1] = this_pair.Fij[2]*diff[1];
+        stress[0][2] = this_pair.Fij[0]*diff[2];
+        stress[1][2] = this_pair.Fij[1]*diff[2];
+        stress[2][2] = this_pair.Fij[2]*diff[2];
 
         //------------------------------------------------------------------------------------
         // Distribute the stress
 
         // calculate the grid coordinates (no pbc) for the extreme points
-        x = c_nxyz[dim] * xi[dim] * c_invbox[dim][dim] - (xi[dim] < doubleval(0.0));
-        i2 = c_nxyz[dim] * xj[dim] * c_invbox[dim][dim] - (xj[dim] < doubleval(0.0));
+        x = c_nxyz[dim] * this_pair.Ri[dim] * c_invbox[dim][dim] - (this_pair.Ri[dim] < doubleval(0.0));
+        i2 = c_nxyz[dim] * this_pair.Rj[dim] * c_invbox[dim][dim] - (this_pair.Rj[dim] < doubleval(0.0));
 
         // d_cgrid = vector from the center of the present cell to the initial point
-        d_cgrid = xi[dim]-(x+singleval(0.5))*c_gridsp[dim];
+        d_cgrid = this_pair.Ri[dim]-(x+singleval(0.5))*c_gridsp[dim];
         
         // c is a vector that guide the advance in each coordinate (+1 if it has to advance in this coordinate, -1 if it has to go back or 0 if it has to do nothing)
         c = (i2>x)-(x>i2);
@@ -303,8 +301,8 @@ process_batch_1d(uint_t dim, uint_t max_index, const cu_batches_t * __restrict__
         // label of the next cell is 1 step further than the previous in this direction
         xn = x+(c+1)/2;
         
-        t_c1 = xi[dim] / (xi[dim]-xj[dim]);
-        t_c2 = c_gridsp[dim] / (xi[dim]-xj[dim]);
+        t_c1 = this_pair.Ri[dim] / (this_pair.Ri[dim]-this_pair.Rj[dim]);
+        t_c2 = c_gridsp[dim] / (this_pair.Ri[dim]-this_pair.Rj[dim]);
 
         // parametric time of crossing
         oldt = doubleval(0.0); 
