@@ -226,13 +226,12 @@ class  mds::StressGrid
          
          /**Set/Get Charge Cutoff*/
         //@{
-        void SetChargeCutoff (double rcoulomb)
+        void SetChargeParams(double epsfac, double rcoulomb)
         {
             std::lock_guard<std::mutex> lock(m_mutex_state);
+            this->m_epsfac = epsfac;
             this->m_rcoulomb = rcoulomb;
         }
-        double GetChargeCutoff ()
-        {   return this->m_rcoulomb;   }
         //@}
         
         /** Compute N-body force decomposition: */
@@ -422,6 +421,7 @@ class  mds::StressGrid
         barray      m_periodic;       ///< mark dimensions as periodic
         double      m_mindihangle;
         double      m_rcoulomb;
+        double      m_epsfac;
         int         m_maxpart;        ///< used to allocate Rij and Fij
         int         m_max_threads;    ///< number of threads to use
         //@}

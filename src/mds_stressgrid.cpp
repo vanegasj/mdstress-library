@@ -105,6 +105,7 @@ StressGrid::StressGrid()
     this->m_periodic[2] = false;
     this->m_mindihangle = 0.0;
     this->m_rcoulomb    = 0.0;
+    this->m_epsfac      = 0.0;
 
     this->m_max_threads = 0;
 }
@@ -490,7 +491,7 @@ void StressGrid::SumGrid ( )
                     double rinv = 1.0/sqrt(diff[0]*diff[0]+diff[1]*diff[1]+diff[2]*diff[2]);
 
                     // calculate the force 
-                    double F = (qi*qj)*(rinv*rinv);
+                    double F = -this->m_epsfac*(qi*qj)*(rinv*rinv);
 
                     // calculate the force vectors
                     darray Fij = {
