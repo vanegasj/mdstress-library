@@ -96,6 +96,7 @@ StressGrid::StressGrid()
     this->p_molecule_id   = NULL;
     this->p_radii         = NULL;
     this->p_positions     = NULL;
+    this->p_pos_gridc     = NULL;
     
     this->m_nodispcor   = false;
     this->m_cuda        = false;
@@ -131,6 +132,7 @@ void StressGrid::Clear()
     if (this->p_molecule_id   != NULL ) delete [] this->p_molecule_id;
     if (this->p_radii         != NULL ) delete [] this->p_radii;
     if (this->p_positions     != NULL ) delete [] this->p_positions;
+    if (this->p_pos_gridc     != NULL ) delete [] this->p_pos_gridc;
     if (this->h_lapack        != NULL )
     {
         for (int i = 0; i < m_max_threads; ++i)
@@ -153,6 +155,7 @@ void StressGrid::Clear()
     this->p_molecule_id   = NULL;
     this->p_radii         = NULL;
     this->p_positions     = NULL;
+    this->p_pos_gridc     = NULL;
     this->h_lapack        = NULL;
 
 #ifdef CUSTRESS_ENABLE
@@ -278,15 +281,31 @@ void StressGrid::Init()
                 this->m_griddim = mds_griddim_xyz;
             
             // charge distribution grid
-            if(this->m_nxyzc[0] == 0)   this->m_nxyzc[0] = static_cast<int>(this->m_box[0][0]/this->m_spacingc);
-            if(this->m_nxyzc[1] == 0)   this->m_nxyzc[1] = static_cast<int>(this->m_box[1][1]/this->m_spacingc);
-            if(this->m_nxyzc[2] == 0)   this->m_nxyzc[2] = static_cast<int>(this->m_box[2][2]/this->m_spacingc);
-            
-            if(this->m_nxyzc[0]==0)  this->m_nxyzc[0]=1;
-            if(this->m_nxyzc[1]==0)  this->m_nxyzc[1]=1;
-            if(this->m_nxyzc[2]==0)  this->m_nxyzc[2]=1;
-            
-            this->m_ncellsc = this->m_nxyzc[0]*this->m_nxyzc[1]*this->m_nxyzc[2];
+            if (this->m_contrib == mds_crg)
+            {
+                if(this->m_nxyzc[0] == 0)   this->m_nxyzc[0] = static_cast<int>(this->m_box[0][0]/this->m_spacingc);
+                if(this->m_nxyzc[1] == 0)   this->m_nxyzc[1] = static_cast<int>(this->m_box[1][1]/this->m_spacingc);
+                if(this->m_nxyzc[2] == 0)   this->m_nxyzc[2] = static_cast<int>(this->m_box[2][2]/this->m_spacingc);
+                
+                if(this->m_nxyzc[0]==0)  this->m_nxyzc[0]=1;
+                if(this->m_nxyzc[1]==0)  this->m_nxyzc[1]=1;
+                if(this->m_nxyzc[2]==0)  this->m_nxyzc[2]=1;
+                
+                this->m_ncellsc = this->m_nxyzc[0]*this->m_nxyzc[1]*this->m_nxyzc[2];
+                this->p_pos_gridc     = new darray  [this->m_ncellsc];
+                this->p_sum_gridc     = new double  [this->m_ncellsc];
+                this->p_current_gridc = new double  [this->m_ncellsc*this->m_max_threads];
+                
+                for (int i=0; i < this->m_ncellsc; i++)
+                {
+                    this->p_sum_gridc[i] = 0.0;
+                }
+
+                for (int i=0; i < this->m_ncellsc*this->m_max_threads; i++)
+                {
+                    this->p_current_gridc[i] = 0.0;
+                }
+            }
         }
         else
         {
@@ -315,9 +334,7 @@ void StressGrid::Init()
 
         //Give size to current and sum grid
         this->p_sum_grid      = new dmatrix [this->m_ncells];
-        this->p_sum_gridc     = new double  [this->m_ncellsc];
         this->p_current_grid  = new dmatrix [this->m_ncells*this->m_max_threads];
-        this->p_current_gridc = new double  [this->m_ncellsc*this->m_max_threads];
         
         //Set all to zero
         this->m_nframes = 0;
@@ -325,17 +342,9 @@ void StressGrid::Init()
         {
             zeromatrix(this->p_sum_grid[i]);
         }
-        for (int i=0; i < this->m_ncellsc; i++)
-        {
-            this->p_sum_gridc[i] = 0.0;
-        }
         for (int i=0; i < this->m_ncells*this->m_max_threads; i++)
         {
             zeromatrix(this->p_current_grid[i]);
-        }
-        for (int i=0; i < this->m_ncellsc*this->m_max_threads; i++)
-        {
-            this->p_current_gridc[i] = 0.0;
         }
         
         // Finally, create the lapack objects to deal with linear solvers and projections
@@ -384,17 +393,33 @@ void StressGrid::UpdateBoxSpacings ( dmatrix box )
             this->m_gridsp[4] = this->m_gridsp[0]*this->m_gridsp[2];
             this->m_gridsp[5] = this->m_gridsp[1]*this->m_gridsp[2];
             this->m_gridsp[6] = this->m_gridsp[0]*this->m_gridsp[1]*this->m_gridsp[2];
-            
-            this->m_gridspc[0] = this->m_box[0][0]/static_cast<double>(this->m_nxyzc[0]);
-            this->m_gridspc[1] = this->m_box[1][1]/static_cast<double>(this->m_nxyzc[1]);
-            this->m_gridspc[2] = this->m_box[2][2]/static_cast<double>(this->m_nxyzc[2]);
-            this->m_gridspc[3] = this->m_gridspc[0]*this->m_gridspc[1];
-            this->m_gridspc[4] = this->m_gridspc[0]*this->m_gridspc[2];
-            this->m_gridspc[5] = this->m_gridspc[1]*this->m_gridspc[2];
-            this->m_gridspc[6] = this->m_gridspc[0]*this->m_gridspc[1]*this->m_gridspc[2];
-
             this->m_invgridsp =  1.0/(this->m_gridsp[0]*this->m_gridsp[1]*this->m_gridsp[2]);
-            this->m_invgridspc = 1.0/(this->m_gridspc[0]*this->m_gridspc[1]*this->m_gridspc[2]);
+            
+            if (this->m_contrib == mds_crg)
+            {
+                this->m_gridspc[0] = this->m_box[0][0]/static_cast<double>(this->m_nxyzc[0]);
+                this->m_gridspc[1] = this->m_box[1][1]/static_cast<double>(this->m_nxyzc[1]);
+                this->m_gridspc[2] = this->m_box[2][2]/static_cast<double>(this->m_nxyzc[2]);
+                this->m_gridspc[3] = this->m_gridspc[0]*this->m_gridspc[1];
+                this->m_gridspc[4] = this->m_gridspc[0]*this->m_gridspc[2];
+                this->m_gridspc[5] = this->m_gridspc[1]*this->m_gridspc[2];
+                this->m_gridspc[6] = this->m_gridspc[0]*this->m_gridspc[1]*this->m_gridspc[2];
+                this->m_invgridspc = 1.0/(this->m_gridspc[0]*this->m_gridspc[1]*this->m_gridspc[2]);
+                
+                for (int i=0; i < this->m_ncellsc; i++)
+                {
+                    iarray xi;
+                    xi[0] = i/(this->m_nxyzc[1]*this->m_nxyzc[2]);
+                    xi[1] = (i-xi[0]*this->m_nxyzc[1]*this->m_nxyzc[2])/this->m_nxyzc[2];
+                    xi[2] = (i-xi[0]*this->m_nxyzc[1]*this->m_nxyzc[2]-xi[1]*this->m_nxyzc[2]);
+
+                    // calculate the position
+                    this->p_pos_gridc[i][0] = this->m_gridspc[0]*xi[0] + this->m_gridspc[0]*0.5;
+                    this->p_pos_gridc[i][1] = this->m_gridspc[1]*xi[1] + this->m_gridspc[1]*0.5;
+                    this->p_pos_gridc[i][2] = this->m_gridspc[2]*xi[2] + this->m_gridspc[2]*0.5;
+                }
+
+            }
 
             summatrix( this->m_box, this->m_sumbox, this->m_sumbox );
 #ifdef CUSTRESS_ENABLE
@@ -446,55 +471,36 @@ void StressGrid::SumGrid ( )
             {
                 // calculate the charge
                 double qi = this->p_current_gridc[i];
-                
+
                 // calculate the indices
-                iarray xi;
-                xi[0] = i/(this->m_nxyzc[1]*this->m_nxyzc[2]);
-                xi[1] = (i-xi[0]*this->m_nxyzc[1]*this->m_nxyzc[2])/this->m_nxyzc[2];
-                xi[2] = (i-xi[0]*this->m_nxyzc[1]*this->m_nxyzc[2]-xi[1]*this->m_nxyzc[2]);
-
-                // calculate the position
-                darray Ri;
-                Ri[0] = this->m_gridspc[0]*xi[0];
-                Ri[1] = this->m_gridspc[1]*xi[1];
-                Ri[2] = this->m_gridspc[2]*xi[2];
-
                 for (int j = i+1; j < this->m_ncellsc; j+=1)
                 {
                     // calculate the charge
                     double qj = this->p_current_gridc[j];
                     
-                    // calculate the indices
-                    iarray xj;
-                    xj[0] = j/(this->m_nxyzc[1]*this->m_nxyzc[2]);
-                    xj[1] = (j-xj[0]*this->m_nxyzc[1]*this->m_nxyzc[2])/this->m_nxyzc[2];
-                    xj[2] = (j-xj[0]*this->m_nxyzc[1]*this->m_nxyzc[2]-xj[1]*this->m_nxyzc[2]);
-
-                    // calculate the position
-                    darray Rj;
-                    Rj[0] = this->m_gridspc[0]*xj[0];
-                    Rj[1] = this->m_gridspc[1]*xj[1];
-                    Rj[2] = this->m_gridspc[2]*xj[2];
-
                     // calculate r
                     darray diff;
-                    diffarray(Rj, Ri, diff, this->m_box, this->m_periodic);
+                    diffarray(this->p_pos_gridc[j], this->p_pos_gridc[i], diff, this->m_box, this->m_periodic);
+
+                    // correct Rj
+                    darray Rj;
+                    sumarray(this->p_pos_gridc[i], diff, Rj);
 
                     // calculate rinv
                     double rinv = 1.0/sqrt(diff[0]*diff[0]+diff[1]*diff[1]+diff[2]*diff[2]);
 
                     // calculate the force 
-                    double F = (qi*qj)*(rinv*rinv*rinv);
+                    double F = (qi*qj)*(rinv*rinv);
 
                     // calculate the force vectors
                     darray Fij = {
-                        F*diff[0]*rinv,
-                        F*diff[1]*rinv,
-                        F*diff[2]*rinv,
+                        F*(diff[0]*rinv),
+                        F*(diff[1]*rinv),
+                        F*(diff[2]*rinv),
                     };
 
                     // distribute stress
-                    this->DistributePairInteraction(Ri, Rj, Fij, thread_id);
+                    this->DistributePairInteraction(this->p_pos_gridc[i], Rj, Fij, thread_id);
                 }
             }
             // end coulomb distribute stress
@@ -618,9 +624,6 @@ void StressGrid::SumGrid ( )
                             scalematrix( this->p_current_grid[pid], 1.0/last_volume, this->p_current_grid[pid] );
                             summatrix( this->p_sum_grid[pid], this->p_current_grid[pid], this->p_sum_grid[pid] );
                             
-                            this->p_current_gridc[pid] = this->p_current_gridc[pid]*last_volume;
-                            this->p_sum_gridc[pid] = this->p_sum_gridc[pid] + this->p_current_gridc[pid];
-                        
                             // add the volume
                             this->p_sum_volume[pid] += last_volume;
                         }
@@ -636,9 +639,6 @@ void StressGrid::SumGrid ( )
                             {
                                 scalematrix( this->p_current_grid[pid], 1.0/last_volume, this->p_current_grid[pid] );
                                 summatrix( this->p_sum_grid[last_pid], this->p_current_grid[pid], this->p_sum_grid[last_pid] );
-
-                                this->p_current_gridc[pid] = this->p_current_gridc[pid]*last_volume;
-                                this->p_sum_gridc[pid] = this->p_sum_gridc[pid] + this->p_current_gridc[pid];
                             }
                         }
                         
@@ -661,9 +661,11 @@ void StressGrid::SumGrid ( )
                 zeromatrix(this->p_current_grid[i]);
             }
             if (this->m_contrib == mds_crg)
-            for(int i = 0; i < this->m_ncellsc; ++i)
             {
-                this->p_current_gridc[i] = 0.0;
+                for(int i = 0; i < this->m_ncellsc; ++i)
+                {
+                    this->p_current_gridc[i] = 0.0;
+                }
             }
             this->m_nframes++; 
         }
@@ -709,9 +711,12 @@ void StressGrid::Reset ( )
         {
             zeromatrix(this->p_current_grid[i+thread_id*this->m_max_threads]);
         }
-        for( int i=0; i<this->m_ncellsc; i++ )
+        if (this->m_contrib == mds_crg)
         {
-            this->p_current_gridc[i+thread_id*this->m_max_threads] = 0.0;
+            for( int i=0; i<this->m_ncellsc; i++ )
+            {
+                this->p_current_gridc[i+thread_id*this->m_max_threads] = 0.0;
+            }
         }
 
         if (thread_id == 0)

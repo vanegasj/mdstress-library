@@ -451,6 +451,7 @@ class  mds::StressGrid
         double  *p_sum_volume;    ///< Sum of volumes when using mds_atom
         double  *p_radii;         ///< the radius of an atomic site
         double  *p_positions;     ///< the position of an atomic site
+        darray  *p_pos_gridc;     ///< the position of an charge grid sites
         int     *p_molecule_id;   ///< The molecule an atomic site belongs to
         //@}
         
