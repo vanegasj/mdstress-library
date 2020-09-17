@@ -223,6 +223,17 @@ class  mds::StressGrid
         double GetMinDihAngle ( )
         {   return this->m_mindihangle;   }
         //@}
+         
+         /**Set/Get Charge Cutoff*/
+        //@{
+        void SetChargeCutoff (double rcoulomb)
+        {
+            std::lock_guard<std::mutex> lock(m_mutex_state);
+            this->m_rcoulomb = rcoulomb;
+        }
+        double GetChargeCutoff ()
+        {   return this->m_rcoulomb;   }
+        //@}
         
         /** Compute N-body force decomposition: */
         //@{
@@ -273,7 +284,7 @@ class  mds::StressGrid
             std::lock_guard<std::mutex> lock(m_mutex_state);
             this->m_cuda = true;
         }
-
+        
         void DisableDispersionCorrection()
         {
             std::lock_guard<std::mutex> lock(m_mutex_state);
@@ -410,6 +421,7 @@ class  mds::StressGrid
         bool        m_cuda;           ///< enables cuda
         barray      m_periodic;       ///< mark dimensions as periodic
         double      m_mindihangle;
+        double      m_rcoulomb;
         int         m_maxpart;        ///< used to allocate Rij and Fij
         int         m_max_threads;    ///< number of threads to use
         //@}

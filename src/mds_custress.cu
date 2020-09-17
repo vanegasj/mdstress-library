@@ -581,10 +581,11 @@ bool custress_distribute_pair_interaction(const mds::darray xi, const mds::darra
 {
     if (h_bindex[batch_id] == cu_batchsize)
     {
-       if (cudaSuccess != checkCuda(cudaEventQuery(h_mem_event[batch_id])))
-           return false;
-       else
-           h_bindex[batch_id] = 0;
+        //checkCuda(cudaEventSynchronize(h_mem_event[batch_id]));
+        if (cudaSuccess != checkCuda(cudaEventQuery(h_mem_event[batch_id])))
+            return false;
+        else
+            h_bindex[batch_id] = 0;
     }
 
     // store for later processing

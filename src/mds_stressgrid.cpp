@@ -103,6 +103,7 @@ StressGrid::StressGrid()
     this->m_periodic[1] = false;
     this->m_periodic[2] = false;
     this->m_mindihangle = 0.0;
+    this->m_rcoulomb    = 0.0;
 
     this->m_max_threads = 0;
 }
@@ -392,6 +393,7 @@ void StressGrid::UpdateBoxSpacings ( dmatrix box )
             this->m_gridspc[5] = this->m_gridspc[1]*this->m_gridspc[2];
             this->m_gridspc[6] = this->m_gridspc[0]*this->m_gridspc[1]*this->m_gridspc[2];
 
+            this->m_invgridsp =  1.0/(this->m_gridsp[0]*this->m_gridsp[1]*this->m_gridsp[2]);
             this->m_invgridspc = 1.0/(this->m_gridspc[0]*this->m_gridspc[1]*this->m_gridspc[2]);
 
             summatrix( this->m_box, this->m_sumbox, this->m_sumbox );
@@ -413,14 +415,96 @@ void StressGrid::SumGrid ( )
 {
     if ( !this->m_ierr )
     {
-        // every thread must process this latch before proceeding
-        static barrier sumgrid_entry(this->m_max_threads);
-        sumgrid_entry.count_down_and_wait();
-
         // get the thread id
         int thread_id = this->m_thread_map[std::this_thread::get_id()];
 
-        // reduce all batches
+        if (this->m_contrib == mds_crg)
+        {
+            // every thread must process this latch before proceeding
+            static barrier sumgrid_enter_charge_reduction(this->m_max_threads);
+            sumgrid_enter_charge_reduction.count_down_and_wait();
+
+            // reduce all charge current grids
+            for (int i = thread_id; i < this->m_ncellsc; i+=this->m_max_threads)
+            {
+                if (i < this->m_ncellsc)
+                {
+                    for (int j = 1; j < this->m_max_threads; ++j)
+                    {
+                        this->p_current_gridc[i] = this->p_current_gridc[i] + this->p_current_gridc[i+j*this->m_ncellsc];
+                        this->p_current_gridc[i+j*this->m_ncellsc] = 0.0;
+                    }
+                }
+            }
+            
+            // every thread must process this latch before proceeding
+            static barrier sumgrid_enter_coulomb(this->m_max_threads);
+            sumgrid_enter_coulomb.count_down_and_wait();
+
+            // do coulomb distribute stress here
+            for (int i = thread_id; i < this->m_ncellsc; i+=this->m_max_threads)
+            {
+                // calculate the charge
+                double qi = this->p_current_gridc[i];
+                
+                // calculate the indices
+                iarray xi;
+                xi[0] = i/(this->m_nxyzc[1]*this->m_nxyzc[2]);
+                xi[1] = (i-xi[0]*this->m_nxyzc[1]*this->m_nxyzc[2])/this->m_nxyzc[2];
+                xi[2] = (i-xi[0]*this->m_nxyzc[1]*this->m_nxyzc[2]-xi[1]*this->m_nxyzc[2]);
+
+                // calculate the position
+                darray Ri;
+                Ri[0] = this->m_gridspc[0]*xi[0];
+                Ri[1] = this->m_gridspc[1]*xi[1];
+                Ri[2] = this->m_gridspc[2]*xi[2];
+
+                for (int j = i+1; j < this->m_ncellsc; j+=1)
+                {
+                    // calculate the charge
+                    double qj = this->p_current_gridc[j];
+                    
+                    // calculate the indices
+                    iarray xj;
+                    xj[0] = j/(this->m_nxyzc[1]*this->m_nxyzc[2]);
+                    xj[1] = (j-xj[0]*this->m_nxyzc[1]*this->m_nxyzc[2])/this->m_nxyzc[2];
+                    xj[2] = (j-xj[0]*this->m_nxyzc[1]*this->m_nxyzc[2]-xj[1]*this->m_nxyzc[2]);
+
+                    // calculate the position
+                    darray Rj;
+                    Rj[0] = this->m_gridspc[0]*xj[0];
+                    Rj[1] = this->m_gridspc[1]*xj[1];
+                    Rj[2] = this->m_gridspc[2]*xj[2];
+
+                    // calculate r
+                    darray diff;
+                    diffarray(Rj, Ri, diff, this->m_box, this->m_periodic);
+
+                    // calculate rinv
+                    double rinv = 1.0/sqrt(diff[0]*diff[0]+diff[1]*diff[1]+diff[2]*diff[2]);
+
+                    // calculate the force 
+                    double F = (qi*qj)*(rinv*rinv*rinv);
+
+                    // calculate the force vectors
+                    darray Fij = {
+                        F*diff[0]*rinv,
+                        F*diff[1]*rinv,
+                        F*diff[2]*rinv,
+                    };
+
+                    // distribute stress
+                    this->DistributePairInteraction(Ri, Rj, Fij, thread_id);
+                }
+            }
+            // end coulomb distribute stress
+        }
+        
+        // every thread must process this latch before proceeding
+        static barrier sumgrid_enter_stress_reduction(this->m_max_threads);
+        sumgrid_enter_stress_reduction.count_down_and_wait();
+        
+        // reduce all stress current grids
         for (int i = thread_id; i < this->m_ncells; i+=this->m_max_threads)
         {
             if (i < this->m_ncells)
@@ -429,17 +513,6 @@ void StressGrid::SumGrid ( )
                 {
                     summatrix(this->p_current_grid[i], this->p_current_grid[i+j*this->m_ncells], this->p_current_grid[i] );
                     zeromatrix(this->p_current_grid[i+j*this->m_ncells]);
-                }
-            }
-        }
-        for (int i = thread_id; i < this->m_ncellsc; i+=this->m_max_threads)
-        {
-            if (i < this->m_ncellsc)
-            {
-                for (int j = 1; j < this->m_max_threads; ++j)
-                {
-                    this->p_current_gridc[i] = this->p_current_gridc[i] + this->p_current_gridc[i+j*this->m_ncellsc];
-                    this->p_current_gridc[i+j*this->m_ncellsc] = 0.0;
                 }
             }
         }
@@ -461,6 +534,8 @@ void StressGrid::SumGrid ( )
                 {
                     summatrix( this->p_sum_grid[i], this->p_current_grid[i], this->p_sum_grid[i] );
                 }
+
+                if (this->m_contrib == mds_crg)
                 for (int i = 0; i < this->m_ncellsc; i++)
                 {
                     this->p_sum_gridc[i] = this->p_sum_gridc[i] + this->p_current_gridc[i];
@@ -585,6 +660,7 @@ void StressGrid::SumGrid ( )
             {
                 zeromatrix(this->p_current_grid[i]);
             }
+            if (this->m_contrib == mds_crg)
             for(int i = 0; i < this->m_ncellsc; ++i)
             {
                 this->p_current_gridc[i] = 0.0;
@@ -690,43 +766,27 @@ void StressGrid::Write ( )
             outname = this->m_filename + outnumber.str();
             if (outname.find(".dat") == std::string::npos)
                 outname = outname + "." + mds_fileext;
-        
-            charge_outname = "charge_" + this->m_filename + outnumber.str();
-            if (charge_outname.find(".dat") == std::string::npos)
-                charge_outname = charge_outname + "." + mds_fileext;
-
-            outfile = fopen(outname.c_str(), "wb" );
-            charge_outfile = fopen(charge_outname.c_str(), "wb" );
             
             if (this->m_spatatom == mds_spat)
                 Dtype = 1;
             else if (this->m_spatatom == mds_atom)
                 Dtype = 2;
-            
+        
+            outfile = fopen(outname.c_str(), "wb" );
             fwrite(&Dtype, sizeof(int), 1, outfile);
-            
-            // use different dtype for charge file
-            Dtype = 4;
-            fwrite(&Dtype, sizeof(int), 1, charge_outfile);
             
             //Divide sumbox with respect to the number of frames to get the avg
             scalematrix( this->m_sumbox, 1.0/this->m_nframes, avgbox);
-
             fwrite(avgbox, sizeof(dmatrix), 1, outfile);
-            fwrite(avgbox, sizeof(dmatrix), 1, charge_outfile);
             if (this->m_spatatom == mds_spat)
             {
                 fwrite(&this->m_nxyz[0], sizeof(this->m_nxyz[0]), 1, outfile);
                 fwrite(&this->m_nxyz[1], sizeof(this->m_nxyz[1]), 1, outfile);
                 fwrite(&this->m_nxyz[2], sizeof(this->m_nxyz[2]), 1, outfile);
-                fwrite(&this->m_nxyzc[0], sizeof(this->m_nxyzc[0]), 1, charge_outfile);
-                fwrite(&this->m_nxyzc[1], sizeof(this->m_nxyzc[1]), 1, charge_outfile);
-                fwrite(&this->m_nxyzc[2], sizeof(this->m_nxyzc[2]), 1, charge_outfile);
             }
             else
             {
                 fwrite(&this->m_ncells, sizeof(int), 1, outfile);
-                fwrite(&this->m_ncellsc, sizeof(int), 1, charge_outfile);
             }
 
             factor = mds_units/this->m_nframes;
@@ -735,13 +795,7 @@ void StressGrid::Write ( )
             {
                 scalematrix(this->p_sum_grid[i], factor, this->p_sum_grid[i]);
             }
-            for ( int i = 0; i < this->m_ncellsc; i++ )
-            {
-                this->p_sum_gridc[i] = this->p_sum_gridc[i]*factor;
-            }
-            
             fwrite(this->p_sum_grid, sizeof(dmatrix), this->m_ncells, outfile);
-            fwrite(this->p_sum_gridc, sizeof(double), this->m_ncellsc, charge_outfile);
 
             // append the volume data
             if (this->m_spatatom == mds_atom)
@@ -752,7 +806,38 @@ void StressGrid::Write ( )
             }
             
             fclose(outfile);
-            fclose(charge_outfile);
+
+            if (this->m_contrib == mds_crg)
+            {
+                charge_outname = "charge_" + this->m_filename + outnumber.str();
+                if (charge_outname.find(".dat") == std::string::npos)
+                    charge_outname = charge_outname + "." + mds_fileext;
+                charge_outfile = fopen(charge_outname.c_str(), "wb" );
+
+                // use different dtype for charge file
+                Dtype = 4;
+                fwrite(&Dtype, sizeof(int), 1, charge_outfile);
+                fwrite(avgbox, sizeof(dmatrix), 1, charge_outfile);
+
+                if (this->m_spatatom == mds_spat)
+                {
+                    fwrite(&this->m_nxyzc[0], sizeof(this->m_nxyzc[0]), 1, charge_outfile);
+                    fwrite(&this->m_nxyzc[1], sizeof(this->m_nxyzc[1]), 1, charge_outfile);
+                    fwrite(&this->m_nxyzc[2], sizeof(this->m_nxyzc[2]), 1, charge_outfile);
+                }
+                else
+                {
+                    fwrite(&this->m_ncellsc, sizeof(int), 1, charge_outfile);
+                }
+                
+                for ( int i = 0; i < this->m_ncellsc; i++ )
+                {
+                    this->p_sum_gridc[i] = this->p_sum_gridc[i]*factor;
+                }
+                
+                fwrite(this->p_sum_gridc, sizeof(double), this->m_ncellsc, charge_outfile);
+                fclose(charge_outfile);
+            }
         }
 
         // every thread must process this latch before exiting

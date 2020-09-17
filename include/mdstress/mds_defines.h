@@ -49,22 +49,24 @@ namespace mds
     #define mds_ncfd    1
     #define mds_gld     2
 
-    #define mds_sl      0
-    #define mds_all     1
-    #define mds_vdw     2
-    #define mds_cou     3
-    #define mds_ang     4
-    #define mds_bnd     5
-    #define mds_dip     6
-    #define mds_dii     7
-    #define mds_drb     8
-    #define mds_lin     9
-    #define mds_set     10
-    #define mds_sha     12
-    #define mds_kin     13
-    #define mds_nr      14
-    #define mds_cmp     15
-    #define mds_dio     16
+    // contributions
+    #define mds_sl      0x0001
+    #define mds_vdw     0x0002
+    #define mds_cou     0x0004
+    #define mds_ang     0x0008
+    #define mds_bnd     0x0010
+    #define mds_dip     0x0020
+    #define mds_dii     0x0040
+    #define mds_drb     0x0080
+    #define mds_lin     0x0100
+    #define mds_set     0x0200
+    #define mds_sha     0x0400
+    #define mds_kin     0x0800
+    #define mds_nr      0x1000
+    #define mds_cmp     0x2000
+    #define mds_dio     0x4000
+    #define mds_crg     0x8000
+    #define mds_all     0xFFFF
 
     #define mds_nrow3    9
     #define mds_ncol3    3
