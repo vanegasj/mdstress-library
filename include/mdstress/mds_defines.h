@@ -49,7 +49,8 @@ namespace mds
     #define mds_ncfd    1
     #define mds_gld     2
 
-    // contributions
+    // stress contributions
+    #define mds_none    0x0000
     #define mds_sl      0x0001
     #define mds_vdw     0x0002
     #define mds_cou     0x0004
@@ -65,8 +66,13 @@ namespace mds
     #define mds_nr      0x1000
     #define mds_cmp     0x2000
     #define mds_dio     0x4000
-    #define mds_crg     0x8000
-    #define mds_all     0xFFFF
+    #define mds_all     0x7FFF
+    
+    // gridc type
+    #define mds_gridc_off  0x0000
+    #define mds_gridc_near 0x0001
+    #define mds_gridc_far  0x0002
+    #define mds_gridc_full 0x0003
 
     #define mds_nrow3    9
     #define mds_ncol3    3
