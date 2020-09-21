@@ -411,9 +411,12 @@ void StressGrid::UpdateBoxSpacings ( dmatrix box )
                 for (int i=0; i < this->m_ncellsc; i++)
                 {
                     iarray xi;
-                    xi[0] = i/(this->m_nxyzc[1]*this->m_nxyzc[2]);
-                    xi[1] = (i-xi[0]*this->m_nxyzc[1]*this->m_nxyzc[2])/this->m_nxyzc[2];
-                    xi[2] = (i-xi[0]*this->m_nxyzc[1]*this->m_nxyzc[2]-xi[1]*this->m_nxyzc[2]);
+                    //xi[0] = i/(this->m_nxyzc[1]*this->m_nxyzc[2]);
+                    //xi[1] = (i-xi[0]*this->m_nxyzc[1]*this->m_nxyzc[2])/this->m_nxyzc[2];
+                    //xi[2] = (i-xi[0]*this->m_nxyzc[1]*this->m_nxyzc[2]-xi[1]*this->m_nxyzc[2]);
+                    xi[0] = i/(this->m_nxyzc[2]*this->m_nxyzc[1]);
+                    xi[1] = (i/this->m_nxyzc[2])%this->m_nxyzc[1];
+                    xi[2] = i%this->m_nxyzc[2];
 
                     // calculate the position
                     this->p_pos_gridc[i][0] = this->m_gridspc[0]*xi[0];
@@ -472,13 +475,13 @@ void StressGrid::SumGrid ( )
             for (int i = thread_id; i < this->m_ncellsc; i+=this->m_max_threads)
             {
                 // calculate the charge
-                double qi = this->p_current_gridc[i];
+                double qi = this->p_current_gridc[i]/this->m_invgridspc;
 
                 // calculate the indices
                 for (int j = i+1; j < this->m_ncellsc; j+=1)
                 {
                     // calculate the charge
-                    double qj = this->p_current_gridc[j];
+                    double qj = this->p_current_gridc[j]/this->m_invgridspc;
                     
                     // calculate r
                     darray diff;
@@ -822,7 +825,7 @@ void StressGrid::Write ( )
                 charge_outfile = fopen(charge_outname.c_str(), "wb" );
 
                 // use different dtype for charge file
-                Dtype = 4;
+                Dtype = 3;
                 fwrite(&Dtype, sizeof(int), 1, charge_outfile);
                 fwrite(avgbox, sizeof(dmatrix), 1, charge_outfile);
 
@@ -839,7 +842,7 @@ void StressGrid::Write ( )
                 
                 for ( int i = 0; i < this->m_ncellsc; i++ )
                 {
-                    this->p_sum_gridc[i] = this->p_sum_gridc[i]*factor;
+                    this->p_sum_gridc[i] = this->p_sum_gridc[i]/this->m_nframes;
                 }
                 
                 fwrite(this->p_sum_gridc, sizeof(double), this->m_ncellsc, charge_outfile);
