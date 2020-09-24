@@ -19,7 +19,7 @@
      torres.sanchez.a@gmail.com
      juan.m.vanegas@gmail.com
 =========================================================================*/
-
+#define PI 3.1415926536
 #include "mds_stressgrid.h"
 #include "mds_barrier.h"
 #include "voro++.hh"
@@ -470,48 +470,50 @@ void StressGrid::SumGrid ( )
             // every thread must process this latch before proceeding
             static barrier sumgrid_enter_coulomb(this->m_max_threads);
             sumgrid_enter_coulomb.count_down_and_wait();
-
+            double beta = this->m_ewaldcoeff_q;
             // do coulomb distribute stress here
             for (int i = thread_id; i < this->m_ncellsc; i+=this->m_max_threads)
             {
                 // calculate the charge
-                double qi = this->p_current_gridc[i]/this->m_invgridspc;
-
-                // calculate the indices
-                for (int j = i+1; j < this->m_ncellsc; j+=1)
+                double qi = this->p_current_gridc[i];
+                if (abs(qi) > 1E-16)
                 {
-                    // calculate the charge
-                    double qj = this->p_current_gridc[j]/this->m_invgridspc;
-                    
-                    // calculate r
-                    darray diff;
-                    diffarray(this->p_pos_gridc[j], this->p_pos_gridc[i], diff, this->m_box, this->m_periodic);
-
-                    // correct Rj
-                    darray Rj;
-                    sumarray(this->p_pos_gridc[i], diff, Rj);
-
-                    // calculate r and rinv
-                    double r = sqrt(diff[0]*diff[0]+diff[1]*diff[1]+diff[2]*diff[2]);
-
-                    if (this->m_gridctype == mds_gridc_full ||
-                        (this->m_gridctype == mds_gridc_near && r <  this->m_rcoulomb) ||
-                        (this->m_gridctype == mds_gridc_far  && r >= this->m_rcoulomb) )
+                    qi /= this->m_invgridspc;
+                    // calculate the indices
+                    for (int j = i+1; j < this->m_ncellsc; j+=1)
                     {
-                        double rinv = 1.0/r;
+                        // calculate the charge
+                        double qj = this->p_current_gridc[j];
+                        if (abs(qj) > 1E-16)
+                        {
+                            qj /= this->m_invgridspc;
 
-                        // calculate the force 
-                        double F = -this->m_epsfac*(qi*qj)*(rinv*rinv);
+                            // calculate r
+                            darray diff;
+                            diffarray(this->p_pos_gridc[i], this->p_pos_gridc[j], diff, this->m_box, this->m_periodic);
 
-                        // calculate the force vectors
-                        darray Fij = {
-                            F*(diff[0]*rinv),
-                            F*(diff[1]*rinv),
-                            F*(diff[2]*rinv),
-                        };
+                            // correct Ri
+                            darray Ri;
+                            sumarray(this->p_pos_gridc[j], diff, Ri);
 
-                        // distribute stress
-                        this->DistributePairInteraction(this->p_pos_gridc[i], Rj, Fij, thread_id);
+                            // calculate r and rinv
+                            double r2 = diff[0]*diff[0]+diff[1]*diff[1]+diff[2]*diff[2];
+                            double r = sqrt(r2);
+                            double rinv = 1.0/r;
+
+                            // calculate the force
+                            //double F = -this->m_epsfac*(qi*qj)*(rinv*rinv*rinv);
+                            double F = -this->m_epsfac*qi*qj*(2*beta*exp(-beta*beta*r2)/sqrt(PI) - erf(beta*r)*rinv)*rinv*rinv;
+                            // calculate the force vectors
+                            darray Fij = {
+                                F*diff[0],
+                                F*diff[1],
+                                F*diff[2],
+                                };
+
+                            // distribute stress
+                            this->DistributePairInteraction(Ri, this->p_pos_gridc[j], Fij, thread_id);
+                        }
                     }
                 }
             }

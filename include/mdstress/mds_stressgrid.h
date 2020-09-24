@@ -226,12 +226,13 @@ class  mds::StressGrid
          
          /**Set/Get Charge Cutoff*/
         //@{
-        void SetChargeParams(int gridctype, double epsfac, double rcoulomb)
+        void SetChargeParams(int gridctype, double epsfac, double rcoulomb, double ewaldcoeff_q)
         {
             std::lock_guard<std::mutex> lock(m_mutex_state);
             this->m_gridctype = gridctype;
             this->m_epsfac = epsfac;
             this->m_rcoulomb = rcoulomb;
+            this->m_ewaldcoeff_q = ewaldcoeff_q;
         }
         //@}
         
@@ -423,6 +424,7 @@ class  mds::StressGrid
         double      m_mindihangle;
         double      m_rcoulomb;
         double      m_epsfac;
+        double      m_ewaldcoeff_q;
         int         m_gridctype;
         int         m_maxpart;        ///< used to allocate Rij and Fij
         int         m_max_threads;    ///< number of threads to use
