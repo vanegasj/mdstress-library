@@ -1,11 +1,13 @@
 cmake_minimum_required(VERSION 3.8 FATAL_ERROR)
 project(mdstress_test LANGUAGES CXX )
+#cmake_minimum_required(VERSION 3.12 FATAL_ERROR)
+#project(mdstress_test LANGUAGES CXX CUDA)
 
 # set fast math etc
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG -ffast-math -march=native" CACHE STRING
     "Flags used by the compiler during release builds." FORCE)
-set(CMAKE_CUDA_FLAGS_RELEASE "-O3 -DNDEBUG -Wno-deprecated-gpu-targets -arch=sm_60" CACHE STRING
-    "Flags used by the compiler during release builds." FORCE)
+#set(CMAKE_CUDA_FLAGS_RELEASE "-O3 -DNDEBUG -Wno-deprecated-gpu-targets -use_fast_math -restrict -Xptxas -O3,-v -Xcompiler -O3 -arch=sm_61" CACHE STRING
+#    "Flags used by the compiler during release builds." FORCE)
 
 # set default build type
 if(NOT CMAKE_BUILD_TYPE)
