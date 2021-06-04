@@ -85,6 +85,7 @@ namespace mds
     typedef int     iarray[3];
     typedef double  darray[3];
     typedef double  dmatrix[3][3];
+    typedef double  dmatrix6[6][6];
 
     class  StressGrid;
     class  StressGridPython;

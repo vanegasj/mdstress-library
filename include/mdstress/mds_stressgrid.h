@@ -388,6 +388,7 @@ class  mds::StressGrid
         int      m_nreset;        ///< Number of resets (for writing files)
         dmatrix  m_sumbox;        ///< Average box
         dmatrix  m_invbox;        ///< Inverse of the box
+        double   m_sum_boxvol;    ///< Average box volume
         double   m_gridsp[7];     ///< grid spacing
         double   m_invgridsp;     ///< inverse of grid spacing
         Lapack **h_lapack;        ///< mds_lapack: solves underdetermined/overdetermined systems of equations and projects solution onto shape space
@@ -400,6 +401,7 @@ class  mds::StressGrid
         dmatrix *p_current_grid;  ///< Grid (either nx*ny*nz or nAtoms)
         darray  *p_current_gride; ///< Grid (either nx*ny*nz or nAtoms) (ewald)
         dmatrix *p_sum_grid;      ///< Sum Grid
+        dmatrix6 *p_sum_grid_elcovar;  ///< Elasticity Grid Covariance Term (either nx*ny*nz or nAtoms)
         darray  *p_sum_gride;     ///< Sum Grid (ewald)
         double  *p_sum_volume;    ///< Sum of volumes when using mds_atom
         double  *p_radii;         ///< the radius of an atomic site

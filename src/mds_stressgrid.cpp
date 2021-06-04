@@ -24,10 +24,10 @@
 #include "mds_barrier.h"
 #include "voro++.hh"
 
-#define CUSTRESS_ENABLE
-#ifdef CUSTRESS_ENABLE
-#include "mds_custress.h"
-#endif//CUSTRESS_ENABLE
+//#define CUSTRESS_ENABLE
+//#ifdef CUSTRESS_ENABLE
+//#include "mds_custress.h"
+//#endif//CUSTRESS_ENABLE
 
 using namespace mds;
 
@@ -67,6 +67,7 @@ StressGrid::StressGrid()
         }
     }
 
+    this->m_sum_boxvol    = 0.0;
     this->m_maxpart       = 0;
     this->h_lapack        = NULL;
     this->p_Amat          = NULL;
@@ -75,10 +76,11 @@ StressGrid::StressGrid()
     this->p_Rij           = NULL;
     this->p_Fij           = NULL;
     this->p_Uij           = NULL;
-    this->p_current_grid  = NULL; 
-    this->p_current_gride = NULL; 
+    this->p_current_grid  = NULL;
+    this->p_current_gride = NULL;
     this->p_sum_grid      = NULL;
     this->p_sum_gride     = NULL;
+    this->p_sum_grid_elcovar = NULL;
     this->p_sum_volume    = NULL;
     this->p_molecule_id   = NULL;
     this->p_radii         = NULL;
@@ -112,6 +114,7 @@ void StressGrid::Clear()
     if (this->p_current_grid  != NULL ) delete [] this->p_current_grid;
     if (this->p_current_gride != NULL ) delete [] this->p_current_gride;
     if (this->p_sum_grid      != NULL ) delete [] this->p_sum_grid;
+    if (this->p_sum_grid_elcovar     != NULL ) delete [] this->p_sum_grid_elcovar;
     if (this->p_sum_gride     != NULL ) delete [] this->p_sum_gride;
     if (this->p_sum_volume    != NULL ) delete [] this->p_sum_volume;
     if (this->p_molecule_id   != NULL ) delete [] this->p_molecule_id;
@@ -131,9 +134,10 @@ void StressGrid::Clear()
     this->p_Rij           = NULL;
     this->p_Fij           = NULL;
     this->p_Uij           = NULL;
-    this->p_current_grid  = NULL; 
-    this->p_current_gride = NULL; 
+    this->p_current_grid  = NULL;
+    this->p_current_gride = NULL;
     this->p_sum_grid      = NULL;
+    this->p_sum_grid_elcovar      = NULL;
     this->p_sum_gride     = NULL;
     this->p_sum_volume    = NULL;
     this->p_molecule_id   = NULL;
@@ -258,6 +262,7 @@ void StressGrid::Init()
 
         //Give size to current and sum grid
         this->p_sum_grid      = new dmatrix [this->m_ncells];
+        this->p_sum_grid_elcovar      = new dmatrix6 [this->m_ncells];
         this->p_sum_gride     = new darray  [this->m_ncells];
         this->p_current_grid  = new dmatrix [this->m_ncells*this->m_max_threads];
         this->p_current_gride = new darray  [this->m_ncells*this->m_max_threads];
@@ -267,6 +272,7 @@ void StressGrid::Init()
         for (int i=0; i < this->m_ncells; i++)
         {
             zeromatrix(this->p_sum_grid[i]);
+            zeromatrix6(this->p_sum_grid_elcovar[i]);
             zeroarray(this->p_sum_gride[i]);
         }
         for (int i=0; i < this->m_ncells*this->m_max_threads; i++)
@@ -325,6 +331,7 @@ void StressGrid::UpdateBoxSpacings ( dmatrix box )
             this->m_invgridsp = 1.0/(this->m_gridsp[0]*this->m_gridsp[1]*this->m_gridsp[2]);
 
             summatrix( this->m_box, this->m_sumbox, this->m_sumbox );
+            this->m_sum_boxvol = this->m_sum_boxvol + box[0][0]*box[1][1]*box[2][2];
 #ifdef CUSTRESS_ENABLE
             if (this->m_cuda)
                 custress_update_box_spacings(this->m_box, this->m_invbox, this->m_gridsp);
@@ -381,7 +388,8 @@ void StressGrid::SumGrid ( )
                 for (int i = 0; i < this->m_ncells; i++)
                 {
                     summatrix( this->p_sum_grid[i], this->p_current_grid[i], this->p_sum_grid[i] );
-                    sumarray ( this->p_sum_gride[i], this->p_current_gride[i], this->p_sum_gride[i] );
+                    summatrix6sq( this->p_sum_grid_elcovar[i], this->p_current_grid[i], this->p_sum_grid_elcovar[i]);
+                    sumarray( this->p_sum_gride[i], this->p_current_gride[i], this->p_sum_gride[i] );
                 }
             }
             else
@@ -553,8 +561,9 @@ void StressGrid::Reset ( )
             // thread 0 deals with the sum grid
             for( int i=0; i<this->m_ncells; i++ )
             {
-                zeromatrix ( this->p_sum_grid[i]     );
-                zeroarray ( this->p_sum_gride[i]     );
+                zeromatrix ( this->p_sum_grid[i] );
+                zeromatrix6( this->p_sum_grid_elcovar[i] );
+                zeroarray ( this->p_sum_gride[i] );
             }
             
             if (this->m_spatatom == mds_atom)
@@ -564,6 +573,7 @@ void StressGrid::Reset ( )
             }
             this->m_nframes = 0;
             this->m_nreset ++;
+            this->m_sum_boxvol = 0.0;
         }
         
         // every thread must process this latch before exiting
@@ -585,42 +595,52 @@ void StressGrid::Write ( )
         if (this->m_thread_map[std::this_thread::get_id()] == 0)
         {
             int                Dtype=1;
-            dmatrix            avgbox;
-            std::string        outname, ewald_outname;
+            dmatrix            avgbox, tmpstress;
+            std::string        outname, ewald_outname,  elast_outname;
             std::ostringstream outnumber;
-            FILE              *outfile,*ewald_outfile;
-            double             factor;
-            
+            FILE              *outfile,*ewald_outfile, *elast_outfile;
+            double             factor, factor2;
+
             outnumber << this->m_nreset;
-            
+
             //Change output format if the user specifies a filename with a .dat extension
             outname = this->m_filename + outnumber.str();
             if (outname.find(".dat") == std::string::npos)
                 outname = outname + "." + mds_fileext;
-        
+
             ewald_outname = "ewald_" + this->m_filename + outnumber.str();
             if (ewald_outname.find(".dat") == std::string::npos)
                 ewald_outname = ewald_outname + "." + mds_fileext;
 
+            elast_outname = "elast_" + this->m_filename + outnumber.str();
+            if (elast_outname.find(".dat") == std::string::npos)
+                elast_outname = elast_outname + "." + mds_fileext;
+
             outfile = fopen(outname.c_str(), "wb" );
             ewald_outfile = fopen(ewald_outname.c_str(), "wb" );
-            
+            elast_outfile = fopen(elast_outname.c_str(), "wb" );
+
             if (this->m_spatatom == mds_spat)
                 Dtype = 1;
             else if (this->m_spatatom == mds_atom)
                 Dtype = 2;
-            
+
             fwrite(&Dtype, sizeof(int), 1, outfile);
-            
+
             // use different dtype for ewald file
             Dtype = 4;
             fwrite(&Dtype, sizeof(int), 1, ewald_outfile);
-            
+
+            // use different dtype for elasticity file
+            Dtype = 6;
+            fwrite(&Dtype, sizeof(int), 1, elast_outfile);
+
             //Divide sumbox with respect to the number of frames to get the avg
             scalematrix( this->m_sumbox, 1.0/this->m_nframes, avgbox);
 
             fwrite(avgbox, sizeof(dmatrix), 1, outfile);
             fwrite(avgbox, sizeof(dmatrix), 1, ewald_outfile);
+            fwrite(avgbox, sizeof(dmatrix), 1, elast_outfile);
             if (this->m_spatatom == mds_spat)
             {
                 fwrite(&this->m_nx, sizeof(this->m_nx), 1, outfile);
@@ -629,22 +649,33 @@ void StressGrid::Write ( )
                 fwrite(&this->m_nx, sizeof(this->m_nx), 1, ewald_outfile);
                 fwrite(&this->m_ny, sizeof(this->m_ny), 1, ewald_outfile);
                 fwrite(&this->m_nz, sizeof(this->m_nz), 1, ewald_outfile);
+                fwrite(&this->m_nx, sizeof(this->m_nx), 1, elast_outfile);
+                fwrite(&this->m_ny, sizeof(this->m_ny), 1, elast_outfile);
+                fwrite(&this->m_nz, sizeof(this->m_nz), 1, elast_outfile);
             }
             else
             {
                 fwrite(&this->m_ncells, sizeof(int), 1, outfile);
                 fwrite(&this->m_ncells, sizeof(int), 1, ewald_outfile);
+                fwrite(&this->m_ncells, sizeof(int), 1, elast_outfile);
             }
 
             factor = mds_units/this->m_nframes;
-            
+            this->m_sum_boxvol /= this->m_nframes;
+            //factor2 = (m_sum_boxvol/this->m_ncells)*mds_units/this->m_nframes/(310*1.38064852E-23);
+            factor2 = (m_sum_boxvol/this->m_ncells)*mds_units/this->m_nframes/(310*8.31446261815324);
+            //factor2 = mds_units/this->m_nframes/8.31446261815324;
+
             for ( int i = 0; i < this->m_ncells; i++ )
             {
+                submatrix6sq(this->p_sum_grid_elcovar[i], this->p_sum_grid[i], this->p_sum_grid_elcovar[i]);
                 scalematrix(this->p_sum_grid[i], factor, this->p_sum_grid[i]);
+                scalematrix6(this->p_sum_grid_elcovar[i], factor2, this->p_sum_grid_elcovar[i]);
                 scalearray (this->p_sum_gride[i], factor, this->p_sum_gride[i]);
             }
-            
+
             fwrite(this->p_sum_grid, sizeof(dmatrix), this->m_ncells, outfile);
+            fwrite(this->p_sum_grid_elcovar, sizeof(dmatrix6), this->m_ncells, elast_outfile);
             fwrite(this->p_sum_gride, sizeof(darray), this->m_ncells, ewald_outfile);
 
             // append the volume data
@@ -654,9 +685,10 @@ void StressGrid::Write ( )
                     this->p_sum_volume[i] /= this->m_nframes;
                 fwrite(this->p_sum_volume, sizeof(double), this->m_ncells, outfile);
             }
-            
+
             fclose(outfile);
             fclose(ewald_outfile);
+            fclose(elast_outfile);
         }
 
         // every thread must process this latch before exiting

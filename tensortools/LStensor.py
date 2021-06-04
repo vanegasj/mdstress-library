@@ -78,7 +78,8 @@ class LStensor:
 
         self.order = order
         self.dsize = 3**order
-
+        if (order == 6):
+            self.dsize = 6*6
         self.verbose   = False
 
         self.atoms     = None
@@ -295,8 +296,12 @@ class LStensor:
         fp = open(outputfile, 'wb')
         if (self.order == 0):
             fp.write(struct.pack('i',3))
-        else:
+        elif (self.order == 1):
+            fp.write(struct.pack('i',4))
+        elif (self.order == 2):
             fp.write(struct.pack('i',1))
+        elif (self.order == 6):
+            fp.write(struct.pack('i',6))
 
         # Write the box vectors
         fp.write(struct.pack('9d',*(self.box.ravel())))
@@ -461,6 +466,8 @@ class LStensor:
             fp.write("# Vector field (LStensor of order {0})\n# ".format(self.order))
         elif (self.order == 2):
             fp.write("# Stress in units of bar (10^5 Pa)\n# ")
+        elif (self.order == 6):
+            fp.write("# Elasticity matrix in units of bar (10^5 Pa)\n# ")
 
         if (self.nx != 1):
             fp.write("%13s\t" % "x")
@@ -477,23 +484,43 @@ class LStensor:
             fp.write("Vx Vy Vz\n")
         elif (self.order == 2):
             fp.write("%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\n" % ("Sxx","Sxy","Sxz","Syx","Syy","Syz","Szx","Szy","Szz") )
+        elif (self.order == 6):
+            fp.write("%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s%15s\t%15s\t%15s\n" % ("Cxxxx","Cxxyy","Cxxzz","Cxxyz","Cxxxz","Cxxxy","Cyyyy","Cyyzz","Cyyyz","Cyyxz","Cyyxy","Czzzz","Czzyz","Czzxz","Czzxy","Cyzyz","Cyzxz","Cyzxy","Cxzxz","Cxzxy","Cxyxy"))
 
         if(self.verbose):
             print("Writing data on grid in txt format to {0}...".format(outputfile))
 
-        for i in range(self.nx):
-            for j in range(self.ny):
-                for k in range(self.nz):
-                    if(self.nx > 1):
-                         fp.write(("%15.8f" % (i*self.dx))+'\t')
-                    if(self.ny > 1):
-                         fp.write(("%15.8f" % (j*self.dy))+'\t')
-                    if(self.nz > 1):
-                         fp.write(("%15.8f" % (k*self.dz))+'\t')
-                    for d in range(self.dsize):
-                        temp = self.data_grid[i*self.ny*self.nz+j*self.nz+k,d]
-                        fp.write(("%15.8f" % temp)+'\t')
-                    fp.write('\n')
+        if (self.order == 6):
+            for i in range(self.nx):
+                for j in range(self.ny):
+                    for k in range(self.nz):
+                        if(self.nx > 1):
+                            fp.write(("%15.8f" % (i*self.dx))+'\t')
+                        if(self.ny > 1):
+                            fp.write(("%15.8f" % (j*self.dy))+'\t')
+                        if(self.nz > 1):
+                            fp.write(("%15.8f" % (k*self.dz))+'\t')
+                        for d in [0,1,2,3,4,5,7,8,9,10,11,14,15,16,17,21,22,23,28,29,35]:
+                            temp = self.data_grid[i*self.ny*self.nz+j*self.nz+k,d]
+                            fp.write(("%15.8e" % temp)+'\t')
+                        fp.write('\n')
+
+        else:
+            for i in range(self.nx):
+                for j in range(self.ny):
+                    for k in range(self.nz):
+                        if(self.nx > 1):
+                            fp.write(("%15.8f" % (i*self.dx))+'\t')
+                        if(self.ny > 1):
+                            fp.write(("%15.8f" % (j*self.dy))+'\t')
+                        if(self.nz > 1):
+                            fp.write(("%15.8f" % (k*self.dz))+'\t')
+                        for d in range(self.dsize):
+                            temp = self.data_grid[i*self.ny*self.nz+j*self.nz+k,d]
+                            fp.write(("%15.8f" % temp)+'\t')
+                        fp.write('\n')
+
+
 
         fp.close()
 

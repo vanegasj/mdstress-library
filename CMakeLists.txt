@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.8 FATAL_ERROR)
-project(mdstress_test LANGUAGES CXX CUDA)
+project(mdstress_test LANGUAGES CXX )
 
 # set fast math etc
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG -ffast-math -march=native" CACHE STRING
@@ -54,7 +54,7 @@ link_directories(${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}/lib64)
 
 add_library(mdstress SHARED ${SOURCES})
 set_target_properties(mdstress PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
-target_link_libraries(mdstress PRIVATE cuda ${LAPACK_LIBRARY})
+target_link_libraries(mdstress PRIVATE ${LAPACK_LIBRARY})
 
 install(TARGETS mdstress RUNTIME DESTINATION bin LIBRARY DESTINATION lib ARCHIVE DESTINATION lib/static)
 install(FILES ${MDSTRESS_SOURCES_H} DESTINATION include/mdstress)
