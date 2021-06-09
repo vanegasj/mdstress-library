@@ -829,7 +829,7 @@ void StressGrid::Write ( )
             factor = mds_units/this->m_nframes;
             this->m_sum_boxvol /= this->m_nframes;
             //factor2 = (m_sum_boxvol/this->m_ncells)*mds_units/this->m_nframes/(310*1.38064852E-23);
-            factor2 = (m_sum_boxvol/this->m_ncells)*mds_units/this->m_nframes/(310*8.31446261815324);
+            factor2 = (m_sum_boxvol/(this->m_ncells*this->m_ncells))*mds_units/this->m_nframes/(310*8.31446261815324);
             //factor2 = mds_units/this->m_nframes/8.31446261815324;
 
             for ( int i = 0; i < this->m_ncells; i++ )

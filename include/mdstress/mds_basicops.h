@@ -106,12 +106,14 @@ namespace mds
     }
 
     // Stiffness matrix in Voigt notation
-    // ([xx][xx] [xx][yy] [xx][zz] [xx][yz] [xx][xz] [xx][xy])
-    // (         [yy][yy] [yy][zz] [yy][yz] [yy][xz] [yy][xy])
-    // (                  [zz][zz] [zz][yz] [zz][xz] [zz][xy])
-    // (                           [yz][yz] [yz][xz] [yz][xy])
-    // (                                    [xz][xz] [xz][xy])
-    // (                                             [xy][xy])
+    // 0 = xx; 1 = yy; 2 = zz; 3 = yz or zy; 4 = xz or zx; 5 = xy or yx
+    // All indices                         Voigt indices           Stress indices
+    // ( xxxx xxyy xxzz xxyz xxxz xxxy ) = ( 00 01 02 03 04 05 ) = [ 0000 0011 0022 0012 0002 0001 ]
+    // (      yyyy yyzz yyyz yyxz yyxy ) = (    11 12 13 14 15 ) = [      1111 1122 1112 1102 1101 ]
+    // (           zzzz zzyz zzxz zzxy ) = (       22 23 24 25 ) = [           2222 2212 2202 2201 ]
+    // (                yzyz yzxz yzxy ) = (          33 34 35 ) = [                1212 1202 1201 ]
+    // (                     xzxz xzxy ) = (             44 45 ) = [                     0202 0201 ]
+    // (                          xyxy ) = (                55 ) = [                          0101 ]
     static inline void summatrix6sq ( dmatrix6 a, dmatrix b, dmatrix6 c)
     {
         c[0][0] = a[0][0] + b[0][0]*b[0][0]; c[0][1] = a[0][1] + b[0][0]*b[1][1]; c[0][2] = a[0][2] + b[0][0]*b[2][2]; c[0][3] = a[0][3] + b[0][0]*b[1][2]; c[0][4] = a[0][4] + b[0][0]*b[0][2]; c[0][5] = a[0][5] + b[0][0]*b[0][1];
