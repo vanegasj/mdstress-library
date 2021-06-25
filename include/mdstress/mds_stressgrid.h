@@ -366,6 +366,16 @@ class  mds::StressGrid
          * atomIDs -> labels of the atoms (optional, only needed if calculating stress/atom) */
         void DistributeInteraction ( int nAtoms, darray *R, darray *F, int *atomIDs );
         
+        /**
+         *
+         *This Function Computes the Born term of the Elasticity Tensor for Pairwise interactions in 3 Dimensions
+	 *The Formula is from Tadmore Modeling Materials Section 8 Equation 8.84
+         *Currently only Lennard Jones Elasticity is being Implimented, Will impliment coulomb Later
+         *Based upon ROOT OF ALL EVIL (Take Care when debugging)
+         *May need to Change darray R -> darray *R to make sure pointers/arrays work properly
+         * */
+        void DistributePairElast (darray *R, double phi, double kappa); 
+
         /** DistributeKinetic
          *
          * Distributes interactions onto the grid
@@ -450,9 +460,11 @@ class  mds::StressGrid
         darray  *p_Fij;           ///< force vectors
         darray  *p_Uij;           ///< distance vectors
         dmatrix *p_current_grid;  ///< Grid (either nx*ny*nz or nAtoms)
+        dmatrix6 *p_current_grid_elast;  ///< Grid (either nx*ny*nz or nAtoms)
         double  *p_current_gridc; ///< Grid (either nx*ny*nz or nAtoms) (ewald)
         dmatrix *p_sum_grid;      ///< Sum Grid
         dmatrix6 *p_sum_grid_elcovar;  ///< Elasticity Grid Covariance Term (either nx*ny*nz or nAtoms)
+        dmatrix6 *p_sum_grid_elborn;  ///< Elasticity Grid Covariance Term (either nx*ny*nz or nAtoms)
         double  *p_sum_gridc;     ///< Sum Grid (charge)
         double  *p_sum_volume;    ///< Sum of volumes when using mds_atom
         double  *p_radii;         ///< the radius of an atomic site
