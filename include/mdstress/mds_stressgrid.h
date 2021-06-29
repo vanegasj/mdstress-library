@@ -369,12 +369,14 @@ class  mds::StressGrid
         /**
          *
          *This Function Computes the Born term of the Elasticity Tensor for Pairwise interactions in 3 Dimensions
-	 *The Formula is from Tadmore Modeling Materials Section 8 Equation 8.84
+	     *The Formula is from Tadmor Modeling Materials Section 8 Equation 8.84
          *Currently only Lennard Jones Elasticity is being Implimented, Will impliment coulomb Later
          *Based upon ROOT OF ALL EVIL (Take Care when debugging)
-         *May need to Change darray R -> darray *R to make sure pointers/arrays work properly
+         *Coordinates xi and xj correspond to the first pair of particles (alpha and beta in Tadmor's notation) over which the Born term will be distributed
+         *Coordinates xk and xl correspond to the second pair of particles in a multibody potential
+         *For simple pairwise potentials, xk and xi should be the same and also xj and xl
          * */
-        void DistributePairElast (darray *R, double phi, double kappa); 
+        void DistributePairElast (darray xi, darray xj, darray xk, darray xl, double phi, double kappa);
 
         /** DistributeKinetic
          *

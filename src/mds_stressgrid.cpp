@@ -797,17 +797,19 @@ void StressGrid::Write ( )
             double             factor, factor2;
 
             outnumber << this->m_nreset;
+            size_t lastindex = this->m_filename.find_last_of(".");
+            std::string rawname = this->m_filename.substr(0, lastindex);
 
             //Change output format if the user specifies a filename with a .dat extension
             outname = this->m_filename + outnumber.str();
             if (outname.find(".dat") == std::string::npos)
                 outname = outname + "." + mds_fileext;
 
-            elcovar_outname = "elcovar_" + this->m_filename + outnumber.str();
+            elcovar_outname = rawname + "_elcovar.dat" + outnumber.str();
             if (elcovar_outname.find(".dat") == std::string::npos)
                 elcovar_outname = elcovar_outname + "." + mds_fileext;
             
-            elborn_outname = "elborn_" + this->m_filename + outnumber.str();
+            elborn_outname = rawname + "_elborn.dat" + outnumber.str();
             if (elborn_outname.find(".dat") == std::string::npos)
                 elborn_outname = elborn_outname + "." + mds_fileext;
 
@@ -1325,7 +1327,7 @@ void StressGrid::DistributePairInteraction3D(darray xi, darray xj, darray F, int
 }
 
 
-void StressGrid::DistributePairElast(darray *R, double phi, double kappa)
+void StressGrid::DistributePairElast(darray xi, darray xj, darray xk, darray xl, double phi, double kappa)
 {
     // this is the 3D case
     int batch_id = this->m_thread_map[std::this_thread::get_id()];
@@ -1333,14 +1335,13 @@ void StressGrid::DistributePairElast(darray *R, double phi, double kappa)
 
     //------------------------------------------------------------------------------------
     // Calculate the stress tensor
-    darray diff;
-    double rmag, rinvsq;
-    darray xi, xj;
-    copyarray(R[0], xi);
-    copyarray(R[1], xj);
+    darray diff, diff2;
+    double rinv, rinv2, rinv3;
     diffarray( xj, xi, diff, this->m_box, this->m_periodic);
-    rmag = normarray(diff);
-    rinvsq = 1.0/(rmag*rmag);
+    diffarray( xl, xk, diff2, this->m_box, this->m_periodic);
+    rinv = 1.0/normarray(diff);
+    rinv2 = rinv/normarray(diff2);
+    rinv3 = rinv*rinv*rinv;
 
     // Stiffness matrix in Voigt notation
     // 0 = xx; 1 = yy; 2 = zz; 3 = yz or zy; 4 = xz or zx; 5 = xy or yx
@@ -1353,27 +1354,27 @@ void StressGrid::DistributePairElast(darray *R, double phi, double kappa)
     // (                          xyxy ) = (                55 ) = [                          0101 ]
 
     dmatrix6 elast;
-    elast[0][0] = (kappa + phi)*diff[0]*diff[0]*diff[0]*diff[0]*rinvsq;
-    elast[0][1] = (kappa + phi)*diff[0]*diff[0]*diff[1]*diff[1]*rinvsq;
-    elast[0][2] = (kappa + phi)*diff[0]*diff[0]*diff[2]*diff[2]*rinvsq;
-    elast[0][3] = (kappa + phi)*diff[0]*diff[0]*diff[1]*diff[2]*rinvsq;
-    elast[0][4] = (kappa + phi)*diff[0]*diff[0]*diff[0]*diff[2]*rinvsq;
-    elast[0][5] = (kappa + phi)*diff[0]*diff[0]*diff[0]*diff[1]*rinvsq;
-    elast[1][1] = (kappa + phi)*diff[1]*diff[1]*diff[1]*diff[1]*rinvsq;
-    elast[1][2] = (kappa + phi)*diff[1]*diff[1]*diff[2]*diff[2]*rinvsq;
-    elast[1][3] = (kappa + phi)*diff[1]*diff[2]*diff[1]*diff[2]*rinvsq;
-    elast[1][4] = (kappa + phi)*diff[1]*diff[1]*diff[0]*diff[2]*rinvsq;
-    elast[1][5] = (kappa + phi)*diff[1]*diff[1]*diff[0]*diff[1]*rinvsq;
-    elast[2][2] = (kappa + phi)*diff[2]*diff[2]*diff[2]*diff[2]*rinvsq;
-    elast[2][3] = (kappa + phi)*diff[2]*diff[2]*diff[1]*diff[2]*rinvsq;
-    elast[2][4] = (kappa + phi)*diff[2]*diff[2]*diff[0]*diff[2]*rinvsq;
-    elast[2][5] = (kappa + phi)*diff[2]*diff[2]*diff[0]*diff[1]*rinvsq;
-    elast[3][3] = (kappa + phi)*diff[1]*diff[2]*diff[1]*diff[2]*rinvsq;
-    elast[3][4] = (kappa + phi)*diff[1]*diff[2]*diff[0]*diff[2]*rinvsq;
-    elast[3][5] = (kappa + phi)*diff[1]*diff[2]*diff[0]*diff[1]*rinvsq;
-    elast[4][4] = (kappa + phi)*diff[0]*diff[2]*diff[0]*diff[2]*rinvsq;
-    elast[4][5] = (kappa + phi)*diff[0]*diff[2]*diff[0]*diff[1]*rinvsq;
-    elast[5][5] = (kappa + phi)*diff[0]*diff[1]*diff[0]*diff[1]*rinvsq;
+    elast[0][0] = kappa*diff[0]*diff[0]*diff2[0]*diff2[0]*rinv2 - phi*diff[0]*diff[0]*diff[0]*diff[0]*rinv3;
+    elast[0][1] = kappa*diff[0]*diff[0]*diff2[1]*diff2[1]*rinv2 - phi*diff[0]*diff[0]*diff[1]*diff[1]*rinv3;
+    elast[0][2] = kappa*diff[0]*diff[0]*diff2[2]*diff2[2]*rinv2 - phi*diff[0]*diff[0]*diff[2]*diff[2]*rinv3;
+    elast[0][3] = kappa*diff[0]*diff[0]*diff2[1]*diff2[2]*rinv2 - phi*diff[0]*diff[0]*diff[1]*diff[2]*rinv3;
+    elast[0][4] = kappa*diff[0]*diff[0]*diff2[0]*diff2[2]*rinv2 - phi*diff[0]*diff[0]*diff[0]*diff[2]*rinv3;
+    elast[0][5] = kappa*diff[0]*diff[0]*diff2[0]*diff2[1]*rinv2 - phi*diff[0]*diff[0]*diff[0]*diff[1]*rinv3;
+    elast[1][1] = kappa*diff[1]*diff[1]*diff2[1]*diff2[1]*rinv2 - phi*diff[1]*diff[1]*diff[1]*diff[1]*rinv3;
+    elast[1][2] = kappa*diff[1]*diff[1]*diff2[2]*diff2[2]*rinv2 - phi*diff[1]*diff[1]*diff[2]*diff[2]*rinv3;
+    elast[1][3] = kappa*diff[1]*diff[1]*diff2[1]*diff2[2]*rinv2 - phi*diff[1]*diff[1]*diff[1]*diff[2]*rinv3;
+    elast[1][4] = kappa*diff[1]*diff[1]*diff2[0]*diff2[2]*rinv2 - phi*diff[1]*diff[1]*diff[0]*diff[2]*rinv3;
+    elast[1][5] = kappa*diff[1]*diff[1]*diff2[0]*diff2[1]*rinv2 - phi*diff[1]*diff[1]*diff[0]*diff[1]*rinv3;
+    elast[2][2] = kappa*diff[2]*diff[2]*diff2[2]*diff2[2]*rinv2 - phi*diff[2]*diff[2]*diff[2]*diff[2]*rinv3;
+    elast[2][3] = kappa*diff[2]*diff[2]*diff2[1]*diff2[2]*rinv2 - phi*diff[2]*diff[2]*diff[1]*diff[2]*rinv3;
+    elast[2][4] = kappa*diff[2]*diff[2]*diff2[0]*diff2[2]*rinv2 - phi*diff[2]*diff[2]*diff[0]*diff[2]*rinv3;
+    elast[2][5] = kappa*diff[2]*diff[2]*diff2[0]*diff2[1]*rinv2 - phi*diff[2]*diff[2]*diff[0]*diff[1]*rinv3;
+    elast[3][3] = kappa*diff[1]*diff[2]*diff2[1]*diff2[2]*rinv2 - phi*diff[1]*diff[2]*diff[1]*diff[2]*rinv3;
+    elast[3][4] = kappa*diff[1]*diff[2]*diff2[0]*diff2[2]*rinv2 - phi*diff[1]*diff[2]*diff[0]*diff[2]*rinv3;
+    elast[3][5] = kappa*diff[1]*diff[2]*diff2[0]*diff2[1]*rinv2 - phi*diff[1]*diff[2]*diff[0]*diff[1]*rinv3;
+    elast[4][4] = kappa*diff[0]*diff[2]*diff2[0]*diff2[2]*rinv2 - phi*diff[0]*diff[2]*diff[0]*diff[2]*rinv3;
+    elast[4][5] = kappa*diff[0]*diff[2]*diff2[0]*diff2[1]*rinv2 - phi*diff[0]*diff[2]*diff[0]*diff[1]*rinv3;
+    elast[5][5] = kappa*diff[0]*diff[1]*diff2[0]*diff2[1]*rinv2 - phi*diff[0]*diff[1]*diff[0]*diff[1]*rinv3;
 
     // calculate the grid coordinates (no pbc) for the extreme points
     iarray x, xn, i2, c;
