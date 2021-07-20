@@ -280,6 +280,16 @@ class  mds::StressGrid
             this->m_filename.assign(filename);
         }
         
+        void SetTemperature(double temperature)
+        {
+            this->m_temperature = temperature;
+        }
+        
+        double GetTemperature(double temperature)
+        {
+            return this->m_temperature;
+        }
+        
         void EnableCuda()
         {
             std::lock_guard<std::mutex> lock(m_mutex_state);
@@ -397,6 +407,11 @@ class  mds::StressGrid
         //@{
         void DistributeKinetic   ( double mass, darray x, darray va, darray vb, int atomID  );
         //@}
+		
+		/** DistributeKineticElast
+		 * needs to be filled with some information
+		 * */
+		void DistributeKineticElast(double mass, darray x, darray va, darray vb);
         
         /** DistributeCharge
          *
@@ -406,6 +421,34 @@ class  mds::StressGrid
          * charge     -> atomic charge
          * atomID     -> ID of the atom (optional, only needed if calculating stress/atom) */
         void DistributeCharge    ( darray x, double charge );
+		
+		/** MDStress Auxiliary Functions for the Different potentials
+		 * */
+		// 2 Body Potentials
+		void HarmonicPhiKappa   (double deltaR, double k, double& phi, double& kappa);
+		
+		void BuckinghamPhiKappa   (double r, double a, double b, double c, double& phi, double& kappa);
+		
+		void FourthPowerPhiKappa   (double k4, double dist, double dist0, double& phi, double& kappa);
+		
+		void MorsePhiKappa   (double expadeltaR, double a, double d, double& phi, double& kappa);
+		
+		void CubicBondPhiKappa   (double deltaR, double k, double kcubic, double& phi, double& kappa);
+		
+		void FENEPhiKappa(double r, double k, double diffratio, double& phi, double& kappa);
+		
+		// 3 Body Potentials
+		void HarmonicAnglePhiKappa(double ab, double bg, double ag, double deltatheta, double k, darray &phi, dmatrix &kappa);
+		
+		void HarmonicCosPhiKappa(double ab, double bg, double ag, double deltacos, double k, darray &phi, dmatrix &kappa);
+		
+		void UreyBradleyPhiKappa(double ab, double bg, double ag, double deltaRag, double deltatheta, double ktheta, double kUB, darray &phi, dmatrix &kappa);
+		
+		void BondBondCrossPhiKappa(double k, double deltarab, double deltarbg, darray &phi, dmatrix &kappa);
+		
+		void BondAngleCrossPhiKappa(double k, double deltarab, double deltarbg, double deltarag, darray &phi, dmatrix &kappa);
+		
+		void QuarticAnglePhiKappa(double ab, double bg, double ag, double deltatheta, darray6 &coeff, darray &phi, dmatrix &kappa);
         
         /** Constructor */
         StressGrid( );
@@ -440,6 +483,7 @@ class  mds::StressGrid
         int         m_gridctype;
         int         m_maxpart;        ///< used to allocate Rij and Fij
         int         m_max_threads;    ///< number of threads to use
+        double      m_temperature;
         //@}
     
         /** @name Outputs*/
@@ -465,8 +509,9 @@ class  mds::StressGrid
         dmatrix6 *p_current_grid_elast;  ///< Grid (either nx*ny*nz or nAtoms)
         double  *p_current_gridc; ///< Grid (either nx*ny*nz or nAtoms) (ewald)
         dmatrix *p_sum_grid;      ///< Sum Grid
-        dmatrix6 *p_sum_grid_elcovar;  ///< Elasticity Grid Covariance Term (either nx*ny*nz or nAtoms)
-        dmatrix6 *p_sum_grid_elborn;  ///< Elasticity Grid Covariance Term (either nx*ny*nz or nAtoms)
+        dmatrix6 *p_sum_grid_elcovar;  ///< Elasticity Grid Covariance Term
+        dmatrix6 *p_sum_grid_elborn;   ///< Elasticity Grid Born Term
+        dmatrix6 *p_sum_grid_elkin;    ///< Elasticity Grid Kinetic Term
         double  *p_sum_gridc;     ///< Sum Grid (charge)
         double  *p_sum_volume;    ///< Sum of volumes when using mds_atom
         double  *p_radii;         ///< the radius of an atomic site
@@ -512,5 +557,25 @@ class  mds::StressGrid
         
         /** General function to decompose N-body potentials (it can be used to compute higher order terms coming from EAM for instance) */
         void DistributeNBody               ( int nPart, darray *R, darray *F, bool distritube_stress, int batch_id);
+		
+		//Cosine Derivatives
+		//3 Body Triangle Derivatives
+		double CalcCosine                  (double ab, double bg, double ag); 
+		
+		double CalcTheta                   (double costheta);
+		
+		void ThreeBodyCosineD              (double ab, double bg, double ag, darray &d_cos_array);
+		
+		void ThreeBodyCosineD2             (double ab, double bg, double ag, dmatrix &d2_cos_array);
+		
+		void ThreeBodyThetaD               (double costheta, darray &d_cos_array, darray &d_theta_array);
+		
+		void ThreeBodyThetaD2              (double costheta, darray d_cos_array, dmatrix &d2_cos_array, dmatrix &d2_theta_array);
+		
+		double CalcCosineDihedral          (double ab, double ag, double ae, double bg, double be, double ge);
+		
+		void FourBodyThetaD                (double costheta, darray6 &d_cos_di_array, darray6 &d_theta_di_array);
+		
+		void FourBodyThetaD2               (double costheta, darray6 &d_cos_di_array, dmatrix6 &d2_cos_di_array, dmatrix6 &d2_theta_di_array);
 };
 #endif // mds_stressgrid_h

@@ -3,7 +3,7 @@
   Module    : MDStress
   File      : mds_stressgrid.cpp
   Authors   : A. Torres-Sanchez and J. M. Vanegas
-  Modified  :
+  Modified  : B. Hinburg and A. Lewis
   Purpose   : Compute the local stress from MD trajectories
   Date      : 25/03/2015
   Version   :
@@ -20,6 +20,8 @@
      juan.m.vanegas@gmail.com
 =========================================================================*/
 #define PI 3.1415926536
+#define KB 1.38064852E-23
+#define KBN 8.31446261815324
 #include "mds_stressgrid.h"
 #include "mds_barrier.h"
 #include "voro++.hh"
@@ -95,6 +97,7 @@ StressGrid::StressGrid()
     this->p_sum_grid      = NULL;
     this->p_sum_gridc     = NULL;
     this->p_sum_grid_elcovar = NULL;
+    this->p_sum_grid_elkin = NULL;
     this->p_sum_grid_elborn = NULL;
     this->p_sum_volume    = NULL;
     this->p_molecule_id   = NULL;
@@ -124,25 +127,26 @@ StressGrid::~StressGrid()
 // Method to delete the preallocated member variables
 void StressGrid::Clear()
 {
-    if (this->p_Amat          != NULL ) delete [] this->p_Amat;
-    if (this->p_AmatT         != NULL ) delete [] this->p_AmatT;
-    if (this->p_bvec          != NULL ) delete [] this->p_bvec;
-    if (this->p_Rij           != NULL ) delete [] this->p_Rij;
-    if (this->p_Fij           != NULL ) delete [] this->p_Fij;
-    if (this->p_Uij           != NULL ) delete [] this->p_Uij;
-    if (this->p_current_grid  != NULL ) delete [] this->p_current_grid;
-    if (this->p_current_grid_elast  != NULL ) delete [] this->p_current_grid_elast;
-    if (this->p_current_gridc != NULL ) delete [] this->p_current_gridc;
-    if (this->p_sum_grid      != NULL ) delete [] this->p_sum_grid;
+    if (this->p_Amat                 != NULL ) delete [] this->p_Amat;
+    if (this->p_AmatT                != NULL ) delete [] this->p_AmatT;
+    if (this->p_bvec                 != NULL ) delete [] this->p_bvec;
+    if (this->p_Rij                  != NULL ) delete [] this->p_Rij;
+    if (this->p_Fij                  != NULL ) delete [] this->p_Fij;
+    if (this->p_Uij                  != NULL ) delete [] this->p_Uij;
+    if (this->p_current_grid         != NULL ) delete [] this->p_current_grid;
+    if (this->p_current_grid_elast   != NULL ) delete [] this->p_current_grid_elast;
+    if (this->p_current_gridc        != NULL ) delete [] this->p_current_gridc;
+    if (this->p_sum_grid             != NULL ) delete [] this->p_sum_grid;
     if (this->p_sum_grid_elcovar     != NULL ) delete [] this->p_sum_grid_elcovar;
-    if (this->p_sum_grid_elborn     != NULL ) delete [] this->p_sum_grid_elborn;
-    if (this->p_sum_gridc     != NULL ) delete [] this->p_sum_gridc;
-    if (this->p_sum_volume    != NULL ) delete [] this->p_sum_volume;
-    if (this->p_molecule_id   != NULL ) delete [] this->p_molecule_id;
-    if (this->p_radii         != NULL ) delete [] this->p_radii;
-    if (this->p_positions     != NULL ) delete [] this->p_positions;
-    if (this->p_pos_gridc     != NULL ) delete [] this->p_pos_gridc;
-    if (this->h_lapack        != NULL )
+    if (this->p_sum_grid_elkin       != NULL ) delete [] this->p_sum_grid_elkin;
+    if (this->p_sum_grid_elborn      != NULL ) delete [] this->p_sum_grid_elborn;
+    if (this->p_sum_gridc            != NULL ) delete [] this->p_sum_gridc;
+    if (this->p_sum_volume           != NULL ) delete [] this->p_sum_volume;
+    if (this->p_molecule_id          != NULL ) delete [] this->p_molecule_id;
+    if (this->p_radii                != NULL ) delete [] this->p_radii;
+    if (this->p_positions            != NULL ) delete [] this->p_positions;
+    if (this->p_pos_gridc            != NULL ) delete [] this->p_pos_gridc;
+    if (this->h_lapack               != NULL )
     {
         for (int i = 0; i < m_max_threads; ++i)
             delete this->h_lapack[i];
@@ -161,6 +165,7 @@ void StressGrid::Clear()
     this->p_current_gridc = NULL;
     this->p_sum_grid      = NULL;
     this->p_sum_grid_elcovar      = NULL;
+    this->p_sum_grid_elkin      = NULL;
     this->p_sum_grid_elborn      = NULL;
     this->p_sum_gridc     = NULL;
     this->p_sum_volume    = NULL;
@@ -346,8 +351,9 @@ void StressGrid::Init()
 
         //Give size to current and sum grid
         this->p_sum_grid      = new dmatrix [this->m_ncells];
-        this->p_sum_grid_elcovar      = new dmatrix6 [this->m_ncells];
-        this->p_sum_grid_elborn      = new dmatrix6 [this->m_ncells];
+        this->p_sum_grid_elcovar    = new dmatrix6 [this->m_ncells];
+        this->p_sum_grid_elkin      = new dmatrix6 [this->m_ncells];
+        this->p_sum_grid_elborn     = new dmatrix6 [this->m_ncells];
         this->p_current_grid_elast  = new dmatrix6 [this->m_ncells*this->m_max_threads];
         this->p_current_grid  = new dmatrix [this->m_ncells*this->m_max_threads];
         
@@ -357,10 +363,13 @@ void StressGrid::Init()
         {
             zeromatrix(this->p_sum_grid[i]);
             zeromatrix6(this->p_sum_grid_elcovar[i]);
+            zeromatrix6(this->p_sum_grid_elkin[i]);
+            zeromatrix6(this->p_sum_grid_elborn[i]);
         }
         for (int i=0; i < this->m_ncells*this->m_max_threads; i++)
         {
             zeromatrix(this->p_current_grid[i]);
+            zeromatrix6(this->p_current_grid_elast[i]);
         }
         
         // Finally, create the lapack objects to deal with linear solvers and projections
@@ -755,6 +764,7 @@ void StressGrid::Reset ( )
                 zeromatrix ( this->p_sum_grid[i] );
                 zeromatrix6( this->p_sum_grid_elborn[i] );
                 zeromatrix6( this->p_sum_grid_elcovar[i] );
+                zeromatrix6( this->p_sum_grid_elkin[i] );
             }
             for( int i=0; i<this->m_ncellsc; i++ )
             {
@@ -791,9 +801,9 @@ void StressGrid::Write ( )
         {
             int                Dtype=1;
             dmatrix            avgbox, tmpstress;
-            std::string        outname, charge_outname,  elborn_outname, elcovar_outname;
+            std::string        outname, charge_outname,  elborn_outname, elcovar_outname, elkin_outname;
             std::ostringstream outnumber;
-            FILE              *outfile,*charge_outfile, *elborn_outfile, *elcovar_outfile;
+            FILE              *outfile,*charge_outfile, *elborn_outfile, *elcovar_outfile, *elkin_outfile;
             double             factor, factor2;
 
             outnumber << this->m_nreset;
@@ -808,7 +818,11 @@ void StressGrid::Write ( )
             elcovar_outname = rawname + "_elcovar.dat" + outnumber.str();
             if (elcovar_outname.find(".dat") == std::string::npos)
                 elcovar_outname = elcovar_outname + "." + mds_fileext;
-            
+
+            elkin_outname = rawname + "_elkin.dat" + outnumber.str();
+            if (elkin_outname.find(".dat") == std::string::npos)
+                elkin_outname = elkin_outname + "." + mds_fileext;
+
             elborn_outname = rawname + "_elborn.dat" + outnumber.str();
             if (elborn_outname.find(".dat") == std::string::npos)
                 elborn_outname = elborn_outname + "." + mds_fileext;
@@ -827,12 +841,15 @@ void StressGrid::Write ( )
             fwrite(&Dtype, sizeof(int), 1, elcovar_outfile);
             elborn_outfile = fopen(elborn_outname.c_str(), "wb" );
             fwrite(&Dtype, sizeof(int), 1, elborn_outfile);
+            elkin_outfile = fopen(elkin_outname.c_str(), "wb" );
+            fwrite(&Dtype, sizeof(int), 1, elkin_outfile);
 
             //Divide sumbox with respect to the number of frames to get the avg
             scalematrix( this->m_sumbox, 1.0/this->m_nframes, avgbox);
             fwrite(avgbox, sizeof(dmatrix), 1, outfile);
             fwrite(avgbox, sizeof(dmatrix), 1, elcovar_outfile);
             fwrite(avgbox, sizeof(dmatrix), 1, elborn_outfile);
+            fwrite(avgbox, sizeof(dmatrix), 1, elkin_outfile);
 
             if (this->m_spatatom == mds_spat)
             {
@@ -845,18 +862,22 @@ void StressGrid::Write ( )
                 fwrite(&this->m_nxyz[0], sizeof(this->m_nxyz[0]), 1, elborn_outfile);
                 fwrite(&this->m_nxyz[1], sizeof(this->m_nxyz[1]), 1, elborn_outfile);
                 fwrite(&this->m_nxyz[2], sizeof(this->m_nxyz[2]), 1, elborn_outfile);
+                fwrite(&this->m_nxyz[0], sizeof(this->m_nxyz[0]), 1, elkin_outfile);
+                fwrite(&this->m_nxyz[1], sizeof(this->m_nxyz[1]), 1, elkin_outfile);
+                fwrite(&this->m_nxyz[2], sizeof(this->m_nxyz[2]), 1, elkin_outfile);
             }
             else
             {
                 fwrite(&this->m_ncells, sizeof(int), 1, outfile);
                 fwrite(&this->m_ncells, sizeof(int), 1, elcovar_outfile);
                 fwrite(&this->m_ncells, sizeof(int), 1, elborn_outfile);
+                fwrite(&this->m_ncells, sizeof(int), 1, elkin_outfile);
             }
 
             factor = mds_units/this->m_nframes;
             this->m_sum_boxvol /= this->m_nframes;
             //factor2 = (m_sum_boxvol/this->m_ncells)*mds_units/this->m_nframes/(310*1.38064852E-23);
-            factor2 = -(m_sum_boxvol/(this->m_ncells*this->m_ncells))*mds_units/this->m_nframes/(310*8.31446261815324);
+            factor2 = -(m_sum_boxvol/(this->m_ncells*this->m_ncells))*mds_units/this->m_nframes/(this->m_temperature*KBN);
             //factor2 = mds_units/this->m_nframes/8.31446261815324;
 
             for ( int i = 0; i < this->m_ncells; i++ )
@@ -864,11 +885,13 @@ void StressGrid::Write ( )
                 submatrix6sq(this->p_sum_grid_elcovar[i], this->p_sum_grid[i], this->p_sum_grid_elcovar[i], factor2);
                 scalematrix(this->p_sum_grid[i], factor, this->p_sum_grid[i]);
                 scalematrix6(this->p_sum_grid_elborn[i], factor, this->p_sum_grid_elborn[i]);
+                scalematrix6(this->p_sum_grid_elkin[i], factor, this->p_sum_grid_elkin[i]);
             }
 
             fwrite(this->p_sum_grid, sizeof(dmatrix), this->m_ncells, outfile);
             fwrite(this->p_sum_grid_elcovar, sizeof(dmatrix6), this->m_ncells, elcovar_outfile);
             fwrite(this->p_sum_grid_elborn, sizeof(dmatrix6), this->m_ncells, elborn_outfile);
+            fwrite(this->p_sum_grid_elkin, sizeof(dmatrix6), this->m_ncells, elkin_outfile);
 
             // append the volume data
             if (this->m_spatatom == mds_atom)
@@ -881,6 +904,7 @@ void StressGrid::Write ( )
             fclose(outfile);
             fclose(elcovar_outfile);
             fclose(elborn_outfile);
+            fclose(elkin_outfile);
 
             if (this->m_gridctype != mds_gridc_off)
             {
@@ -1594,6 +1618,134 @@ void StressGrid::DistributeKinetic(double mass, darray x, darray va, darray vb =
     }
 }
 
+//----------------------------------------------------------------------------------------
+// DistributeKineticElast
+//
+// Distributes kinetic contributions onto the elasticity tensor grid
+// Requires:
+// mass       -> mass of the particle
+// x          -> position of the atom
+// va         -> velocity of the particle at time t for Vel-verlet, or t-dt/2 for leapfrog integrators
+// vb         -> velocity of the particle at t+dt/2 (for leapfrog integrators only)
+//
+// For leapfrog integrators we know va(t-dt/2) and vb(t+dt/2), but we want the contribution at v(t) which we don't know.
+// So we take the average kinetic contribution from the velocities at each half step -m*(va(t-dt/2)^2 + vb(t+dt/2)^2)/2
+// Warning! this is not the same as simply taking the average of the half-step velocities, which would be incorrect.
+//
+// For velocity-verlet integrators we know v at the same time step, t, as the positions so the contribution is -m*va(t)*va(t)
+void StressGrid::DistributeKineticElast(double mass, darray x, darray va, darray vb = NULL)
+{
+    dmatrix6 elast;
+
+    // Spreads the velocity in one point
+    iarray i1;
+    darray xc,xd,pa,pb;
+    int index, iip1, iim1, jjp1, jjm1, kkp1, kkm1;
+    double factor,C;
+
+    if ( !this->m_ierr )
+    {
+        // get the batch id
+        //int batch_id = this->m_thread_map[std::this_thread::get_id()];
+
+        // Stiffness matrix in Voigt notation
+        // 0 = xx; 1 = yy; 2 = zz; 3 = yz or zy; 4 = xz or zx; 5 = xy or yx
+        // All indices                         Voigt indices           Stress indices
+        // ( xxxx xxyy xxzz xxyz xxxz xxxy ) = ( 00 01 02 03 04 05 ) = [ 0000 0011 0022 0012 0002 0001 ]
+        // (      yyyy yyzz yyyz yyxz yyxy ) = (    11 12 13 14 15 ) = [      1111 1122 1112 1102 1101 ]
+        // (           zzzz zzyz zzxz zzxy ) = (       22 23 24 25 ) = [           2222 2212 2202 2201 ]
+        // (                yzyz yzxz yzxy ) = (          33 34 35 ) = [                1212 1202 1201 ]
+        // (                     xzxz xzxy ) = (             44 45 ) = [                     0202 0201 ]
+        // (                          xyxy ) = (                55 ) = [                          0101 ]
+        //
+        // kd = kronecker delta, p is the particle's momenta
+        // ijkl   -> kd(i,l)*pj*pk + kd(j,k)*pi*pl + kd(j,l)*pi*pk + kd(i,k)*pj*pl
+
+        elast[0][0] = 1*va[0]*va[0] + 1*va[0]*va[0] + 1*va[0]*va[0] + 1*va[0]*va[0]; //c_xxxx = c_0000
+        elast[0][1] = 0*va[0]*va[1] + 0*va[0]*va[1] + 0*va[0]*va[1] + 0*va[0]*va[1]; //c_xxyy = c_0011
+        elast[0][2] = 0*va[0]*va[2] + 0*va[0]*va[2] + 0*va[0]*va[2] + 0*va[0]*va[2]; //c_xxzz = c_0022
+        elast[0][3] = 0*va[0]*va[1] + 0*va[0]*va[2] + 0*va[0]*va[1] + 0*va[0]*va[2]; //c_xxyz = c_0012
+        elast[0][4] = 0*va[0]*va[0] + 1*va[0]*va[2] + 0*va[0]*va[0] + 1*va[0]*va[2]; //c_xxxz = c_0002
+        elast[0][5] = 0*va[0]*va[0] + 1*va[0]*va[1] + 0*va[0]*va[0] + 1*va[0]*va[1]; //c_xxxy = c_0001
+        elast[1][1] = 1*va[1]*va[1] + 1*va[1]*va[1] + 1*va[1]*va[1] + 1*va[1]*va[1]; //c_yyyy = c_1111
+        elast[1][2] = 0*va[1]*va[2] + 0*va[1]*va[2] + 0*va[1]*va[2] + 0*va[1]*va[2]; //c_yyzz = c_1122
+        elast[1][3] = 0*va[1]*va[1] + 1*va[1]*va[2] + 0*va[1]*va[1] + 1*va[1]*va[2]; //c_yyyz = c_1112
+        elast[1][4] = 0*va[1]*va[0] + 0*va[1]*va[2] + 0*va[1]*va[0] + 0*va[1]*va[2]; //c_yyxz = c_1102
+        elast[1][5] = 1*va[1]*va[0] + 0*va[1]*va[1] + 1*va[1]*va[0] + 0*va[1]*va[1]; //c_yyxy = c_1101
+        elast[2][2] = 1*va[2]*va[2] + 1*va[2]*va[2] + 1*va[2]*va[2] + 1*va[2]*va[2]; //c_zzzz = c_2222
+        elast[2][3] = 1*va[2]*va[1] + 0*va[2]*va[2] + 1*va[2]*va[1] + 0*va[2]*va[2]; //c_zzyz = c_2212
+        elast[2][4] = 1*va[2]*va[0] + 0*va[2]*va[2] + 1*va[2]*va[0] + 0*va[2]*va[2]; //c_zzxz = c_2202
+        elast[2][5] = 0*va[2]*va[0] + 0*va[2]*va[1] + 0*va[2]*va[0] + 0*va[2]*va[1]; //c_zzxy = c_2201
+        elast[3][3] = 0*va[2]*va[1] + 0*va[1]*va[2] + 1*va[1]*va[1] + 1*va[2]*va[2]; //c_yzyz = c_1212
+        elast[3][4] = 0*va[2]*va[0] + 0*va[1]*va[2] + 1*va[1]*va[0] + 0*va[2]*va[2]; //c_yzxz = c_1202
+        elast[3][5] = 1*va[2]*va[0] + 0*va[1]*va[1] + 0*va[1]*va[0] + 0*va[2]*va[1]; //c_yzxy = c_1201
+        elast[4][4] = 0*va[2]*va[0] + 0*va[0]*va[2] + 1*va[0]*va[0] + 1*va[2]*va[2]; //c_xzxz = c_0202
+        elast[4][5] = 0*va[2]*va[0] + 0*va[0]*va[1] + 0*va[0]*va[0] + 1*va[2]*va[1]; //c_xzxy = c_0201
+        elast[5][5] = 0*va[1]*va[0] + 0*va[0]*va[1] + 1*va[0]*va[0] + 1*va[1]*va[1]; //c_xyxy = c_0101
+
+        if (vb != NULL)
+        {
+            elast[0][0] = (elast[0][0] + 1*vb[0]*vb[0] + 1*vb[0]*vb[0] + 1*vb[0]*vb[0] + 1*vb[0]*vb[0])/2.0; //c_xxxx = c_0000
+            elast[0][1] = (elast[0][1] + 0*vb[0]*vb[1] + 0*vb[0]*vb[1] + 0*vb[0]*vb[1] + 0*vb[0]*vb[1])/2.0; //c_xxyy = c_0011
+            elast[0][2] = (elast[0][2] + 0*vb[0]*vb[2] + 0*vb[0]*vb[2] + 0*vb[0]*vb[2] + 0*vb[0]*vb[2])/2.0; //c_xxzz = c_0022
+            elast[0][3] = (elast[0][3] + 0*vb[0]*vb[1] + 0*vb[0]*vb[2] + 0*vb[0]*vb[1] + 0*vb[0]*vb[2])/2.0; //c_xxyz = c_0012
+            elast[0][4] = (elast[0][4] + 0*vb[0]*vb[0] + 1*vb[0]*vb[2] + 0*vb[0]*vb[0] + 1*vb[0]*vb[2])/2.0; //c_xxxz = c_0002
+            elast[0][5] = (elast[0][5] + 0*vb[0]*vb[0] + 1*vb[0]*vb[1] + 0*vb[0]*vb[0] + 1*vb[0]*vb[1])/2.0; //c_xxxy = c_0001
+            elast[1][1] = (elast[1][1] + 1*vb[1]*vb[1] + 1*vb[1]*vb[1] + 1*vb[1]*vb[1] + 1*vb[1]*vb[1])/2.0; //c_yyyy = c_1111
+            elast[1][2] = (elast[1][2] + 0*vb[1]*vb[2] + 0*vb[1]*vb[2] + 0*vb[1]*vb[2] + 0*vb[1]*vb[2])/2.0; //c_yyzz = c_1122
+            elast[1][3] = (elast[1][3] + 0*vb[1]*vb[1] + 1*vb[1]*vb[2] + 0*vb[1]*vb[1] + 1*vb[1]*vb[2])/2.0; //c_yyyz = c_1112
+            elast[1][4] = (elast[1][4] + 0*vb[1]*vb[0] + 0*vb[1]*vb[2] + 0*vb[1]*vb[0] + 0*vb[1]*vb[2])/2.0; //c_yyxz = c_1102
+            elast[1][5] = (elast[1][5] + 1*vb[1]*vb[0] + 0*vb[1]*vb[1] + 1*vb[1]*vb[0] + 0*vb[1]*vb[1])/2.0; //c_yyxy = c_1101
+            elast[2][2] = (elast[2][2] + 1*vb[2]*vb[2] + 1*vb[2]*vb[2] + 1*vb[2]*vb[2] + 1*vb[2]*vb[2])/2.0; //c_zzzz = c_2222
+            elast[2][3] = (elast[2][3] + 1*vb[2]*vb[1] + 0*vb[2]*vb[2] + 1*vb[2]*vb[1] + 0*vb[2]*vb[2])/2.0; //c_zzyz = c_2212
+            elast[2][4] = (elast[2][4] + 1*vb[2]*vb[0] + 0*vb[2]*vb[2] + 1*vb[2]*vb[0] + 0*vb[2]*vb[2])/2.0; //c_zzxz = c_2202
+            elast[2][5] = (elast[2][5] + 0*vb[2]*vb[0] + 0*vb[2]*vb[1] + 0*vb[2]*vb[0] + 0*vb[2]*vb[1])/2.0; //c_zzxy = c_2201
+            elast[3][3] = (elast[3][3] + 0*vb[2]*vb[1] + 0*vb[1]*vb[2] + 1*vb[1]*vb[1] + 1*vb[2]*vb[2])/2.0; //c_yzyz = c_1212
+            elast[3][4] = (elast[3][4] + 0*vb[2]*vb[0] + 0*vb[1]*vb[2] + 1*vb[1]*vb[0] + 0*vb[2]*vb[2])/2.0; //c_yzxz = c_1202
+            elast[3][5] = (elast[3][5] + 1*vb[2]*vb[0] + 0*vb[1]*vb[1] + 0*vb[1]*vb[0] + 0*vb[2]*vb[1])/2.0; //c_yzxy = c_1201
+            elast[4][4] = (elast[4][4] + 0*vb[2]*vb[0] + 0*vb[0]*vb[2] + 1*vb[0]*vb[0] + 1*vb[2]*vb[2])/2.0; //c_xzxz = c_0202
+            elast[4][5] = (elast[4][5] + 0*vb[2]*vb[0] + 0*vb[0]*vb[1] + 0*vb[0]*vb[0] + 1*vb[2]*vb[1])/2.0; //c_xzxy = c_0201
+            elast[5][5] = (elast[5][5] + 0*vb[1]*vb[0] + 0*vb[0]*vb[1] + 1*vb[0]*vb[0] + 1*vb[1]*vb[1])/2.0; //c_xyxy = c_0101
+        }
+
+        scalematrix6(elast, mass, elast);
+        // Get the coordinates of the point in the grid
+        i1[0] = this->m_nxyz[0] * x[0] * this->m_invbox[0][0] - (x[0] < 0.0);
+        i1[1] = this->m_nxyz[1] * x[1] * this->m_invbox[1][1] - (x[1] < 0.0);
+        i1[2] = this->m_nxyz[2] * x[2] * this->m_invbox[2][2] - (x[2] < 0.0);
+
+        // and the index constants
+        iip1 = ((i1[0] + 1 + this->m_nxyz[0]) % this->m_nxyz[0])*this->m_nxyz[1]*this->m_nxyz[2];
+        jjp1 = ((i1[1] + 1 + this->m_nxyz[1]) % this->m_nxyz[1])*this->m_nxyz[2];
+        kkp1 = ((i1[2] + 1 + this->m_nxyz[2]) % this->m_nxyz[2]);
+        iim1 = ((i1[0] + this->m_nxyz[0]) % this->m_nxyz[0])*this->m_nxyz[1]*this->m_nxyz[2];
+        jjm1 = ((i1[1] + this->m_nxyz[1]) % this->m_nxyz[1])*this->m_nxyz[2];
+        kkm1 = ((i1[2] + this->m_nxyz[2]) % this->m_nxyz[2]);
+
+        // xc = vector from the corner of the point to the corner of the cell
+        C = this->m_invgridsp * this->m_invgridsp;
+        xc[0] = x[0]-this->m_gridsp[0]*i1[0];
+        xc[1] = x[1]-this->m_gridsp[1]*i1[1];
+        xc[2] = x[2]-this->m_gridsp[2]*i1[2];
+        xd[0] = xc[0]-this->m_gridsp[0];
+        xd[1] = xc[1]-this->m_gridsp[1];
+        xd[2] = xc[2]-this->m_gridsp[2];
+
+        // select grid based on batch index
+        //dmatrix * grid = this->p_current_grid+batch_id*this->m_ncells;
+
+        // Spread it
+        scalesummatrix6( C*xc[0]*xc[1]*xc[2],elast,this->p_sum_grid_elkin[iip1+jjp1+kkp1]);
+        scalesummatrix6(-C*xc[0]*xc[1]*xd[2],elast,this->p_sum_grid_elkin[iip1+jjp1+kkm1]);
+        scalesummatrix6(-C*xc[0]*xd[1]*xc[2],elast,this->p_sum_grid_elkin[iip1+jjm1+kkp1]);
+        scalesummatrix6( C*xc[0]*xd[1]*xd[2],elast,this->p_sum_grid_elkin[iip1+jjm1+kkm1]);
+        scalesummatrix6(-C*xd[0]*xc[1]*xc[2],elast,this->p_sum_grid_elkin[iim1+jjp1+kkp1]);
+        scalesummatrix6( C*xd[0]*xc[1]*xd[2],elast,this->p_sum_grid_elkin[iim1+jjp1+kkm1]);
+        scalesummatrix6( C*xd[0]*xd[1]*xc[2],elast,this->p_sum_grid_elkin[iim1+jjm1+kkp1]);
+        scalesummatrix6(-C*xd[0]*xd[1]*xd[2],elast,this->p_sum_grid_elkin[iim1+jjm1+kkm1]);
+    }
+}
+
 // DistributeCharge
 //
 // Distributes charge contributions onto a grid
@@ -1781,6 +1933,9 @@ void StressGrid::DistributeSettle( darray Ra, darray Rb, darray Rc, darray Fa, d
     double M[mds_nrow3*mds_ncol3];
     // Vector, we want to solve M*x = b
     double b[mds_nrow3], s[mds_ncol3];
+	
+	double phi_ab, phi_ac, phi_bc;
+	double kappa_ab, kappa_ac, kappa_bc;
 
     if (this->m_fdecomp == mds_ccfd || this->m_fdecomp == mds_ncfd || this->m_fdecomp == mds_gld )
     {
@@ -1824,14 +1979,29 @@ void StressGrid::DistributeSettle( darray Ra, darray Rb, darray Rc, darray Fa, d
         // Sum the 3 contributions to the stress
         lab = b[0];
         lac = b[1];
-        lbc = b[2];
-
+        lbc = b[2];		
+		
         Fij[0] = lab * AB[0]; Fij[1] = lab * AB[1]; Fij[2] = lab * AB[2];
         this->DistributePairInteraction( Ra, Rb, Fij, batch_id);
         Fij[0] = lac * AC[0]; Fij[1] = lac * AC[1]; Fij[2] = lac * AC[2];
         this->DistributePairInteraction( Ra, Rc, Fij, batch_id );
         Fij[0] = lbc * BC[0]; Fij[1] = lbc * BC[1]; Fij[2] = lbc * BC[2];
         this->DistributePairInteraction( Rb, Rc, Fij, batch_id );
+		
+		// Calculate scalar force and bond stiffness
+		phi_ab = lab*normAB;
+		phi_ac = lac*normAC;
+		phi_bc = lbc*normBC;
+		
+		kappa_ab = lab;
+		kappa_ac = lac;
+		kappa_bc = lbc;
+		
+		//Calculate Elasticity
+		//DistributePairElast(darray xi, darray xj, darray xk, darray xl, double phi, double kappa)
+		this->DistributePairElast(Ra, Rb, Ra, Rb, phi_ab, kappa_ab);
+		this->DistributePairElast(Ra, Rc, Ra, Rc, phi_ac, kappa_ac);
+		this->DistributePairElast(Rb, Rc, Rb, Rc, phi_bc, kappa_bc);
 
     }
 }
@@ -2292,6 +2462,457 @@ void StressGrid::DistributeNBody ( int nPart, darray *R, darray *F, bool distrib
         }
     }
 }
+
+//Auxilery Methods to Calculate the Phi and Kappa Terms for the Born Term
+// For cosine derivative functions must be called before the theta derivatives. 
+// derivative identifier dertype ab = 0, bg = 1, ag = 3
+
+// ab|bg|ag = 0 | 1 | 2
+
+// second derivative identifier derivative dertype2
+
+//indices are flipped be careful!
+
+/*
+ * abab | bgab | agab	= 00 | 01 | 02
+ * abbg | bgbg | agbg	= 10 | 11 | 12
+ * abag | bgag | agag	= 20 | 21 | 22
+ */
+
+ //Cosine and Theta Calculations (may only be needed sometimes)
+double StressGrid::CalcCosine(double ab, double bg, double ag) {
+	double costheta, numer, denom;
+
+	numer = (ab * ab) + (bg * bg) - (ag * ag);
+	denom = 2 * ab * bg;
+	costheta = numer / denom;
+	return costheta;
+}
+
+double StressGrid::CalcTheta(double costheta) {
+	return acos(costheta);
+}
+
+//Derivative of Cosine Function (creates derivative vector)
+void StressGrid::ThreeBodyCosineD(double ab, double bg, double ag, darray &d_cos_array) {
+	double numer, denom;
+
+
+	//dab of costheta
+	numer = (ab * ab) - (bg * bg) + (ag * ag);
+	denom = 2 * ab * ab * bg;
+
+	d_cos_array[0] = numer / denom;
+
+	//dbg of costheta
+	numer = -(ab * ab) + (bg * bg) + (ag * ag);
+	denom = 2 * ag * bg * bg;
+
+	d_cos_array[1] = numer / denom;
+
+	//dag of costheta
+	numer = -ag;
+	denom = ab * bg;
+
+	d_cos_array[2] = numer / denom;
+}
+
+//Second Derivative of Cosine Function (Creates derivative matrix)
+void StressGrid::ThreeBodyCosineD2(double ab, double bg, double ag, dmatrix &d2_cos_array) {
+	double numer;
+	double denom;
+
+	//d00 of costheta
+	numer = (bg * bg) - (ag * ag);
+	denom = (ab * ab * ab * bg);
+
+	d2_cos_array[0][0] = numer / denom;
+
+	// d01 and d10 of costheta
+
+	numer = -((ab * ab) + (bg * bg) + (ag * ag));
+	denom = 2 * (ab * ab) * (bg * bg);
+
+	d2_cos_array[0][1] = numer / denom;
+	d2_cos_array[1][0] = d2_cos_array[0][1];
+
+	// d02 and d20 of costheta
+
+	numer = ag;
+	denom = ab * ab * bg;
+
+	d2_cos_array[0][2] = numer / denom;
+	d2_cos_array[2][0] = d2_cos_array[0][2];
+
+	// d11 of costheta
+	numer = (ab * ab) - (ag * ag);
+	denom = (ab * bg * bg * bg);
+
+	d2_cos_array[1][1] = numer / denom;
+
+	// d12 and d21 of costheta
+	numer = ag;
+	denom = ab * bg * bg;
+
+	d2_cos_array[1][2] = numer / denom;
+	d2_cos_array[2][1] = d2_cos_array[1][2];
+
+	// d22 of costheta
+	numer = -1;
+	denom = ab * bg;
+
+	d2_cos_array[2][2] = numer / denom;
+}
+
+//First Derivative of Theta Function (Creates 1st derivative vector)
+//Need Cosine Theta
+//Need Derivative of Cosine Vector
+void StressGrid::ThreeBodyThetaD(double costheta, darray &d_cos_array, darray &d_theta_array) {
+	double scalefactor;
+
+	scalefactor = -1 / sqrt(1 - (costheta * costheta));
+
+	for (int i = 0; i < 3; i++) {
+		d_theta_array[i] = scalefactor * d_cos_array[i];
+	}
+}
+
+//Second Derivative of Theta Function (Creates 2nd Derivative Matix)
+//Need Cosine Theta
+//Need Derivative of Cosine Vector
+//Need 2nd Derivative of Cosine Matrix
+void StressGrid::ThreeBodyThetaD2(double costheta, darray d_cos_array, dmatrix &d2_cos_array, dmatrix &d2_theta_array) {
+	double scalefactor;
+	double sinthetasq;
+
+	sinthetasq = 1 - (costheta * costheta);
+
+	scalefactor = 1 / (sinthetasq * sqrt(sinthetasq));
+
+	for (int i = 0; i < 3; i++) {
+		for (int j = 0; j < 3; j++) {
+			d2_theta_array[i][j] = scalefactor * ((-sinthetasq) * d2_cos_array[i][j] - costheta * d_cos_array[i] * d_cos_array[j]);
+		}
+	}
+}
+
+//List of 2-body Potential Auxilery Functions
+//Calculate The Phi and Kappa for Harmonic Potential
+void StressGrid::HarmonicPhiKappa(double deltaR, double k, double& phi, double& kappa) {
+
+	phi = k * deltaR;
+	kappa = k;
+}
+
+//Calculate the Phi and Kappa for Buckingham Potential
+void StressGrid::BuckinghamPhiKappa(double r, double a, double b, double c, double& phi, double& kappa) {
+
+	double exponent = -b * r;
+	double rinv = 1 / r;
+	double rinvsq = rinv * rinv;
+	double rinvsix = rinvsq * rinvsq * rinvsq;
+
+	phi = -a * b * exp(exponent) + (6 * c) * rinvsix * rinv;
+	kappa = a * b * b * exp(exponent) - (42 * c) * rinvsix * rinvsq;
+}
+
+//Calculate the Phi and Kappa for the Fourth Power Potential
+void StressGrid::FourthPowerPhiKappa(double k4, double dist, double dist0, double& phi, double& kappa) {
+
+	phi = k4 * dist * (dist * dist - dist0 * dist0);
+	kappa = k4 * (3 * dist * dist - dist0 * dist0);
+}
+
+//Calculate the Phi and  Kappa for the Morse Potential
+void StressGrid::MorsePhiKappa(double expadeltaR, double a, double d, double& phi, double& kappa) {
+	//expadeltaR = e^(-a*(r-r0))
+	double coeffexp = 2 * a * d * expadeltaR;
+
+	phi = coeffexp * (1 - expadeltaR);
+	kappa = coeffexp * a * (2 * expadeltaR - 1);
+}
+
+//Calculate the Phi and Kappa for the Cubic Bond Potential
+void StressGrid::CubicBondPhiKappa(double deltaR, double k, double kcubic, double& phi, double& kappa) {
+
+	phi = 2 * k * deltaR + 3 * k * kcubic * deltaR * deltaR;
+	kappa = 2 * k + 6 * k * kcubic * deltaR;
+}
+
+//Calculate the Phi and Kappa for the FENE Potential
+void StressGrid::FENEPhiKappa(double r, double k, double diffratio, double& phi, double& kappa) {
+	//diffratio = 1 - (r/r0)^2
+
+	phi = k * r / diffratio;
+	kappa = k * (2 - diffratio) / diffratio;
+}
+
+//List of 3-body Potential Auxilery Functions
+//Derivative Vector/Matrix form
+// derivative identifier ab = 0, bg = 1, ag = 3
+
+// ab|bg|ag = 0 | 1 | 2
+/*
+ * abab | bgab | agab	= 00 | 01 | 02
+ * abbg | bgbg | agbg	= 10 | 11 | 12
+ * abag | bgag | agag	= 20 | 21 | 22
+ */
+
+//Calculate the Phi and Kappa for the Harmonic Angle Potential
+void StressGrid::HarmonicAnglePhiKappa(double ab, double bg, double ag, double deltatheta, double k, darray &phi, dmatrix &kappa) {
+
+	double costh = this->CalcCosine(ab, bg, ag);
+	darray d_cos_array;
+	zeroarray(d_cos_array);
+	dmatrix d2_cos_array;
+	zeromatrix(d2_cos_array);
+	darray d_theta_array;
+	zeroarray(d_theta_array);
+	dmatrix d2_theta_array;
+	zeromatrix(d2_theta_array);
+	this->ThreeBodyCosineD(ab, bg, ag, d_cos_array);
+	this->ThreeBodyCosineD2(ab, bg, ag, d2_cos_array);
+	this->ThreeBodyThetaD(costh, d_cos_array, d_theta_array);
+	this->ThreeBodyThetaD2(costh, d_cos_array, d2_cos_array, d2_theta_array);
+
+
+	//Calculate Phi Vector
+	for (int i = 0; i < 3; i++) {
+		phi[i] = k * deltatheta * d_theta_array[i];
+	}
+
+	//Calculate Kappa Matrix
+	for (int i = 0; i < 3; i++) {
+		for (int j = 0; j < 3; j++) {
+			kappa[i][j] = k * (d_theta_array[i] * d_theta_array[j] + deltatheta * d2_theta_array[i][j]);
+		}
+	}
+}
+
+//Calculate the Phi and Kappa for the Harmonic Cosine Potential
+void StressGrid::HarmonicCosPhiKappa(double ab, double bg, double ag, double deltacos, double k, darray &phi, dmatrix &kappa) {
+
+	double costh = this->CalcCosine(ab, bg, ag);
+	darray d_cos_array;
+	zeroarray(d_cos_array);
+	dmatrix d2_cos_array;
+	zeromatrix(d2_cos_array);
+	this->ThreeBodyCosineD(ab, bg, ag, d_cos_array);
+	this->ThreeBodyCosineD2(ab, bg, ag, d2_cos_array);
+
+
+	//Calculate Phi Vector
+	for (int i = 0; i < 3; i++) {
+		phi[i] = k * deltacos * d_cos_array[i];
+	}
+
+	//Calculate Kappa Matrix
+	for (int i = 0; i < 3; i++) {
+		for (int j = 0; j < 3; j++) {
+			kappa[i][j] = k * (d_cos_array[i] * d_cos_array[j] + deltacos * d2_cos_array[i][j]);
+		}
+	}
+
+}
+
+//Calculate the Phi and Kappa for the Urey-Bradley Potential
+void StressGrid::UreyBradleyPhiKappa(double ab, double bg, double ag, double deltaRag, double deltatheta, double ktheta, double kUB, darray &phi, dmatrix &kappa) {
+
+	double costh = this->CalcCosine(ab, bg, ag);
+	darray d_cos_array;
+	zeroarray(d_cos_array);
+	dmatrix d2_cos_array;
+	zeromatrix(d2_cos_array);
+	darray d_theta_array;
+	zeroarray(d_theta_array);
+	dmatrix d2_theta_array;
+	zeromatrix(d2_theta_array);
+	this->ThreeBodyCosineD(ab, bg, ag, d_cos_array);
+	this->ThreeBodyCosineD2(ab, bg, ag, d2_cos_array);
+	this->ThreeBodyThetaD(costh, d_cos_array, d_theta_array);
+	this->ThreeBodyThetaD2(costh, d_cos_array, d2_cos_array, d2_theta_array);
+
+	//Calculate Phi ab(0) and bg(1) for phi vector
+	for (int i = 0; i < 2; i++) {
+		if (i == 2) {
+			phi[i] = ktheta * deltatheta * d_theta_array[i] + kUB * deltaRag;
+		}
+		else {
+			phi[i] = ktheta * deltatheta * d_theta_array[i];
+		}
+	}
+
+	//Calculate Kappa Matrix (will calculate kappa[2][2] separately)
+	for (int i = 0; i < 3; i++) {
+		for (int j = 0; j < 3; j++) {
+			if (i == 2 && j == 2) {
+				kappa[i][j] = ktheta * (d_theta_array[i] * d_theta_array[j] + deltatheta * d2_theta_array[i][j]) + kUB;
+			}
+			else {
+				kappa[i][j] = ktheta * (d_theta_array[i] * d_theta_array[j] + deltatheta * d2_theta_array[i][j]);
+			}
+		}
+	}
+}
+
+//Calculate the Phi and Kappa due to the Bond Bond Cross Potential
+void StressGrid::BondBondCrossPhiKappa(double k, double deltarab, double deltarbg, darray &phi, dmatrix &kappa) {
+
+	//Calculate Phi
+	phi[0] = k * deltarbg;
+	phi[1] = k * deltarab;
+	phi[2] = 0;
+
+	//Calculate Kappa
+	//Zero Terms
+	kappa[0][0] = 0;
+	kappa[1][1] = 0;
+	kappa[2][2] = 0;
+	kappa[0][2] = 0;
+	kappa[2][0] = 0;
+	kappa[1][2] = 0;
+	kappa[2][1] = 0;
+
+	//Constant Terms
+	kappa[0][1] = k;
+	kappa[1][0] = k;
+}
+
+//Calculate the Phi and Kappa for the Bond Angle Cross Potential
+void StressGrid::BondAngleCrossPhiKappa(double k, double deltarab, double deltarbg, double deltarag, darray &phi, dmatrix &kappa) {
+
+	//Calculate Phi
+	phi[0] = k * deltarag;
+	phi[1] = phi[0];
+	phi[2] = k * (deltarab + deltarbg);
+
+	//Calculate Kappa
+	//Zero Terms
+	kappa[0][0] = 0;
+	kappa[1][1] = 0;
+	kappa[2][2] = 0;
+	kappa[0][1] = 0;
+	kappa[1][0] = 0;
+
+	//Constant Terms
+	kappa[0][2] = k;
+	kappa[2][0] = k;
+	kappa[1][2] = k;
+	kappa[2][1] = k;
+}
+
+void StressGrid::QuarticAnglePhiKappa(double ab, double bg, double ag, double deltatheta, darray6 &coeff, darray &phi, dmatrix &kappa) {
+
+	double costh = this->CalcCosine(ab, bg, ag);
+	darray d_cos_array;
+	zeroarray(d_cos_array);
+	dmatrix d2_cos_array;
+	zeromatrix(d2_cos_array);
+	darray d_theta_array;
+	zeroarray(d_theta_array);
+	dmatrix d2_theta_array;
+	zeromatrix(d2_theta_array);
+	this->ThreeBodyCosineD(ab, bg, ag, d_cos_array);
+	this->ThreeBodyCosineD2(ab, bg, ag, d2_cos_array);
+	this->ThreeBodyThetaD(costh, d_cos_array, d_theta_array);
+	this->ThreeBodyThetaD2(costh, d_cos_array, d2_cos_array, d2_theta_array);
+
+
+	double deltathetasq = deltatheta * deltatheta;
+	double deltathetacube = deltathetasq * deltatheta;
+	double deltathetafour = deltathetasq * deltathetasq;
+
+	//Calculate the Finate Sums
+	double phiconst = coeff[1] + 2 * coeff[2] * deltatheta + 3 * coeff[3] * deltathetasq + 4 * coeff[4] * deltathetacube + 5 * coeff[5] * deltathetafour;
+	double kappaconst = 2 * coeff[2] + 6 * coeff[3] * deltatheta + 12 * coeff[4] * deltathetasq + 20 * coeff[5] * deltathetacube;
+
+	//Calculate Phi Vector
+	for (int i = 0; i < 3; i++) {
+		phi[i] = phiconst * d_theta_array[i];
+	}
+
+	//Calculate Kappa Matrix
+	for (int i = 0; i < 3; i++) {
+		for (int j = 0; j < 3; j++) {
+			kappa[i][j] = phiconst * d2_theta_array[i][j] + kappaconst * d_theta_array[i] * d_theta_array[j];
+		}
+	}
+}
+
+/*Tetrahedron Calculations, use tetrahedron vector and tetrahedron matrix
+ *Keep in mind all calculations find the dihedral angle between bonds ab and ge.
+ *This dihedral angle is called thetabg as it is the twisting between beta and gamma.
+ *
+ *First Derivative: Define Tetrahedron Derivative Vector
+ *
+ * ab | ag | ae | bg | be | ge | = 0 | 1 | 2 | 3 | 4 | 5 |
+ *
+ * Second Derivative: Define Tetrahedron Derivative Matrix
+ * abab | agab | aeab | bgab | beab | geab | = 00 | 01 | 02 | 03 | 04 | 05 |
+ * abag | agag | aeag | bgag | beag | geag | = 10 | 11 | 12 | 13 | 14 | 15 |
+ * abae | agae | aeae | bgae | beae | geae | = 20 | 21 | 22 | 23 | 24 | 25 |
+ * abbg | agbg | aebg | bgbg | bebg | gebg | = 30 | 31 | 32 | 33 | 34 | 35 |
+ * abbe | agbe | aebe | bgbe | bebe | gebe | = 40 | 41 | 42 | 43 | 44 | 45 |
+ * abge | agge | aege | bgge | bege | gege | = 50 | 51 | 52 | 53 | 54 | 55 |
+ *
+*/
+double StressGrid::CalcCosineDihedral(double ab, double ag, double ae, double bg, double be, double ge) {
+	double numer, denom;
+
+	numer = -(bg * bg * bg * bg) + (bg * bg) * ((ab * ab) - 2 * (ae * ae) + (ag * ag) + (be * be) + (ge * ge)) + ((ab * ab) - (ag * ag)) * (-(be * be) + (ge * ge));
+	denom = sqrt((-ab + ag + bg) * (ab - ag + bg) * (ab + ag - bg) * (ab + ag + bg) * (-be + bg + ge) * (be - bg + ge) * (be + bg - ge) * (be + bg + ge));
+
+	return numer / denom;
+}
+
+/*
+*generate computation code in python
+*void four_body_cosine_derivative() {
+*}
+*
+*void four_body_cosine_derivative2() {
+*}
+*/
+
+void StressGrid::FourBodyThetaD(double costheta, darray6 &d_cos_di_array, darray6 &d_theta_di_array) {
+	double scalefactor;
+
+	scalefactor = -1 / sqrt(1 - (costheta * costheta));
+
+	for (int i = 0; i < 6; i++) {
+		d_theta_di_array[i] = scalefactor * d_cos_di_array[i];
+	}
+}
+
+void StressGrid::FourBodyThetaD2(double costheta, darray6 &d_cos_di_array, dmatrix6 &d2_cos_di_array, dmatrix6 &d2_theta_di_array) {
+	double scalefactor;
+	double sinthetasq;
+
+	sinthetasq = 1 - (costheta * costheta);
+	scalefactor = 1 / (sinthetasq * sqrt(sinthetasq));
+
+	for (int i = 0; i < 6; i++) {
+		for (int j = 0; j < 6; j++) {
+			d2_theta_di_array[i][j] = scalefactor * ((-sinthetasq) * d2_cos_di_array[i][j] - costheta * d_cos_di_array[i] * d_cos_di_array[j]);
+		}
+	}
+}
+
+//List of 4-body Potential Auxilery Functions
+//Unimplimented, Will Be implimented Later
+/*
+*void impdihed_harmonic_phi_kappa(){
+*
+*}
+*
+*void propdihed_periodic_phi_kappa(){
+*
+*}
+*
+*void propdihed_fourier_phi_kappa(){
+*
+*}
+*/
 //----------------------------------------------------------------------------------------
 
 //----------------------------------------------------------------------------------------
