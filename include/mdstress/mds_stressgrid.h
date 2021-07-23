@@ -448,7 +448,7 @@ class  mds::StressGrid
 		
 		void BondAngleCrossPhiKappa(double k, double deltarab, double deltarbg, double deltarag, darray &phi, dmatrix &kappa);
 		
-		void QuarticAnglePhiKappa(double ab, double bg, double ag, double deltatheta, darray6 &coeff, darray &phi, dmatrix &kappa);
+		void QuarticAnglePhiKappa(double ab, double bg, double ag, double deltatheta, double (&coeff)[5], darray &phi, dmatrix &kappa);
         
         /** Constructor */
         StressGrid( );
@@ -506,9 +506,11 @@ class  mds::StressGrid
         darray  *p_Fij;           ///< force vectors
         darray  *p_Uij;           ///< distance vectors
         dmatrix *p_current_grid;  ///< Grid (either nx*ny*nz or nAtoms)
-        dmatrix6 *p_current_grid_elast;  ///< Grid (either nx*ny*nz or nAtoms)
+        dmatrix6 *p_current_grid_elborn;  ///< Grid (either nx*ny*nz or nAtoms)
+        dmatrix6 *p_current_grid_elkin;  ///< Grid (either nx*ny*nz or nAtoms)
         double  *p_current_gridc; ///< Grid (either nx*ny*nz or nAtoms) (ewald)
         dmatrix *p_sum_grid;      ///< Sum Grid
+        dmatrix *p_sum_grid_vol;  ///< Sum Grid
         dmatrix6 *p_sum_grid_elcovar;  ///< Elasticity Grid Covariance Term
         dmatrix6 *p_sum_grid_elborn;   ///< Elasticity Grid Born Term
         dmatrix6 *p_sum_grid_elkin;    ///< Elasticity Grid Kinetic Term

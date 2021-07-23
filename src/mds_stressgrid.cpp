@@ -3,7 +3,7 @@
   Module    : MDStress
   File      : mds_stressgrid.cpp
   Authors   : A. Torres-Sanchez and J. M. Vanegas
-  Modified  : B. Hinburg and A. Lewis
+  Modified  : B. Himberg and A. Lewis
   Purpose   : Compute the local stress from MD trajectories
   Date      : 25/03/2015
   Version   :
@@ -92,9 +92,11 @@ StressGrid::StressGrid()
     this->p_Fij           = NULL;
     this->p_Uij           = NULL;
     this->p_current_grid  = NULL;
-    this->p_current_grid_elast  = NULL;
+    this->p_current_grid_elborn  = NULL;
+    this->p_current_grid_elkin  = NULL;
     this->p_current_gridc = NULL;
     this->p_sum_grid      = NULL;
+    this->p_sum_grid_vol  = NULL;
     this->p_sum_gridc     = NULL;
     this->p_sum_grid_elcovar = NULL;
     this->p_sum_grid_elkin = NULL;
@@ -134,9 +136,11 @@ void StressGrid::Clear()
     if (this->p_Fij                  != NULL ) delete [] this->p_Fij;
     if (this->p_Uij                  != NULL ) delete [] this->p_Uij;
     if (this->p_current_grid         != NULL ) delete [] this->p_current_grid;
-    if (this->p_current_grid_elast   != NULL ) delete [] this->p_current_grid_elast;
+    if (this->p_current_grid_elborn   != NULL ) delete [] this->p_current_grid_elborn;
+    if (this->p_current_grid_elkin   != NULL ) delete [] this->p_current_grid_elkin;
     if (this->p_current_gridc        != NULL ) delete [] this->p_current_gridc;
     if (this->p_sum_grid             != NULL ) delete [] this->p_sum_grid;
+    if (this->p_sum_grid_vol         != NULL ) delete [] this->p_sum_grid_vol;
     if (this->p_sum_grid_elcovar     != NULL ) delete [] this->p_sum_grid_elcovar;
     if (this->p_sum_grid_elkin       != NULL ) delete [] this->p_sum_grid_elkin;
     if (this->p_sum_grid_elborn      != NULL ) delete [] this->p_sum_grid_elborn;
@@ -161,9 +165,11 @@ void StressGrid::Clear()
     this->p_Fij           = NULL;
     this->p_Uij           = NULL;
     this->p_current_grid  = NULL;
-    this->p_current_grid_elast  = NULL;
+    this->p_current_grid_elborn  = NULL;
+    this->p_current_grid_elkin  = NULL;
     this->p_current_gridc = NULL;
     this->p_sum_grid      = NULL;
+    this->p_sum_grid_vol  = NULL;
     this->p_sum_grid_elcovar      = NULL;
     this->p_sum_grid_elkin      = NULL;
     this->p_sum_grid_elborn      = NULL;
@@ -351,10 +357,12 @@ void StressGrid::Init()
 
         //Give size to current and sum grid
         this->p_sum_grid      = new dmatrix [this->m_ncells];
+        this->p_sum_grid_vol      = new dmatrix [this->m_ncells];
         this->p_sum_grid_elcovar    = new dmatrix6 [this->m_ncells];
         this->p_sum_grid_elkin      = new dmatrix6 [this->m_ncells];
         this->p_sum_grid_elborn     = new dmatrix6 [this->m_ncells];
-        this->p_current_grid_elast  = new dmatrix6 [this->m_ncells*this->m_max_threads];
+        this->p_current_grid_elkin  = new dmatrix6 [this->m_ncells*this->m_max_threads];
+        this->p_current_grid_elborn  = new dmatrix6 [this->m_ncells*this->m_max_threads];
         this->p_current_grid  = new dmatrix [this->m_ncells*this->m_max_threads];
         
         //Set all to zero
@@ -362,14 +370,16 @@ void StressGrid::Init()
         for (int i=0; i < this->m_ncells; i++)
         {
             zeromatrix(this->p_sum_grid[i]);
+            zeromatrix(this->p_sum_grid_vol[i]);
             zeromatrix6(this->p_sum_grid_elcovar[i]);
-            zeromatrix6(this->p_sum_grid_elkin[i]);
             zeromatrix6(this->p_sum_grid_elborn[i]);
+            zeromatrix6(this->p_sum_grid_elkin[i]);
         }
         for (int i=0; i < this->m_ncells*this->m_max_threads; i++)
         {
             zeromatrix(this->p_current_grid[i]);
-            zeromatrix6(this->p_current_grid_elast[i]);
+            zeromatrix6(this->p_current_grid_elborn[i]);
+            zeromatrix6(this->p_current_grid_elkin[i]);
         }
         
         // Finally, create the lapack objects to deal with linear solvers and projections
@@ -557,8 +567,10 @@ void StressGrid::SumGrid ( )
                 {
                     summatrix(this->p_current_grid[i], this->p_current_grid[i+j*this->m_ncells], this->p_current_grid[i] );
                     zeromatrix(this->p_current_grid[i+j*this->m_ncells]);
-                    summatrix6(this->p_current_grid_elast[i], this->p_current_grid_elast[i+j*this->m_ncells], this->p_current_grid_elast[i] );
-                    zeromatrix6(this->p_current_grid_elast[i+j*this->m_ncells]);
+                    summatrix6(this->p_current_grid_elborn[i], this->p_current_grid_elborn[i+j*this->m_ncells], this->p_current_grid_elborn[i] );
+                    zeromatrix6(this->p_current_grid_elborn[i+j*this->m_ncells]);
+                    summatrix6(this->p_current_grid_elkin[i], this->p_current_grid_elkin[i+j*this->m_ncells], this->p_current_grid_elkin[i] );
+                    zeromatrix6(this->p_current_grid_elkin[i+j*this->m_ncells]);
                 }
             }
         }
@@ -576,11 +588,14 @@ void StressGrid::SumGrid ( )
 
             if (this->m_spatatom == mds_spat)
             {
+                //double cellvolume = this->m_gridsp[6]
                 for (int i = 0; i < this->m_ncells; i++)
                 {
                     summatrix( this->p_sum_grid[i], this->p_current_grid[i], this->p_sum_grid[i] );
-                    summatrix6( this->p_sum_grid_elborn[i], this->p_current_grid_elast[i], this->p_sum_grid_elborn[i] );
-                    summatrix6sq( this->p_sum_grid_elcovar[i], this->p_current_grid[i], this->p_sum_grid_elcovar[i]);
+                    summatrix6( this->p_sum_grid_elborn[i], this->p_current_grid_elborn[i], this->p_sum_grid_elborn[i] );
+                    summatrix6( this->p_sum_grid_elkin[i], this->p_current_grid_elkin[i], this->p_sum_grid_elkin[i] );
+                    scalesummatrix(this->m_gridsp[6], this->p_current_grid[i], this->p_sum_grid_vol[i] ); // this accumulates the product of sigma_ij*vol for the covariant component of elast tensor
+                    scalesummatrix6matrixsq( this->m_gridsp[6]*this->m_gridsp[6], this->p_current_grid[i], this->p_sum_grid_elcovar[i]); //this accumulates the product of sigma_ij*sigma_kl*vol*vol for the covariant component of elast tensor
                 }
 
                 for (int i = 0; i < this->m_ncellsc; i++)
@@ -595,7 +610,7 @@ void StressGrid::SumGrid ( )
                 vor_box[0] = this->m_box[0][0];
                 vor_box[1] = this->m_box[1][1];
                 vor_box[2] = this->m_box[2][2];
-                
+
                 double gfxy,gfxz;
                 gfxy = vor_box[1]/vor_box[0];
                 gfxz = vor_box[2]/vor_box[0];
@@ -700,7 +715,8 @@ void StressGrid::SumGrid ( )
             for(int i = 0; i < this->m_ncells; ++i)
             {
                 zeromatrix(this->p_current_grid[i]);
-                zeromatrix6(this->p_current_grid_elast[i]);
+                zeromatrix6(this->p_current_grid_elborn[i]);
+                zeromatrix6(this->p_current_grid_elkin[i]);
             }
             for(int i = 0; i < this->m_ncellsc; ++i)
             {
@@ -749,7 +765,8 @@ void StressGrid::Reset ( )
         for( int i=0; i<this->m_ncells; i++ )
         {
             zeromatrix(this->p_current_grid[i+thread_id*this->m_max_threads]);
-            zeromatrix6(this->p_current_grid_elast[i+thread_id*this->m_max_threads]);
+            zeromatrix6(this->p_current_grid_elborn[i+thread_id*this->m_max_threads]);
+            zeromatrix6(this->p_current_grid_elkin[i+thread_id*this->m_max_threads]);
         }
         for( int i=0; i<this->m_ncellsc; i++ )
         {
@@ -876,13 +893,14 @@ void StressGrid::Write ( )
 
             factor = mds_units/this->m_nframes;
             this->m_sum_boxvol /= this->m_nframes;
-            //factor2 = (m_sum_boxvol/this->m_ncells)*mds_units/this->m_nframes/(310*1.38064852E-23);
-            factor2 = -(m_sum_boxvol/(this->m_ncells*this->m_ncells))*mds_units/this->m_nframes/(this->m_temperature*KBN);
-            //factor2 = mds_units/this->m_nframes/8.31446261815324;
+            factor2 = -mds_units/(this->m_temperature*KBN);
 
             for ( int i = 0; i < this->m_ncells; i++ )
             {
-                submatrix6sq(this->p_sum_grid_elcovar[i], this->p_sum_grid[i], this->p_sum_grid_elcovar[i], factor2);
+                scalematrix(this->p_sum_grid_vol[i], 1.0/this->m_nframes, this->p_sum_grid_vol[i]);
+                scalematrix6(this->p_sum_grid_elcovar[i], 1.0/this->m_nframes, this->p_sum_grid_elcovar[i]);
+                scalesummatrix6matrixsq(-1.0, this->p_sum_grid_vol[i], this->p_sum_grid_elcovar[i]); // compute <V^2*sigma_ij*sigma_kl> - <V*sigma_ij><V*sigma_kl>
+                scalematrix6(this->p_sum_grid_elcovar[i], factor2, this->p_sum_grid_elcovar[i]);
                 scalematrix(this->p_sum_grid[i], factor, this->p_sum_grid[i]);
                 scalematrix6(this->p_sum_grid_elborn[i], factor, this->p_sum_grid_elborn[i]);
                 scalematrix6(this->p_sum_grid_elkin[i], factor, this->p_sum_grid_elkin[i]);
@@ -1355,7 +1373,7 @@ void StressGrid::DistributePairElast(darray xi, darray xj, darray xk, darray xl,
 {
     // this is the 3D case
     int batch_id = this->m_thread_map[std::this_thread::get_id()];
-    dmatrix6 * gridElast = this->p_current_grid_elast+batch_id*this->m_ncells;
+    dmatrix6 * gridElast = this->p_current_grid_elborn+batch_id*this->m_ncells;
 
     //------------------------------------------------------------------------------------
     // Calculate the stress tensor
@@ -1642,11 +1660,12 @@ void StressGrid::DistributeKineticElast(double mass, darray x, darray va, darray
     darray xc,xd,pa,pb;
     int index, iip1, iim1, jjp1, jjm1, kkp1, kkm1;
     double factor,C;
-
     if ( !this->m_ierr )
     {
         // get the batch id
-        //int batch_id = this->m_thread_map[std::this_thread::get_id()];
+        int batch_id = this->m_thread_map[std::this_thread::get_id()];
+        // select grid based on batch index
+        dmatrix6 * grid = this->p_current_grid_elkin+batch_id*this->m_ncells;
 
         // Stiffness matrix in Voigt notation
         // 0 = xx; 1 = yy; 2 = zz; 3 = yz or zy; 4 = xz or zx; 5 = xy or yx
@@ -1660,55 +1679,101 @@ void StressGrid::DistributeKineticElast(double mass, darray x, darray va, darray
         //
         // kd = kronecker delta, p is the particle's momenta
         // ijkl   -> kd(i,l)*pj*pk + kd(j,k)*pi*pl + kd(j,l)*pi*pk + kd(i,k)*pj*pl
-
-        elast[0][0] = 1*va[0]*va[0] + 1*va[0]*va[0] + 1*va[0]*va[0] + 1*va[0]*va[0]; //c_xxxx = c_0000
-        elast[0][1] = 0*va[0]*va[1] + 0*va[0]*va[1] + 0*va[0]*va[1] + 0*va[0]*va[1]; //c_xxyy = c_0011
-        elast[0][2] = 0*va[0]*va[2] + 0*va[0]*va[2] + 0*va[0]*va[2] + 0*va[0]*va[2]; //c_xxzz = c_0022
-        elast[0][3] = 0*va[0]*va[1] + 0*va[0]*va[2] + 0*va[0]*va[1] + 0*va[0]*va[2]; //c_xxyz = c_0012
-        elast[0][4] = 0*va[0]*va[0] + 1*va[0]*va[2] + 0*va[0]*va[0] + 1*va[0]*va[2]; //c_xxxz = c_0002
-        elast[0][5] = 0*va[0]*va[0] + 1*va[0]*va[1] + 0*va[0]*va[0] + 1*va[0]*va[1]; //c_xxxy = c_0001
-        elast[1][1] = 1*va[1]*va[1] + 1*va[1]*va[1] + 1*va[1]*va[1] + 1*va[1]*va[1]; //c_yyyy = c_1111
-        elast[1][2] = 0*va[1]*va[2] + 0*va[1]*va[2] + 0*va[1]*va[2] + 0*va[1]*va[2]; //c_yyzz = c_1122
-        elast[1][3] = 0*va[1]*va[1] + 1*va[1]*va[2] + 0*va[1]*va[1] + 1*va[1]*va[2]; //c_yyyz = c_1112
-        elast[1][4] = 0*va[1]*va[0] + 0*va[1]*va[2] + 0*va[1]*va[0] + 0*va[1]*va[2]; //c_yyxz = c_1102
-        elast[1][5] = 1*va[1]*va[0] + 0*va[1]*va[1] + 1*va[1]*va[0] + 0*va[1]*va[1]; //c_yyxy = c_1101
-        elast[2][2] = 1*va[2]*va[2] + 1*va[2]*va[2] + 1*va[2]*va[2] + 1*va[2]*va[2]; //c_zzzz = c_2222
-        elast[2][3] = 1*va[2]*va[1] + 0*va[2]*va[2] + 1*va[2]*va[1] + 0*va[2]*va[2]; //c_zzyz = c_2212
-        elast[2][4] = 1*va[2]*va[0] + 0*va[2]*va[2] + 1*va[2]*va[0] + 0*va[2]*va[2]; //c_zzxz = c_2202
-        elast[2][5] = 0*va[2]*va[0] + 0*va[2]*va[1] + 0*va[2]*va[0] + 0*va[2]*va[1]; //c_zzxy = c_2201
-        elast[3][3] = 0*va[2]*va[1] + 0*va[1]*va[2] + 1*va[1]*va[1] + 1*va[2]*va[2]; //c_yzyz = c_1212
-        elast[3][4] = 0*va[2]*va[0] + 0*va[1]*va[2] + 1*va[1]*va[0] + 0*va[2]*va[2]; //c_yzxz = c_1202
-        elast[3][5] = 1*va[2]*va[0] + 0*va[1]*va[1] + 0*va[1]*va[0] + 0*va[2]*va[1]; //c_yzxy = c_1201
-        elast[4][4] = 0*va[2]*va[0] + 0*va[0]*va[2] + 1*va[0]*va[0] + 1*va[2]*va[2]; //c_xzxz = c_0202
-        elast[4][5] = 0*va[2]*va[0] + 0*va[0]*va[1] + 0*va[0]*va[0] + 1*va[2]*va[1]; //c_xzxy = c_0201
-        elast[5][5] = 0*va[1]*va[0] + 0*va[0]*va[1] + 1*va[0]*va[0] + 1*va[1]*va[1]; //c_xyxy = c_0101
-
-        if (vb != NULL)
+        if (vb == NULL)
         {
-            elast[0][0] = (elast[0][0] + 1*vb[0]*vb[0] + 1*vb[0]*vb[0] + 1*vb[0]*vb[0] + 1*vb[0]*vb[0])/2.0; //c_xxxx = c_0000
-            elast[0][1] = (elast[0][1] + 0*vb[0]*vb[1] + 0*vb[0]*vb[1] + 0*vb[0]*vb[1] + 0*vb[0]*vb[1])/2.0; //c_xxyy = c_0011
-            elast[0][2] = (elast[0][2] + 0*vb[0]*vb[2] + 0*vb[0]*vb[2] + 0*vb[0]*vb[2] + 0*vb[0]*vb[2])/2.0; //c_xxzz = c_0022
-            elast[0][3] = (elast[0][3] + 0*vb[0]*vb[1] + 0*vb[0]*vb[2] + 0*vb[0]*vb[1] + 0*vb[0]*vb[2])/2.0; //c_xxyz = c_0012
-            elast[0][4] = (elast[0][4] + 0*vb[0]*vb[0] + 1*vb[0]*vb[2] + 0*vb[0]*vb[0] + 1*vb[0]*vb[2])/2.0; //c_xxxz = c_0002
-            elast[0][5] = (elast[0][5] + 0*vb[0]*vb[0] + 1*vb[0]*vb[1] + 0*vb[0]*vb[0] + 1*vb[0]*vb[1])/2.0; //c_xxxy = c_0001
-            elast[1][1] = (elast[1][1] + 1*vb[1]*vb[1] + 1*vb[1]*vb[1] + 1*vb[1]*vb[1] + 1*vb[1]*vb[1])/2.0; //c_yyyy = c_1111
-            elast[1][2] = (elast[1][2] + 0*vb[1]*vb[2] + 0*vb[1]*vb[2] + 0*vb[1]*vb[2] + 0*vb[1]*vb[2])/2.0; //c_yyzz = c_1122
-            elast[1][3] = (elast[1][3] + 0*vb[1]*vb[1] + 1*vb[1]*vb[2] + 0*vb[1]*vb[1] + 1*vb[1]*vb[2])/2.0; //c_yyyz = c_1112
-            elast[1][4] = (elast[1][4] + 0*vb[1]*vb[0] + 0*vb[1]*vb[2] + 0*vb[1]*vb[0] + 0*vb[1]*vb[2])/2.0; //c_yyxz = c_1102
-            elast[1][5] = (elast[1][5] + 1*vb[1]*vb[0] + 0*vb[1]*vb[1] + 1*vb[1]*vb[0] + 0*vb[1]*vb[1])/2.0; //c_yyxy = c_1101
-            elast[2][2] = (elast[2][2] + 1*vb[2]*vb[2] + 1*vb[2]*vb[2] + 1*vb[2]*vb[2] + 1*vb[2]*vb[2])/2.0; //c_zzzz = c_2222
-            elast[2][3] = (elast[2][3] + 1*vb[2]*vb[1] + 0*vb[2]*vb[2] + 1*vb[2]*vb[1] + 0*vb[2]*vb[2])/2.0; //c_zzyz = c_2212
-            elast[2][4] = (elast[2][4] + 1*vb[2]*vb[0] + 0*vb[2]*vb[2] + 1*vb[2]*vb[0] + 0*vb[2]*vb[2])/2.0; //c_zzxz = c_2202
-            elast[2][5] = (elast[2][5] + 0*vb[2]*vb[0] + 0*vb[2]*vb[1] + 0*vb[2]*vb[0] + 0*vb[2]*vb[1])/2.0; //c_zzxy = c_2201
-            elast[3][3] = (elast[3][3] + 0*vb[2]*vb[1] + 0*vb[1]*vb[2] + 1*vb[1]*vb[1] + 1*vb[2]*vb[2])/2.0; //c_yzyz = c_1212
-            elast[3][4] = (elast[3][4] + 0*vb[2]*vb[0] + 0*vb[1]*vb[2] + 1*vb[1]*vb[0] + 0*vb[2]*vb[2])/2.0; //c_yzxz = c_1202
-            elast[3][5] = (elast[3][5] + 1*vb[2]*vb[0] + 0*vb[1]*vb[1] + 0*vb[1]*vb[0] + 0*vb[2]*vb[1])/2.0; //c_yzxy = c_1201
-            elast[4][4] = (elast[4][4] + 0*vb[2]*vb[0] + 0*vb[0]*vb[2] + 1*vb[0]*vb[0] + 1*vb[2]*vb[2])/2.0; //c_xzxz = c_0202
-            elast[4][5] = (elast[4][5] + 0*vb[2]*vb[0] + 0*vb[0]*vb[1] + 0*vb[0]*vb[0] + 1*vb[2]*vb[1])/2.0; //c_xzxy = c_0201
-            elast[5][5] = (elast[5][5] + 0*vb[1]*vb[0] + 0*vb[0]*vb[1] + 1*vb[0]*vb[0] + 1*vb[1]*vb[1])/2.0; //c_xyxy = c_0101
+            /*                                                                                               ijkl
+            elast[0][0] = mass*(1*va[0]*va[0] + 1*va[0]*va[0] + 1*va[0]*va[0] + 1*va[0]*va[0]); //c_xxxx = c_0000
+            elast[0][1] = mass*(0*va[0]*va[1] + 0*va[0]*va[1] + 0*va[0]*va[1] + 0*va[0]*va[1]); //c_xxyy = c_0011
+            elast[0][2] = mass*(0*va[0]*va[2] + 0*va[0]*va[2] + 0*va[0]*va[2] + 0*va[0]*va[2]); //c_xxzz = c_0022
+            elast[0][3] = mass*(0*va[0]*va[1] + 0*va[0]*va[2] + 0*va[0]*va[1] + 0*va[0]*va[2]); //c_xxyz = c_0012
+            elast[0][4] = mass*(0*va[0]*va[0] + 1*va[0]*va[2] + 0*va[0]*va[0] + 1*va[0]*va[2]); //c_xxxz = c_0002
+            elast[0][5] = mass*(0*va[0]*va[0] + 1*va[0]*va[1] + 0*va[0]*va[0] + 1*va[0]*va[1]); //c_xxxy = c_0001
+            elast[1][1] = mass*(1*va[1]*va[1] + 1*va[1]*va[1] + 1*va[1]*va[1] + 1*va[1]*va[1]); //c_yyyy = c_1111
+            elast[1][2] = mass*(0*va[1]*va[2] + 0*va[1]*va[2] + 0*va[1]*va[2] + 0*va[1]*va[2]); //c_yyzz = c_1122
+            elast[1][3] = mass*(0*va[1]*va[1] + 1*va[1]*va[2] + 0*va[1]*va[1] + 1*va[1]*va[2]); //c_yyyz = c_1112
+            elast[1][4] = mass*(0*va[1]*va[0] + 0*va[1]*va[2] + 0*va[1]*va[0] + 0*va[1]*va[2]); //c_yyxz = c_1102
+            elast[1][5] = mass*(1*va[1]*va[0] + 0*va[1]*va[1] + 1*va[1]*va[0] + 0*va[1]*va[1]); //c_yyxy = c_1101
+            elast[2][2] = mass*(1*va[2]*va[2] + 1*va[2]*va[2] + 1*va[2]*va[2] + 1*va[2]*va[2]); //c_zzzz = c_2222
+            elast[2][3] = mass*(1*va[2]*va[1] + 0*va[2]*va[2] + 1*va[2]*va[1] + 0*va[2]*va[2]); //c_zzyz = c_2212
+            elast[2][4] = mass*(1*va[2]*va[0] + 0*va[2]*va[2] + 1*va[2]*va[0] + 0*va[2]*va[2]); //c_zzxz = c_2202
+            elast[2][5] = mass*(0*va[2]*va[0] + 0*va[2]*va[1] + 0*va[2]*va[0] + 0*va[2]*va[1]); //c_zzxy = c_2201
+            elast[3][3] = mass*(0*va[2]*va[1] + 0*va[1]*va[2] + 1*va[1]*va[1] + 1*va[2]*va[2]); //c_yzyz = c_1212
+            elast[3][4] = mass*(0*va[2]*va[0] + 0*va[1]*va[2] + 1*va[1]*va[0] + 0*va[2]*va[2]); //c_yzxz = c_1202
+            elast[3][5] = mass*(1*va[2]*va[0] + 0*va[1]*va[1] + 0*va[1]*va[0] + 0*va[2]*va[1]); //c_yzxy = c_1201
+            elast[4][4] = mass*(0*va[2]*va[0] + 0*va[0]*va[2] + 1*va[0]*va[0] + 1*va[2]*va[2]); //c_xzxz = c_0202
+            elast[4][5] = mass*(0*va[2]*va[0] + 0*va[0]*va[1] + 0*va[0]*va[0] + 1*va[2]*va[1]); //c_xzxy = c_0201
+            elast[5][5] = mass*(0*va[1]*va[0] + 0*va[0]*va[1] + 1*va[0]*va[0] + 1*va[1]*va[1]); //c_xyxy = c_0101
+            */
+            elast[0][0] = mass*4.0*va[0]*va[0]; //c_xxxx = c_0000
+            elast[0][1] = 0.0; //c_xxyy = c_0011
+            elast[0][2] = 0.0; //c_xxzz = c_0022
+            elast[0][3] = 0.0; //c_xxyz = c_0012
+            elast[0][4] = mass*(va[0]*va[2] + va[0]*va[2]); //c_xxxz = c_0002
+            elast[0][5] = mass*(va[0]*va[1] + va[0]*va[1]); //c_xxxy = c_0001
+            elast[1][1] = mass*4.0*va[1]*va[1]; //c_yyyy = c_1111
+            elast[1][2] = 0.0; //c_yyzz = c_1122
+            elast[1][3] = mass*(va[1]*va[2] + va[1]*va[2]); //c_yyyz = c_1112
+            elast[1][4] = 0.0; //c_yyxz = c_1102
+            elast[1][5] = mass*(va[1]*va[0] + va[1]*va[0]); //c_yyxy = c_1101
+            elast[2][2] = mass*4.0*va[2]*va[2]; //c_zzzz = c_2222
+            elast[2][3] = mass*(va[2]*va[1] + va[2]*va[1]); //c_zzyz = c_2212
+            elast[2][4] = mass*(va[2]*va[0] + va[2]*va[0]); //c_zzxz = c_2202
+            elast[2][5] = 0.0; //c_zzxy = c_2201
+            elast[3][3] = mass*(va[1]*va[1] + va[2]*va[2]); //c_yzyz = c_1212
+            elast[3][4] = mass*va[1]*va[0]; //c_yzxz = c_1202
+            elast[3][5] = mass*va[2]*va[0]; //c_yzxy = c_1201
+            elast[4][4] = mass*(va[0]*va[0] + va[2]*va[2]); //c_xzxz = c_0202
+            elast[4][5] = mass*va[2]*va[1]; //c_xzxy = c_0201
+            elast[5][5] = mass*(va[0]*va[0] + va[1]*va[1]); //c_xyxy = c_0101
+        }
+        else
+        {
+            /*
+            elast[0][0] = mass*(1*va[0]*va[0] + 1*va[0]*va[0] + 1*va[0]*va[0] + 1*va[0]*va[0] + 1*vb[0]*vb[0] + 1*vb[0]*vb[0] + 1*vb[0]*vb[0] + 1*vb[0]*vb[0])/2.0; //c_xxxx = c_0000
+            elast[0][1] = mass*(0*va[0]*va[1] + 0*va[0]*va[1] + 0*va[0]*va[1] + 0*va[0]*va[1] + 0*vb[0]*vb[1] + 0*vb[0]*vb[1] + 0*vb[0]*vb[1] + 0*vb[0]*vb[1])/2.0; //c_xxyy = c_0011
+            elast[0][2] = mass*(0*va[0]*va[2] + 0*va[0]*va[2] + 0*va[0]*va[2] + 0*va[0]*va[2] + 0*vb[0]*vb[2] + 0*vb[0]*vb[2] + 0*vb[0]*vb[2] + 0*vb[0]*vb[2])/2.0; //c_xxzz = c_0022
+            elast[0][3] = mass*(0*va[0]*va[1] + 0*va[0]*va[2] + 0*va[0]*va[1] + 0*va[0]*va[2] + 0*vb[0]*vb[1] + 0*vb[0]*vb[2] + 0*vb[0]*vb[1] + 0*vb[0]*vb[2])/2.0; //c_xxyz = c_0012
+            elast[0][4] = mass*(0*va[0]*va[0] + 1*va[0]*va[2] + 0*va[0]*va[0] + 1*va[0]*va[2] + 0*vb[0]*vb[0] + 1*vb[0]*vb[2] + 0*vb[0]*vb[0] + 1*vb[0]*vb[2])/2.0; //c_xxxz = c_0002
+            elast[0][5] = mass*(0*va[0]*va[0] + 1*va[0]*va[1] + 0*va[0]*va[0] + 1*va[0]*va[1] + 0*vb[0]*vb[0] + 1*vb[0]*vb[1] + 0*vb[0]*vb[0] + 1*vb[0]*vb[1])/2.0; //c_xxxy = c_0001
+            elast[1][1] = mass*(1*va[1]*va[1] + 1*va[1]*va[1] + 1*va[1]*va[1] + 1*va[1]*va[1] + 1*vb[1]*vb[1] + 1*vb[1]*vb[1] + 1*vb[1]*vb[1] + 1*vb[1]*vb[1])/2.0; //c_yyyy = c_1111
+            elast[1][2] = mass*(0*va[1]*va[2] + 0*va[1]*va[2] + 0*va[1]*va[2] + 0*va[1]*va[2] + 0*vb[1]*vb[2] + 0*vb[1]*vb[2] + 0*vb[1]*vb[2] + 0*vb[1]*vb[2])/2.0; //c_yyzz = c_1122
+            elast[1][3] = mass*(0*va[1]*va[1] + 1*va[1]*va[2] + 0*va[1]*va[1] + 1*va[1]*va[2] + 0*vb[1]*vb[1] + 1*vb[1]*vb[2] + 0*vb[1]*vb[1] + 1*vb[1]*vb[2])/2.0; //c_yyyz = c_1112
+            elast[1][4] = mass*(0*va[1]*va[0] + 0*va[1]*va[2] + 0*va[1]*va[0] + 0*va[1]*va[2] + 0*vb[1]*vb[0] + 0*vb[1]*vb[2] + 0*vb[1]*vb[0] + 0*vb[1]*vb[2])/2.0; //c_yyxz = c_1102
+            elast[1][5] = mass*(1*va[1]*va[0] + 0*va[1]*va[1] + 1*va[1]*va[0] + 0*va[1]*va[1] + 1*vb[1]*vb[0] + 0*vb[1]*vb[1] + 1*vb[1]*vb[0] + 0*vb[1]*vb[1])/2.0; //c_yyxy = c_1101
+            elast[2][2] = mass*(1*va[2]*va[2] + 1*va[2]*va[2] + 1*va[2]*va[2] + 1*va[2]*va[2] + 1*vb[2]*vb[2] + 1*vb[2]*vb[2] + 1*vb[2]*vb[2] + 1*vb[2]*vb[2])/2.0; //c_zzzz = c_2222
+            elast[2][3] = mass*(1*va[2]*va[1] + 0*va[2]*va[2] + 1*va[2]*va[1] + 0*va[2]*va[2] + 1*vb[2]*vb[1] + 0*vb[2]*vb[2] + 1*vb[2]*vb[1] + 0*vb[2]*vb[2])/2.0; //c_zzyz = c_2212
+            elast[2][4] = mass*(1*va[2]*va[0] + 0*va[2]*va[2] + 1*va[2]*va[0] + 0*va[2]*va[2] + 1*vb[2]*vb[0] + 0*vb[2]*vb[2] + 1*vb[2]*vb[0] + 0*vb[2]*vb[2])/2.0; //c_zzxz = c_2202
+            elast[2][5] = mass*(0*va[2]*va[0] + 0*va[2]*va[1] + 0*va[2]*va[0] + 0*va[2]*va[1] + 0*vb[2]*vb[0] + 0*vb[2]*vb[1] + 0*vb[2]*vb[0] + 0*vb[2]*vb[1])/2.0; //c_zzxy = c_2201
+            elast[3][3] = mass*(0*va[2]*va[1] + 0*va[1]*va[2] + 1*va[1]*va[1] + 1*va[2]*va[2] + 0*vb[2]*vb[1] + 0*vb[1]*vb[2] + 1*vb[1]*vb[1] + 1*vb[2]*vb[2])/2.0; //c_yzyz = c_1212
+            elast[3][4] = mass*(0*va[2]*va[0] + 0*va[1]*va[2] + 1*va[1]*va[0] + 0*va[2]*va[2] + 0*vb[2]*vb[0] + 0*vb[1]*vb[2] + 1*vb[1]*vb[0] + 0*vb[2]*vb[2])/2.0; //c_yzxz = c_1202
+            elast[3][5] = mass*(1*va[2]*va[0] + 0*va[1]*va[1] + 0*va[1]*va[0] + 0*va[2]*va[1] + 1*vb[2]*vb[0] + 0*vb[1]*vb[1] + 0*vb[1]*vb[0] + 0*vb[2]*vb[1])/2.0; //c_yzxy = c_1201
+            elast[4][4] = mass*(0*va[2]*va[0] + 0*va[0]*va[2] + 1*va[0]*va[0] + 1*va[2]*va[2] + 0*vb[2]*vb[0] + 0*vb[0]*vb[2] + 1*vb[0]*vb[0] + 1*vb[2]*vb[2])/2.0; //c_xzxz = c_0202
+            elast[4][5] = mass*(0*va[2]*va[0] + 0*va[0]*va[1] + 0*va[0]*va[0] + 1*va[2]*va[1] + 0*vb[2]*vb[0] + 0*vb[0]*vb[1] + 0*vb[0]*vb[0] + 1*vb[2]*vb[1])/2.0; //c_xzxy = c_0201
+            elast[5][5] = mass*(0*va[1]*va[0] + 0*va[0]*va[1] + 1*va[0]*va[0] + 1*va[1]*va[1] + 0*vb[1]*vb[0] + 0*vb[0]*vb[1] + 1*vb[0]*vb[0] + 1*vb[1]*vb[1])/2.0; //c_xyxy = c_0101
+            */
+            elast[0][0] = mass*4.0*(va[0]*va[0] + vb[0]*vb[0])/2.0; //c_xxxx = c_0000
+            elast[0][1] = 0.0; //c_xxyy = c_0011
+            elast[0][2] = 0.0; //c_xxzz = c_0022
+            elast[0][3] = 0.0; //c_xxyz = c_0012
+            elast[0][4] = mass*(va[0]*va[2] + va[0]*va[2] + vb[0]*vb[2] + vb[0]*vb[2])/2.0; //c_xxxz = c_0002
+            elast[0][5] = mass*(va[0]*va[1] + va[0]*va[1] + vb[0]*vb[1] + vb[0]*vb[1])/2.0; //c_xxxy = c_0001
+            elast[1][1] = mass*4.0*(va[1]*va[1] + vb[1]*vb[1])/2.0; //c_yyyy = c_1111
+            elast[1][2] = 0.0; //c_yyzz = c_1122
+            elast[1][3] = mass*(va[1]*va[2] + va[1]*va[2] + vb[1]*vb[2] + vb[1]*vb[2])/2.0; //c_yyyz = c_1112
+            elast[1][4] = 0.0; //c_yyxz = c_1102
+            elast[1][5] = mass*(va[1]*va[0] + va[1]*va[0] + vb[1]*vb[0] + vb[1]*vb[0])/2.0; //c_yyxy = c_1101
+            elast[2][2] = mass*4.0*(va[2]*va[2] + vb[2]*vb[2])/2.0; //c_zzzz = c_2222
+            elast[2][3] = mass*(va[2]*va[1] + va[2]*va[1] + vb[2]*vb[1] + vb[2]*vb[1])/2.0; //c_zzyz = c_2212
+            elast[2][4] = mass*(va[2]*va[0] + va[2]*va[0] + vb[2]*vb[0] + vb[2]*vb[0])/2.0; //c_zzxz = c_2202
+            elast[2][5] = 0.0; //c_zzxy = c_2201
+            elast[3][3] = mass*(va[1]*va[1] + va[2]*va[2] + vb[1]*vb[1] + vb[2]*vb[2])/2.0; //c_yzyz = c_1212
+            elast[3][4] = mass*(va[1]*va[0] + vb[1]*vb[0])/2.0; //c_yzxz = c_1202
+            elast[3][5] = mass*(va[2]*va[0] + vb[2]*vb[0])/2.0; //c_yzxy = c_1201
+            elast[4][4] = mass*(va[0]*va[0] + va[2]*va[2] + vb[0]*vb[0] + vb[2]*vb[2])/2.0; //c_xzxz = c_0202
+            elast[4][5] = mass*(va[2]*va[1] + vb[2]*vb[1])/2.0; //c_xzxy = c_0201
+            elast[5][5] = mass*(va[0]*va[0] + va[1]*va[1] + vb[0]*vb[0] + vb[1]*vb[1])/2.0; //c_xyxy = c_0101
         }
 
-        scalematrix6(elast, mass, elast);
         // Get the coordinates of the point in the grid
         i1[0] = this->m_nxyz[0] * x[0] * this->m_invbox[0][0] - (x[0] < 0.0);
         i1[1] = this->m_nxyz[1] * x[1] * this->m_invbox[1][1] - (x[1] < 0.0);
@@ -1731,18 +1796,17 @@ void StressGrid::DistributeKineticElast(double mass, darray x, darray va, darray
         xd[1] = xc[1]-this->m_gridsp[1];
         xd[2] = xc[2]-this->m_gridsp[2];
 
-        // select grid based on batch index
-        //dmatrix * grid = this->p_current_grid+batch_id*this->m_ncells;
+        
 
         // Spread it
-        scalesummatrix6( C*xc[0]*xc[1]*xc[2],elast,this->p_sum_grid_elkin[iip1+jjp1+kkp1]);
-        scalesummatrix6(-C*xc[0]*xc[1]*xd[2],elast,this->p_sum_grid_elkin[iip1+jjp1+kkm1]);
-        scalesummatrix6(-C*xc[0]*xd[1]*xc[2],elast,this->p_sum_grid_elkin[iip1+jjm1+kkp1]);
-        scalesummatrix6( C*xc[0]*xd[1]*xd[2],elast,this->p_sum_grid_elkin[iip1+jjm1+kkm1]);
-        scalesummatrix6(-C*xd[0]*xc[1]*xc[2],elast,this->p_sum_grid_elkin[iim1+jjp1+kkp1]);
-        scalesummatrix6( C*xd[0]*xc[1]*xd[2],elast,this->p_sum_grid_elkin[iim1+jjp1+kkm1]);
-        scalesummatrix6( C*xd[0]*xd[1]*xc[2],elast,this->p_sum_grid_elkin[iim1+jjm1+kkp1]);
-        scalesummatrix6(-C*xd[0]*xd[1]*xd[2],elast,this->p_sum_grid_elkin[iim1+jjm1+kkm1]);
+        scalesummatrix6( C*xc[0]*xc[1]*xc[2],elast,grid[iip1+jjp1+kkp1]);
+        scalesummatrix6(-C*xc[0]*xc[1]*xd[2],elast,grid[iip1+jjp1+kkm1]);
+        scalesummatrix6(-C*xc[0]*xd[1]*xc[2],elast,grid[iip1+jjm1+kkp1]);
+        scalesummatrix6( C*xc[0]*xd[1]*xd[2],elast,grid[iip1+jjm1+kkm1]);
+        scalesummatrix6(-C*xd[0]*xc[1]*xc[2],elast,grid[iim1+jjp1+kkp1]);
+        scalesummatrix6( C*xd[0]*xc[1]*xd[2],elast,grid[iim1+jjp1+kkm1]);
+        scalesummatrix6( C*xd[0]*xd[1]*xc[2],elast,grid[iim1+jjm1+kkp1]);
+        scalesummatrix6(-C*xd[0]*xd[1]*xd[2],elast,grid[iim1+jjm1+kkm1]);
     }
 }
 
@@ -2801,7 +2865,7 @@ void StressGrid::BondAngleCrossPhiKappa(double k, double deltarab, double deltar
 	kappa[2][1] = k;
 }
 
-void StressGrid::QuarticAnglePhiKappa(double ab, double bg, double ag, double deltatheta, darray6 &coeff, darray &phi, dmatrix &kappa) {
+void StressGrid::QuarticAnglePhiKappa(double ab, double bg, double ag, double deltatheta, double (&coeff)[5], darray &phi, dmatrix &kappa) {
 
 	double costh = this->CalcCosine(ab, bg, ag);
 	darray d_cos_array;
@@ -2820,11 +2884,10 @@ void StressGrid::QuarticAnglePhiKappa(double ab, double bg, double ag, double de
 
 	double deltathetasq = deltatheta * deltatheta;
 	double deltathetacube = deltathetasq * deltatheta;
-	double deltathetafour = deltathetasq * deltathetasq;
 
 	//Calculate the Finate Sums
-	double phiconst = coeff[1] + 2 * coeff[2] * deltatheta + 3 * coeff[3] * deltathetasq + 4 * coeff[4] * deltathetacube + 5 * coeff[5] * deltathetafour;
-	double kappaconst = 2 * coeff[2] + 6 * coeff[3] * deltatheta + 12 * coeff[4] * deltathetasq + 20 * coeff[5] * deltathetacube;
+	double phiconst = coeff[1] + 2 * coeff[2] * deltatheta + 3 * coeff[3] * deltathetasq + 4 * coeff[4] * deltathetacube;
+	double kappaconst = 2 * coeff[2] + 6 * coeff[3] * deltatheta + 12 * coeff[4] * deltathetasq + 20;
 
 	//Calculate Phi Vector
 	for (int i = 0; i < 3; i++) {
