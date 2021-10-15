@@ -438,17 +438,17 @@ class  mds::StressGrid
 		void FENEPhiKappa(double r, double k, double diffratio, double& phi, double& kappa);
 		
 		// 3 Body Potentials
-		void HarmonicAnglePhiKappa(double ab, double bg, double ag, double deltatheta, double k, darray &phi, dmatrix &kappa);
+		void HarmonicAnglePhiKappa(double ab, double bg, double ag, double costheta, double deltatheta, double k, darray &phi, dmatrix &kappa);
 		
 		void HarmonicCosPhiKappa(double ab, double bg, double ag, double deltacos, double k, darray &phi, dmatrix &kappa);
 		
-		void UreyBradleyPhiKappa(double ab, double bg, double ag, double deltaRag, double deltatheta, double ktheta, double kUB, darray &phi, dmatrix &kappa);
+		void UreyBradleyPhiKappa(double ab, double bg, double ag, double costheta, double deltaRag, double deltatheta, double ktheta, double kUB, darray &phi, dmatrix &kappa);
 		
 		void BondBondCrossPhiKappa(double k, double deltarab, double deltarbg, darray &phi, dmatrix &kappa);
 		
 		void BondAngleCrossPhiKappa(double k, double deltarab, double deltarbg, double deltarag, darray &phi, dmatrix &kappa);
 		
-		void QuarticAnglePhiKappa(double ab, double bg, double ag, double deltatheta, double (&coeff)[5], darray &phi, dmatrix &kappa);
+		void QuarticAnglePhiKappa(double ab, double bg, double ag, double costheta, double deltatheta, double (&coeff)[5], darray &phi, dmatrix &kappa);
         
         /** Constructor */
         StressGrid( );
@@ -506,11 +506,13 @@ class  mds::StressGrid
         darray  *p_Fij;           ///< force vectors
         darray  *p_Uij;           ///< distance vectors
         dmatrix *p_current_grid;  ///< Grid (either nx*ny*nz or nAtoms)
+        dmatrix *p_current_gridtot;  ///< Grid of size 1
         dmatrix6 *p_current_grid_elborn;  ///< Grid (either nx*ny*nz or nAtoms)
         dmatrix6 *p_current_grid_elkin;  ///< Grid (either nx*ny*nz or nAtoms)
         double  *p_current_gridc; ///< Grid (either nx*ny*nz or nAtoms) (ewald)
         dmatrix *p_sum_grid;      ///< Sum Grid
-        dmatrix *p_sum_grid_vol;  ///< Sum Grid
+        dmatrix *p_avg_grid;      ///< Sum Grid
+        dmatrix *p_avg_gridtot;  ///< Total Sum Grid
         dmatrix6 *p_sum_grid_elcovar;  ///< Elasticity Grid Covariance Term
         dmatrix6 *p_sum_grid_elborn;   ///< Elasticity Grid Born Term
         dmatrix6 *p_sum_grid_elkin;    ///< Elasticity Grid Kinetic Term
