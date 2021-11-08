@@ -624,7 +624,8 @@ void StressGrid::SumGrid ( )
             {
                 for (int i = 0; i < this->m_ncells; i++)
                 {
-                    summatrix( this->p_current_gridtot[0], this->p_current_grid[i], this->p_current_gridtot[0]); // compute sigma_total_kl = y
+                    scalesummatrix( 1.0/this->m_ncells, this->p_current_grid[i], this->p_current_gridtot[0]); // compute y = sigma_total_kl = sum(sigma_local_kl)/m_ncells
+                    //summatrix( this->p_current_gridtot[0], this->p_current_grid[i], this->p_current_gridtot[0]); // compute sigma_total_kl = y
                 }
                 scalesummatrix(-1.0, this->p_avg_gridtot[0], this->p_current_gridtot[0]); // subtract meany from y and store back into y (which now becomes dy)
                 scalesummatrix(1.0/this->m_nframes, this->p_current_gridtot[0], this->p_avg_gridtot[0]); //compute meany
@@ -639,6 +640,7 @@ void StressGrid::SumGrid ( )
                     summatrix(dx[0], this->p_current_grid[i], dx[0]); // dx += x
                     scalesummatrix(1.0/this->m_nframes, dx[0], this->p_avg_grid[i]); //compute meanx
                     matrixouterprod( dx[0], this->p_current_gridtot[0], tmp_covar[0]); // dx*dy
+                    //matrixouterprod( dx[0], dx[0], tmp_covar[0]); // dx*dy
                     summatrix6(this->p_sum_grid_elcovar[i], tmp_covar[0], this->p_sum_grid_elcovar[i]); //this accumulates the covar of sigma_local_ij*sigma_total_kl
                 }
 
@@ -945,7 +947,8 @@ void StressGrid::Write ( )
             stressfac = mds_units/this->m_nframes;
             stress2fac = mds_units*mds_units/this->m_nframes;
             this->m_sum_boxvol /= this->m_nframes;
-            covfac = -mds_units*mds_units*this->m_sum_boxvol/(this->m_temperature*KBfac*this->m_nframes*this->m_ncells);
+            //covfac = -mds_units*mds_units*this->m_sum_boxvol/(this->m_temperature*KBfac*this->m_nframes*this->m_ncells);
+            covfac = -mds_units*mds_units*this->m_sum_boxvol/(this->m_temperature*KBfac*this->m_nframes);
             dmatrix6 *tmp_covar;
             tmp_covar = new dmatrix6[1];
             for ( int i = 0; i < this->m_ncells; i++ )
