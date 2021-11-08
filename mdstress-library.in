@@ -1,0 +1,7 @@
+#%Module1.0
+set root_dir @CMAKE_INSTALL_PREFIX@
+prepend-path LD_LIBRARY_PATH $root_dir/lib:$root_dir/lib64
+prepend-path MANPATH $root_dir/share/man
+prepend-path PATH $root_dir/bin
+prepend-path PYTHONPATH $root_dir/lib:$root_dir/bin
+prepend-path CMAKE_PREFIX_PATH $root_dir

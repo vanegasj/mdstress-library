@@ -69,3 +69,11 @@ endif()
 
 # process tensortools
 add_subdirectory(tensortools)
+
+if(MODULEFILES_PATH)
+    # modify the file and copy it to build dir
+    configure_file(mdstress-library.in mdstress-library @ONLY)
+
+    # install it in the specified modulesfiles dir
+    install(FILES ${CMAKE_CURRENT_BINARY_DIR}/mdstress-library DESTINATION ${MODULEFILES_PATH} PERMISSIONS OWNER_READ OWNER_WRITE GROUP_READ WORLD_READ)
+endif(MODULEFILES_PATH)
