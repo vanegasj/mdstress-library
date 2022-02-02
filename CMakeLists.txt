@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.8 FATAL_ERROR)
+cmake_minimum_required(VERSION 3.12 FATAL_ERROR)
 project(mdstress_test LANGUAGES CXX )
 #cmake_minimum_required(VERSION 3.12 FATAL_ERROR)
 #project(mdstress_test LANGUAGES CXX CUDA)
@@ -51,11 +51,12 @@ list(REMOVE_ITEM SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/contrib/voro++/src/v_base_w
 list(REMOVE_ITEM SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/contrib/voro++/src/cmd_line.cc)
 
 # include the headers directory
-include_directories(${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES} include/mdstress include/voro++)
-link_directories(${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}/lib64)
+include_directories(include/mdstress include/voro++)
+#include_directories(${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES} include/mdstress include/voro++)
+#link_directories(${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}/lib64)
 
 add_library(mdstress SHARED ${SOURCES})
-set_target_properties(mdstress PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
+#set_target_properties(mdstress PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
 target_link_libraries(mdstress PRIVATE ${LAPACK_LIBRARY})
 
 install(TARGETS mdstress RUNTIME DESTINATION bin LIBRARY DESTINATION lib ARCHIVE DESTINATION lib/static)
