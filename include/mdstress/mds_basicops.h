@@ -45,14 +45,16 @@ namespace mds
         c[5] = a[5]+b[5];
     }
 
-    static inline void diffarray ( darray a, darray b, darray c)
+    template<class float_type_ab, class float_type_c>
+    static inline void diffarray ( float_type_ab a[3], float_type_ab b[3], float_type_c c[3])
     {
         c[0] = a[0]-b[0];
         c[1] = a[1]-b[1];
         c[2] = a[2]-b[2];
     }
 
-    static inline void diffarray ( darray a, darray b, darray c, dmatrix box, barray periodic)
+    template<class float_type_ab, class float_type_c, class float_type_box>
+    static inline void diffarray ( float_type_ab a[3], float_type_ab b[3], float_type_c c[3], float_type_box box[3][3], barray periodic)
     {
         c[0] = a[0]-b[0];
         c[1] = a[1]-b[1];
@@ -64,9 +66,9 @@ namespace mds
             {
                 if (periodic[i] == true)
                 {
-                    while (c[i] > 0.5*box[i][i])
+                    while (c[i] > (real)(0.5)*box[i][i])
                         c[i] -= box[i][i];
-                    while (c[i] <= -0.5*box[i][i])
+                    while (c[i] <= (real)(-0.5)*box[i][i])
                         c[i] += box[i][i];
                 }
             }
@@ -80,7 +82,8 @@ namespace mds
         c[2] = a * b[2];
     }
 
-    static inline double normarray ( darray a )
+    template<class float_type>
+    static inline double normarray ( float_type a[3] )
     {
         return sqrt(a[0]*a[0] + a[1]*a[1] + a[2]*a[2]);
     }
@@ -92,7 +95,8 @@ namespace mds
         b[2] = a[2];
     }
 
-    static inline void summatrix ( dmatrix a, dmatrix b, dmatrix c)
+    template<class float_type>
+    static inline void summatrix ( float_type a[3][3], float_type b[3][3], float_type c[3][3])
     {
         c[0][0] = a[0][0] + b[0][0];
         c[0][1] = a[0][1] + b[0][1];
@@ -105,7 +109,8 @@ namespace mds
         c[2][2] = a[2][2] + b[2][2];
     }
 
-    static inline void summatrix6 ( dmatrix6 a, dmatrix6 b, dmatrix6 c)
+    template<class float_type>
+    static inline void summatrix6(float_type a[6][6], float_type b[6][6], float_type c[6][6])
     {
         for (int i = 0; i < 6; ++i)
         {
@@ -127,17 +132,44 @@ namespace mds
     // ( yzxx yzyy yzzz yzyz yzxz yzxy ) = ( 30 31 32 33 34 35 ) = [ 1200 1211 1222 1212 1202 1201 ]
     // ( xzxx xzyy xzzz xzyz xzxz xzxy ) = ( 40 41 42 43 44 45 ) = [ 0200 0211 0222 0212 0202 0201 ]
     // ( xyxx xyyy xyzz xyyz xyxz xyxy ) = ( 50 51 52 53 54 55 ) = [ 0100 0111 0122 0112 0102 0101 ]
-    static inline void summatrix6matrixsq ( dmatrix6 a, dmatrix b, dmatrix6 c)
+    //
+    template<class float_type>
+    static inline void summatrix6matrixsq(float_type a[6][6], float_type b[3][3] , float_type c[6][6])
     {
-        c[0][0] = a[0][0] + b[0][0]*b[0][0]; c[0][1] = a[0][1] + b[0][0]*b[1][1]; c[0][2] = a[0][2] + b[0][0]*b[2][2]; c[0][3] = a[0][3] + b[0][0]*b[1][2]; c[0][4] = a[0][4] + b[0][0]*b[0][2]; c[0][5] = a[0][5] + b[0][0]*b[0][1];
-        c[1][0] = a[1][0] + b[1][1]*b[0][0]; c[1][1] = a[1][1] + b[1][1]*b[1][1]; c[1][2] = a[1][2] + b[1][1]*b[2][2]; c[1][3] = a[1][3] + b[1][1]*b[1][2]; c[1][4] = a[1][4] + b[1][1]*b[0][2]; c[1][5] = a[1][5] + b[1][1]*b[0][1];
-        c[2][0] = a[2][0] + b[2][2]*b[0][0]; c[2][1] = a[2][1] + b[2][2]*b[1][1]; c[2][2] = a[2][2] + b[2][2]*b[2][2]; c[2][3] = a[2][3] + b[2][2]*b[1][2]; c[2][4] = a[2][4] + b[2][2]*b[0][2]; c[2][5] = a[2][5] + b[2][2]*b[0][1];
-        c[3][0] = a[3][0] + b[1][2]*b[0][0]; c[3][1] = a[3][1] + b[1][2]*b[1][1]; c[3][2] = a[3][2] + b[1][2]*b[2][2]; c[3][3] = a[3][3] + b[1][2]*b[1][2]; c[3][4] = a[3][4] + b[1][2]*b[0][2]; c[3][5] = a[3][5] + b[1][2]*b[0][1];
-        c[4][0] = a[4][0] + b[0][2]*b[0][0]; c[4][1] = a[4][1] + b[0][2]*b[1][1]; c[4][2] = a[4][2] + b[0][2]*b[2][2]; c[4][3] = a[4][3] + b[0][2]*b[1][2]; c[4][4] = a[4][4] + b[0][2]*b[0][2]; c[4][5] = a[4][5] + b[0][2]*b[0][1];
-        c[5][0] = a[5][0] + b[0][1]*b[0][0]; c[5][1] = a[5][1] + b[0][1]*b[1][1]; c[5][2] = a[5][2] + b[0][1]*b[2][2]; c[5][3] = a[5][3] + b[0][1]*b[1][2]; c[5][4] = a[5][4] + b[0][1]*b[0][2]; c[5][5] = a[5][5] + b[0][1]*b[0][1];
+        for (int i = 0; i < 3; ++i)
+        {
+            c[i][0] = a[i][0] + b[i][i]*b[0][0];
+            c[i][1] = a[i][1] + b[i][i]*b[1][1];
+            c[i][2] = a[i][2] + b[i][i]*b[2][2];
+            c[i][3] = a[i][3] + b[i][i]*b[1][2];
+            c[i][4] = a[i][4] + b[i][i]*b[0][2];
+            c[i][5] = a[i][5] + b[i][i]*b[0][1];
+        }
+
+        c[3][0] = a[3][0] + b[1][2]*b[0][0];
+        c[3][1] = a[3][1] + b[1][2]*b[1][1];
+        c[3][2] = a[3][2] + b[1][2]*b[2][2];
+        c[3][3] = a[3][3] + b[1][2]*b[1][2];
+        c[3][4] = a[3][4] + b[1][2]*b[0][2];
+        c[3][5] = a[3][5] + b[1][2]*b[0][1];
+
+        c[4][0] = a[4][0] + b[0][2]*b[0][0];
+        c[4][1] = a[4][1] + b[0][2]*b[1][1];
+        c[4][2] = a[4][2] + b[0][2]*b[2][2];
+        c[4][3] = a[4][3] + b[0][2]*b[1][2];
+        c[4][4] = a[4][4] + b[0][2]*b[0][2];
+        c[4][5] = a[4][5] + b[0][2]*b[0][1];
+
+        c[5][0] = a[5][0] + b[0][1]*b[0][0];
+        c[5][1] = a[5][1] + b[0][1]*b[1][1];
+        c[5][2] = a[5][2] + b[0][1]*b[2][2];
+        c[5][3] = a[5][3] + b[0][1]*b[1][2];
+        c[5][4] = a[5][4] + b[0][1]*b[0][2];
+        c[5][5] = a[5][5] + b[0][1]*b[0][1];
     }
 
-    static inline void matrixouterprod ( dmatrix a, dmatrix b, dmatrix6 c)
+    template<class float_type>
+    static inline void matrixouterprod(float_type a[3][3], float_type b[3][3], float_type c[6][6])
     {
         c[0][0] = a[0][0]*b[0][0]; c[0][1] = a[0][0]*b[1][1]; c[0][2] = a[0][0]*b[2][2]; c[0][3] = a[0][0]*b[1][2]; c[0][4] = a[0][0]*b[0][2]; c[0][5] = a[0][0]*b[0][1];
         c[1][0] = a[1][1]*b[0][0]; c[1][1] = a[1][1]*b[1][1]; c[1][2] = a[1][1]*b[2][2]; c[1][3] = a[1][1]*b[1][2]; c[1][4] = a[1][1]*b[0][2]; c[1][5] = a[1][1]*b[0][1];
@@ -169,33 +201,36 @@ namespace mds
     }
 */
 
-    static inline void copymatrix ( dmatrix a, dmatrix b)
+    template<class float_type_a, class float_type_b>
+    static inline void copymatrix ( float_type_a a[3][3], float_type_b b[3][3])
     {
-        b[0][0] = a[0][0];
-        b[0][1] = a[0][1];
-        b[0][2] = a[0][2];
-        b[1][0] = a[1][0];
-        b[1][1] = a[1][1];
-        b[1][2] = a[1][2];
-        b[2][0] = a[2][0];
-        b[2][1] = a[2][1];
-        b[2][2] = a[2][2];
+        b[0][0] = (float_type_b)(a[0][0]);
+        b[0][1] = (float_type_b)(a[0][1]);
+        b[0][2] = (float_type_b)(a[0][2]);
+        b[1][0] = (float_type_b)(a[1][0]);
+        b[1][1] = (float_type_b)(a[1][1]);
+        b[1][2] = (float_type_b)(a[1][2]);
+        b[2][0] = (float_type_b)(a[2][0]);
+        b[2][1] = (float_type_b)(a[2][1]);
+        b[2][2] = (float_type_b)(a[2][2]);
     }
 
-    static inline void copymatrix6 ( dmatrix6 a, dmatrix6 b)
+    template<class float_type_a, class float_type_b>
+    static inline void copymatrix6 ( float_type_a a[6][6], float_type_b b[6][6])
     {
         for (int i = 0; i < 6; ++i)
         {
-            b[i][0] = a[i][0];
-            b[i][1] = a[i][1];
-            b[i][2] = a[i][2];
-            b[i][3] = a[i][3];
-            b[i][4] = a[i][4];
-            b[i][5] = a[i][5];
+            b[i][0] = (float_type_b)(a[i][0]);
+            b[i][1] = (float_type_b)(a[i][1]);
+            b[i][2] = (float_type_b)(a[i][2]);
+            b[i][3] = (float_type_b)(a[i][3]);
+            b[i][4] = (float_type_b)(a[i][4]);
+            b[i][5] = (float_type_b)(a[i][5]);
         }
     }
 
-    static inline void scalematrix ( dmatrix b, double a, dmatrix c)
+    template<class float_type>
+    static inline void scalematrix ( float_type b[3][3], float_type a, float_type c[3][3])
     {
         c[0][0] = a * b[0][0];
         c[0][1] = a * b[0][1];
@@ -208,7 +243,8 @@ namespace mds
         c[2][2] = a * b[2][2];
     }
 
-    static inline void scalematrix6 ( dmatrix6 b, double a, dmatrix6 c)
+    template<class float_type>
+    static inline void scalematrix6 ( float_type b[6][6], float_type a, float_type c[6][6])
     {
         for (int i = 0; i < 6; i++)
         {
@@ -221,7 +257,8 @@ namespace mds
         }
     }
 
-    static inline void scalesummatrix6(double a, dmatrix6 b, dmatrix6 c)
+    template<class float_type>
+    static inline void scalesummatrix6(float_type a, float_type b[6][6], float_type c[6][6])
     {
         for (int i = 0; i < 6; ++i)
         {
@@ -234,7 +271,8 @@ namespace mds
         }
     }
 
-    static inline void scalesummatrix6matrixsq(double a, dmatrix6 b, dmatrix6 c)
+    template<class float_type>
+    static inline void scalesummatrix6matrixsq(float_type a, float_type b[6][6], float_type c[6][6])
     {
         for (int i = 0; i < 3; ++i)
         {
@@ -268,22 +306,20 @@ namespace mds
         c[5][5] += a * b[0][1]*b[0][1];
     }
 
-    #define scalesummatrix(a,b,c)\
-        c[0][0] += a * b[0][0];\
-        c[0][1] += a * b[0][1];\
-        c[0][2] += a * b[0][2];\
-        c[1][0] += a * b[1][0];\
-        c[1][1] += a * b[1][1];\
-        c[1][2] += a * b[1][2];\
-        c[2][0] += a * b[2][0];\
-        c[2][1] += a * b[2][1];\
+    template<class float_type>
+    static inline void scalesummatrix(float_type a, float_type b[3][3], float_type c[3][3])
+    {
+        c[0][0] += a * b[0][0];
+        c[0][1] += a * b[0][1];
+        c[0][2] += a * b[0][2];
+        c[1][0] += a * b[1][0];
+        c[1][1] += a * b[1][1];
+        c[1][2] += a * b[1][2];
+        c[2][0] += a * b[2][0];
+        c[2][1] += a * b[2][1];
         c[2][2] += a * b[2][2];
+    }
 
-    #define scalesumarray(a,b,c)\
-        c[0] += a * b[0];\
-        c[1] += a * b[1];\
-        c[2] += a * b[2];
-    
     static inline void inversematrix ( dmatrix A, dmatrix iA)
     {
         double det = 0.0;
@@ -307,29 +343,31 @@ namespace mds
         iA[2][2] = ((A[0][0] * A[1][1]) - (A[0][1]*A[1][0])) * iDet;
     }
 
-    static inline void zeromatrix ( dmatrix A )
+    template<class float_type>
+    static inline void zeromatrix ( float_type A[3][3] )
     {
-        A[0][0] = 0.0;
-        A[0][1] = 0.0;
-        A[0][2] = 0.0;
-        A[1][0] = 0.0;
-        A[1][1] = 0.0;
-        A[1][2] = 0.0;
-        A[2][0] = 0.0;
-        A[2][1] = 0.0;
-        A[2][2] = 0.0;
+        A[0][0] = (float_type)(0.0);
+        A[0][1] = (float_type)(0.0);
+        A[0][2] = (float_type)(0.0);
+        A[1][0] = (float_type)(0.0);
+        A[1][1] = (float_type)(0.0);
+        A[1][2] = (float_type)(0.0);
+        A[2][0] = (float_type)(0.0);
+        A[2][1] = (float_type)(0.0);
+        A[2][2] = (float_type)(0.0);
     }
 
-    static inline void zeromatrix6 ( dmatrix6 A )
+    template<class float_type>
+    static inline void zeromatrix6 ( float_type A[6][6] )
     {
         for (int i = 0; i < 6; ++i)
         {
-            A[i][0] = 0.0;
-            A[i][1] = 0.0;
-            A[i][2] = 0.0;
-            A[i][3] = 0.0;
-            A[i][4] = 0.0;
-            A[i][5] = 0.0;
+            A[i][0] = (float_type)(0.0);
+            A[i][1] = (float_type)(0.0);
+            A[i][2] = (float_type)(0.0);
+            A[i][3] = (float_type)(0.0);
+            A[i][4] = (float_type)(0.0);
+            A[i][5] = (float_type)(0.0);
         }
     }
 

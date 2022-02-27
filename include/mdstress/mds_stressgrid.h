@@ -162,11 +162,11 @@ class  mds::StressGrid
             this->m_spacing = d;
         }
         double  GetSpacingX( )
-        {   return this->m_gridsp[0]; }
+        {   return (double)this->m_gridsp[0]; }
         double  GetSpacingY( )
-        {   return this->m_gridsp[1]; }
+        {   return (double)this->m_gridsp[1]; }
         double  GetSpacingZ( )
-        {   return this->m_gridsp[2]; }
+        {   return (double)this->m_gridsp[2]; }
         void SetSpacingc(double dc)
         {
             std::lock_guard<std::mutex> lock(m_mutex_state);
@@ -494,9 +494,9 @@ class  mds::StressGrid
         dmatrix  m_sumbox;        ///< Average box
         dmatrix  m_invbox;        ///< Inverse of the box
         double   m_sum_boxvol;    ///< Average box volume
-        double   m_gridsp[7];     ///< grid spacing
+        real     m_gridsp[7];     ///< grid spacing
         double   m_gridspc[7];    ///< grid spacing
-        double   m_invgridsp;     ///< inverse of grid spacing
+        real     m_invgridsp;     ///< inverse of grid spacing
         double   m_invgridspc;    ///< inverse of grid spacing
         Lapack **h_lapack;        ///< mds_lapack: solves underdetermined/overdetermined systems of equations and projects solution onto shape space
         double  *p_Amat;          ///< matrix for linear systems (for systems with more than 5 particles)
@@ -505,17 +505,17 @@ class  mds::StressGrid
         darray  *p_Rij;           ///< distance vectors
         darray  *p_Fij;           ///< force vectors
         darray  *p_Uij;           ///< distance vectors
-        dmatrix *p_current_grid;  ///< Grid (either nx*ny*nz or nAtoms)
-        dmatrix *p_current_gridtot;  ///< Grid of size 1
-        dmatrix6 *p_current_grid_elborn;  ///< Grid (either nx*ny*nz or nAtoms)
-        dmatrix6 *p_current_grid_elkin;  ///< Grid (either nx*ny*nz or nAtoms)
+        rmatrix3 *p_current_grid;  ///< Grid (either nx*ny*nz or nAtoms)
+        rmatrix3 *p_current_gridtot;  ///< Grid of size 1
+        rmatrix6 *p_current_grid_elborn;  ///< Grid (either nx*ny*nz or nAtoms)
+        rmatrix6 *p_current_grid_elkin;  ///< Grid (either nx*ny*nz or nAtoms)
         double  *p_current_gridc; ///< Grid (either nx*ny*nz or nAtoms) (ewald)
-        dmatrix *p_sum_grid;      ///< Sum Grid
-        dmatrix *p_avg_grid;      ///< Sum Grid
-        dmatrix *p_avg_gridtot;  ///< Total Sum Grid
-        dmatrix6 *p_sum_grid_elcovar;  ///< Elasticity Grid Covariance Term
-        dmatrix6 *p_sum_grid_elborn;   ///< Elasticity Grid Born Term
-        dmatrix6 *p_sum_grid_elkin;    ///< Elasticity Grid Kinetic Term
+        rmatrix3 *p_sum_grid;      ///< Sum Grid
+        rmatrix3 *p_avg_grid;      ///< Sum Grid
+        rmatrix3 *p_avg_gridtot;  ///< Total Sum Grid
+        rmatrix6 *p_sum_grid_elcovar;  ///< Elasticity Grid Covariance Term
+        rmatrix6 *p_sum_grid_elborn;   ///< Elasticity Grid Born Term
+        rmatrix6 *p_sum_grid_elkin;    ///< Elasticity Grid Kinetic Term
         double  *p_sum_gridc;     ///< Sum Grid (charge)
         double  *p_sum_volume;    ///< Sum of volumes when using mds_atom
         double  *p_radii;         ///< the radius of an atomic site

@@ -92,12 +92,21 @@ namespace mds
     #define mds_griddim_zzz 2
     #define mds_griddim_xyz 3
 
+    // used for exposed function calls
     typedef bool    barray[4];
     typedef int     iarray[3];
     typedef double  darray[3];
     typedef double  darray6[6];
     typedef double  dmatrix[3][3];
     typedef double  dmatrix6[6][6];
+    
+    // used for internal calculations
+    #define realval(x) (x ## l)
+    typedef long double real;
+    typedef real rarray3[3];
+    typedef real rarray6[6];
+    typedef real rmatrix3[3][3];
+    typedef real rmatrix6[6][6];
 
     class  StressGrid;
     class  StressGridPython;
