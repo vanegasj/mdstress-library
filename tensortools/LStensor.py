@@ -387,19 +387,19 @@ class LStensor:
 
         return 0
 
-    def g_saveinvnc  (self, outputfile):
+    def g_saveinvariantnc  (self, outputfile):
         '''
         Store invariants in NETCDF format
         '''
         
         if (self.gridFlag == False):
-            print("ERROR: LStensor: g_saveinvnc: grid is not defined")
+            print("ERROR: LStensor: g_saveinvariantnc: grid is not defined")
             return 1
         if (self.order == 0 ):
-            print("ERROR: function g_saveinvnc does not write 0-order tensors. Use g_savenc instead")
+            print("ERROR: function g_saveinvariantnc does not write 0-order tensors. Use g_savenc instead")
             return 1
         if (self.order > 2 ):
-            print("ERROR: function g_saveinvnc cannot write tensors of order larger than 2")
+            print("ERROR: function g_saveinvariantnc cannot write tensors of order larger than 2")
             return 1
         
         if (self.verbose):
@@ -561,6 +561,13 @@ class LStensor:
         if (self.verbose):
             print("DONE!\n")
 
+        return
+    
+    def g_invert(self):
+        
+        '''
+        Invert a Tensor
+        '''
         return
 
     ####################################################################################################################
@@ -768,13 +775,13 @@ class LStensor:
 
         return
 
-    def a_saveinvpdb(self, outputfile):
+    def a_saveinvariantpdb(self, outputfile):
         '''
         Save invariants in a pdb
         '''
 
         if(prody == 1):
-            print("ERROR: LStensor: a_saveinvpdb: Trying to  write a structure but ProDy not installed or not in python path. You can find it on http://prody.csb.pitt.edu/index.html.\n" )
+            print("ERROR: LStensor: a_saveinvariantpdb: Trying to  write a structure but ProDy not installed or not in python path. You can find it on http://prody.csb.pitt.edu/index.html.\n" )
             return 1
 
         outname, outext = outputfile.split('.')
@@ -917,7 +924,7 @@ class LStensor:
     ####################################################################################################################
     # INVARIANTS:
 
-    def g_inv(self):
+    def g_invariant(self):
 
         '''
             Get invariants of the field depending on the order in a grid
@@ -940,7 +947,7 @@ class LStensor:
                 self.invariants_grid[i,2] = np.linalg.det(self.data_grid[i,:].reshape(3,3))
                 #self.invariants_grid[i,2] = np.linalg.det(self.data_grid[i,[0,1,3,4]].reshape(2,2))
 
-    def a_inv(self):
+    def a_invariant(self):
 
         '''
             Get invariants of the field depending on the order per atom

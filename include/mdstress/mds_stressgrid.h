@@ -493,7 +493,8 @@ class  mds::StressGrid
         int      m_nreset;        ///< Number of resets (for writing files)
         dmatrix  m_sumbox;        ///< Average box
         dmatrix  m_invbox;        ///< Inverse of the box
-        double   m_sum_boxvol;    ///< Average box volume
+        double   m_avg_boxvol;    ///< Average box volume
+        double   m_var_boxvol;    ///< Variance of box volume
         double   m_gridsp[7];     ///< grid spacing
         double   m_gridspc[7];    ///< grid spacing
         double   m_invgridsp;     ///< inverse of grid spacing
@@ -501,7 +502,7 @@ class  mds::StressGrid
         Lapack **h_lapack;        ///< mds_lapack: solves underdetermined/overdetermined systems of equations and projects solution onto shape space
         double  *p_Amat;          ///< matrix for linear systems (for systems with more than 5 particles)
         double  *p_AmatT;         ///< transpose of the matrix (used for projecting solution onto the shape space)
-        double  *p_bvec;          ///< vector for solving the linear system    
+        double  *p_bvec;          ///< vector for solving the linear system
         darray  *p_Rij;           ///< distance vectors
         darray  *p_Fij;           ///< force vectors
         darray  *p_Uij;           ///< distance vectors
@@ -512,7 +513,8 @@ class  mds::StressGrid
         double  *p_current_gridc; ///< Grid (either nx*ny*nz or nAtoms) (ewald)
         dmatrix *p_sum_grid;      ///< Sum Grid
         dmatrix *p_avg_grid;      ///< Sum Grid
-        dmatrix *p_avg_gridtot;  ///< Total Sum Grid
+        dmatrix *p_avg_gridtot;   ///< Total Sum Grid
+        dmatrix *p_sum_grid_volcovar;  ///< Elasticity Grid Covariance due to volume fluctuations
         dmatrix6 *p_sum_grid_elcovar;  ///< Elasticity Grid Covariance Term
         dmatrix6 *p_sum_grid_elborn;   ///< Elasticity Grid Born Term
         dmatrix6 *p_sum_grid_elkin;    ///< Elasticity Grid Kinetic Term
