@@ -107,6 +107,7 @@ StressGrid::StressGrid()
     this->p_sum_grid_elkin = NULL;
     this->p_sum_grid_elborn = NULL;
     this->p_sum_grid_volcovar = NULL;
+    this->p_sum_gridtot_volcovar = NULL;
     this->p_sum_volume    = NULL;
     this->p_molecule_id   = NULL;
     this->p_radii         = NULL;
@@ -118,6 +119,7 @@ StressGrid::StressGrid()
     this->m_periodic[0] = false;
     this->m_periodic[1] = false;
     this->m_periodic[2] = false;
+    this->m_pcoupl      = false;
     this->m_mindihangle = 0.0;
     this->m_rcoulomb    = 0.0;
     this->m_epsfac      = 0.0;
@@ -153,6 +155,7 @@ void StressGrid::Clear()
     if (this->p_sum_grid_elkin       != NULL ) delete [] this->p_sum_grid_elkin;
     if (this->p_sum_grid_elborn      != NULL ) delete [] this->p_sum_grid_elborn;
     if (this->p_sum_grid_volcovar    != NULL ) delete [] this->p_sum_grid_volcovar;
+    if (this->p_sum_gridtot_volcovar != NULL ) delete [] this->p_sum_gridtot_volcovar;
     if (this->p_sum_gridc            != NULL ) delete [] this->p_sum_gridc;
     if (this->p_sum_volume           != NULL ) delete [] this->p_sum_volume;
     if (this->p_molecule_id          != NULL ) delete [] this->p_molecule_id;
@@ -187,6 +190,7 @@ void StressGrid::Clear()
     this->p_sum_grid_elkin      = NULL;
     this->p_sum_grid_elborn      = NULL;
     this->p_sum_grid_volcovar      = NULL;
+    this->p_sum_gridtot_volcovar      = NULL;
     this->p_sum_gridc     = NULL;
     this->p_sum_volume    = NULL;
     this->p_molecule_id   = NULL;
@@ -377,6 +381,7 @@ void StressGrid::Init()
         this->p_sum_grid_elkin      = new dmatrix6 [this->m_ncells];
         this->p_sum_grid_elborn     = new dmatrix6 [this->m_ncells];
         this->p_sum_grid_volcovar   = new dmatrix [this->m_ncells];
+        this->p_sum_gridtot_volcovar   = new dmatrix [1];
         this->p_current_grid_elkin  = new dmatrix6 [this->m_ncells*this->m_max_threads];
         this->p_current_grid_elborn = new dmatrix6 [this->m_ncells*this->m_max_threads];
         this->p_current_grid        = new dmatrix [this->m_ncells*this->m_max_threads];
@@ -388,6 +393,7 @@ void StressGrid::Init()
         this->m_var_boxvol = 0.0;
         zeromatrix(p_current_gridtot[0]);
         zeromatrix(p_avg_gridtot[0]);
+        zeromatrix(p_sum_gridtot_volcovar[0]);
         for (int i=0; i < this->m_ncells; i++)
         {
             zeromatrix(this->p_sum_grid[i]);
@@ -615,7 +621,7 @@ void StressGrid::SumGrid ( )
             x represents sigma_local_ij
             y represents sigma_total_kl
 
-            at each iteraton we first increment the counter
+            at each iteration we first increment the counter
             n += 1
 
             then we compute the following:
@@ -651,17 +657,17 @@ void StressGrid::SumGrid ( )
             this->m_avg_boxvol += deltaV/this->m_nframes;
             deltaV2 = Vnew - this->m_avg_boxvol;
             this->m_var_boxvol += deltaV*deltaV2;
-            //printf("m_avg_boxvol = %8.8e, m_var_boxvol = %8.8e, deltaV = %8.8e\n", this->m_avg_boxvol, this->m_var_boxvol, deltaV);
 
             if (this->m_spatatom == mds_spat)
             {
                 for (int i = 0; i < this->m_ncells; i++)
                 {
-                    scalesummatrix( 1.0/this->m_ncells, this->p_current_grid[i], this->p_current_gridtot[0]); // compute y = sigma_total_kl = sum(sigma_local_kl)/m_ncells
-                    //summatrix( this->p_current_gridtot[0], this->p_current_grid[i], this->p_current_gridtot[0]); // compute sigma_total_kl = y
+                    summatrix(this->p_current_gridtot[0], this->p_current_grid[i], this->p_current_gridtot[0]); // compute y = sigma_total_kl = sum(sigma_local_kl)/this->m_ncells
                 }
+                scalematrix(this->p_current_gridtot[0], 1/this->m_ncells, this->p_current_gridtot[0]); // scale by this->m_ncells
                 scalesummatrix(-1.0, this->p_avg_gridtot[0], this->p_current_gridtot[0]); // subtract meany from y and store back into y (which now becomes dy)
-                scalesummatrix(1.0/this->m_nframes, this->p_current_gridtot[0], this->p_avg_gridtot[0]); //compute meany
+                scalesummatrix(1.0/this->m_nframes, this->p_current_gridtot[0], this->p_avg_gridtot[0]); // update meany
+                scalesummatrix(deltaV, this->p_current_gridtot[0], this->p_sum_gridtot_volcovar[0]); // accumulate the covar(sigma_total_kl, Vol)
                 dmatrix6 tmp_covar[1];
                 dmatrix dx[1];
                 for (int i = 0; i < this->m_ncells; i++)
@@ -672,10 +678,8 @@ void StressGrid::SumGrid ( )
                     scalematrix(this->p_avg_grid[i], -1.0, dx[0]); // dx = -meanx
                     summatrix(dx[0], this->p_current_grid[i], dx[0]); // dx += x
                     scalesummatrix(1.0/this->m_nframes, dx[0], this->p_avg_grid[i]); //compute meanx
-                    scalesummatrix(deltaV, dx[0], this->p_sum_grid_volcovar[i]); // computing covar(sigma_local_ij, Vol)
-                    //printf("covar(sigma_local_ij,Vol) = %8.8e\n", this->p_sum_grid_volcovar[i][0][0]);
+                    scalesummatrix(deltaV, dx[0], this->p_sum_grid_volcovar[i]); // accumulate covar(sigma_local_ij, Vol)
                     matrixouterprod( dx[0], this->p_current_gridtot[0], tmp_covar[0]); // dx*dy
-                    //matrixouterprod( dx[0], dx[0], tmp_covar[0]); // dx*dy
                     summatrix6(this->p_sum_grid_elcovar[i], tmp_covar[0], this->p_sum_grid_elcovar[i]); //this accumulates the covar of sigma_local_ij*sigma_total_kl
                 }
 
@@ -983,28 +987,21 @@ void StressGrid::Write ( )
             }
             stressfac = mds_units/this->m_nframes;
             stress2fac = mds_units*mds_units/this->m_nframes;
-            //this->m_var_boxvol /= this->m_nframes;
-            //covfac = -mds_units*mds_units*this->m_sum_boxvol/(this->m_temperature*KBfac*this->m_nframes*this->m_ncells);
             covfac = -mds_units*mds_units*this->m_avg_boxvol/(this->m_temperature*KBfac*this->m_nframes);
             covfac2 = 0.0;
-            if (this->m_var_boxvol > 1e-12){
-                covfac2 = mds_units*this->m_avg_boxvol/this->m_var_boxvol; // we don't need to divide by m_nframes here since the Var(Vol) is also not divided by m_nframes and the factors cancel out
+            if (this->m_pcoupl == true){
+                covfac2 = mds_units*mds_units*this->m_avg_boxvol/(this->m_temperature*KBfac*this->m_var_boxvol*this->m_nframes);
             }
-            dmatrix6 *tmp_covar;
-            dmatrix IM;
-            tmp_covar = new dmatrix6[1];
-            IM[0][0] = 1.0; IM[0][1] = 0.0; IM[0][2] = 0.0;
-            IM[1][0] = 0.0; IM[1][1] = 1.0; IM[1][2] = 0.0;
-            IM[2][0] = 0.0; IM[2][1] = 0.0; IM[2][2] = 1.0;
+            dmatrix6 npt_covar_corr[1];
             for ( int i = 0; i < this->m_ncells; i++ )
             {
                 scalematrix(this->p_sum_grid[i], stressfac, this->p_sum_grid[i]);
                 scalematrix6(this->p_sum_grid_elcovar[i], covfac, this->p_sum_grid_elcovar[i]);
                 scalematrix6(this->p_sum_grid_elborn[i], stressfac, this->p_sum_grid_elborn[i]);
                 scalematrix6(this->p_sum_grid_elkin[i], stressfac, this->p_sum_grid_elkin[i]);
-                scalematrix(this->p_sum_grid_volcovar[i], covfac2, this->p_sum_grid_volcovar[i]); // <V>*Cov(sigma_local_ij*V)/Var(V)
-                matrixouterprod(this->p_sum_grid_volcovar[i], IM, tmp_covar[0]); // <V>*Cov(sigma_local_ij*V)/Var(V)*delta_kl
-                summatrix6(this->p_sum_grid_elcovar[i], tmp_covar[0], this->p_sum_grid_elcovar[i]);
+                matrixouterprod(this->p_sum_grid_volcovar[i], this->p_sum_gridtot_volcovar[0], npt_covar_corr[0]); // Cov(sigma_local_ij,V)*Cov(sigma_total_kl,V)
+                scalematrix6(npt_covar_corr[0], covfac2, npt_covar_corr[0]); // scale the term above by <V>/kT*Var(V)
+                summatrix6(this->p_sum_grid_elcovar[i], npt_covar_corr[0], this->p_sum_grid_elcovar[i]);
             }
 
             fwrite(this->p_sum_grid, sizeof(dmatrix), this->m_ncells, outfile);

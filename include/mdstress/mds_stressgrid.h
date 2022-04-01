@@ -256,9 +256,11 @@ class  mds::StressGrid
         //@}
 
         /**Set box: */
-        void SetBox(dmatrix box)
+        void SetBox(dmatrix box, int epc)
         {   
             std::lock_guard<std::mutex> lock(m_mutex_state);
+            if (epc != 0)
+                this->m_pcoupl = true;
             for (int i = 0; i < mds_ndim; i++ )
                 for (int j = 0; j < mds_ndim; j++)
                     this->m_box[i][j] = box[i][j];
@@ -484,6 +486,7 @@ class  mds::StressGrid
         int         m_maxpart;        ///< used to allocate Rij and Fij
         int         m_max_threads;    ///< number of threads to use
         double      m_temperature;
+        bool        m_pcoupl;
         //@}
     
         /** @name Outputs*/
@@ -514,7 +517,8 @@ class  mds::StressGrid
         dmatrix *p_sum_grid;      ///< Sum Grid
         dmatrix *p_avg_grid;      ///< Sum Grid
         dmatrix *p_avg_gridtot;   ///< Total Sum Grid
-        dmatrix *p_sum_grid_volcovar;  ///< Elasticity Grid Covariance due to volume fluctuations
+        dmatrix *p_sum_grid_volcovar;  ///< Cov(sigma_local_ij, V)
+        dmatrix *p_sum_gridtot_volcovar;  ///< Cov(sigma_total_ij, V)
         dmatrix6 *p_sum_grid_elcovar;  ///< Elasticity Grid Covariance Term
         dmatrix6 *p_sum_grid_elborn;   ///< Elasticity Grid Born Term
         dmatrix6 *p_sum_grid_elkin;    ///< Elasticity Grid Kinetic Term
