@@ -256,9 +256,11 @@ class  mds::StressGrid
         //@}
 
         /**Set box: */
-        void SetBox(matrix3_ext box)
+        void SetBox(matrix3_ext box, int epc)
         {   
             std::lock_guard<std::mutex> lock(m_mutex_state);
+            if (epc != 0)
+                this->m_pcoupl = true;
             for (int i = 0; i < mds_ndim; i++ )
                 for (int j = 0; j < mds_ndim; j++)
                     this->m_box[i][j] = (real_int)box[i][j];
@@ -484,6 +486,7 @@ class  mds::StressGrid
         int         m_maxpart;        ///< used to allocate Rij and Fij
         int         m_max_threads;    ///< number of threads to use
         real_int    m_temperature;
+        bool        m_pcoupl;
         //@}
     
         /** @name Outputs*/
@@ -493,7 +496,8 @@ class  mds::StressGrid
         int      m_nreset;                ///< Number of resets (for writing files)
         matrix3_int m_sumbox;             ///< Average box
         matrix3_int m_invbox;             ///< Inverse of the box
-        real_int m_sum_boxvol;            ///< Average box volume
+        real_int m_avg_boxvol;            ///< Average box volume
+        real_int m_var_boxvol;            ///< Variance of box volume
         real_int m_gridsp[7];             ///< grid spacing
         real_int m_gridspc[7];            ///< grid spacing
         real_int m_invgridsp;             ///< inverse of grid spacing
@@ -513,6 +517,8 @@ class  mds::StressGrid
         matrix3_int *p_sum_grid;            ///< Sum Grid
         matrix3_int *p_avg_grid;            ///< Sum Grid
         matrix3_int *p_avg_gridtot;         ///< Total Sum Grid
+        matrix3_int *p_sum_grid_volcovar;  ///< Cov(sigma_local_ij, V)
+        matrix3_int *p_sum_gridtot_volcovar;  ///< Cov(sigma_total_ij, V)
         matrix6_int *p_sum_grid_elcovar;    ///< Elasticity Grid Covariance Term
         matrix6_int *p_sum_grid_elborn;     ///< Elasticity Grid Born Term
         matrix6_int *p_sum_grid_elkin;      ///< Elasticity Grid Kinetic Term
