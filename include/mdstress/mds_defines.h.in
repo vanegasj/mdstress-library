@@ -23,6 +23,10 @@
 #ifndef mds_defines_h
 #define mds_defines_h
 
+// controls internal and external precision using CMake options
+#define @EXT_PRECISION@
+#define @INT_PRECISION@
+
 namespace mds
 {   
     #define mds_max(a,b) \
@@ -91,22 +95,46 @@ namespace mds
     #define mds_griddim_yyy 1
     #define mds_griddim_zzz 2
     #define mds_griddim_xyz 3
-
-    // used for exposed function calls
+    
     typedef bool    barray[4];
     typedef int     iarray[3];
-    typedef double  darray[3];
-    typedef double  darray6[6];
-    typedef double  dmatrix[3][3];
-    typedef double  dmatrix6[6][6];
+    
+    // used for output files 
+    #define realval_out(x) (x)
+    typedef double      real_out;
+    typedef real_out  array3_out[3];
+    typedef real_out  array6_out[6];
+    typedef real_out matrix3_out[3][3];
+    typedef real_out matrix6_out[6][6];
+
+    // used for exposed function calls
+#if defined(EXT_FLOAT)
+    #define realval_ext(x) (x ## f)
+    typedef float       real_ext;
+#elif defined(EXT_DOUBLE)
+    #define realval_ext(x) (x)
+    typedef double      real_ext;
+#endif
+    typedef real_ext  array3_ext[3];
+    typedef real_ext  array6_ext[6];
+    typedef real_ext matrix3_ext[3][3];
+    typedef real_ext matrix6_ext[6][6];
     
     // used for internal calculations
-    #define realval(x) (x ## l)
-    typedef long double real;
-    typedef real rarray3[3];
-    typedef real rarray6[6];
-    typedef real rmatrix3[3][3];
-    typedef real rmatrix6[6][6];
+#if defined(INT_FLOAT)
+    #define realval_int(x) (x ## f)
+    typedef float       real_int;
+#elif defined(INT_DOUBLE)
+    #define realval_int(x) (x)
+    typedef double      real_int;
+#elif defined(INT_LONG_DOUBLE)
+    #define realval_int(x) (x ## l)
+    typedef long double real_int;
+#endif
+    typedef real_int  array3_int[3];
+    typedef real_int  array6_int[6];
+    typedef real_int matrix3_int[3][3];
+    typedef real_int matrix6_int[6][6];
 
     class  StressGrid;
     class  StressGridPython;

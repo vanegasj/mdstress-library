@@ -18,6 +18,11 @@ endif(NOT CMAKE_BUILD_TYPE)
 # set the boostpython option
 option(MDS_BOOSTPYTHON "Enable Boost Python bindings" OFF)
 
+set(EXT_PRECISION "EXT_DOUBLE" CACHE STRING "Precision used by exposed function calls")
+set_property(CACHE EXT_PRECISION PROPERTY STRINGS EXT_DOUBLE EXT_FLOAT)
+set(INT_PRECISION "INT_DOUBLE" CACHE STRING "Precision used internally")
+set_property(CACHE INT_PRECISION PROPERTY STRINGS INT_FLOAT INT_DOUBLE INT_LONG_DOUBLE)
+
 # find lapack library
 find_library(LAPACK_LIBRARY_SYS NAMES lapack liblapack HINTS /usr/lib REQUIRED)
 if (NOT LAPACK_LIBRARY_SYS)
@@ -38,6 +43,9 @@ endif()
 # set our cmake modules path for tclap
 set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake" ${CMAKE_MODULE_PATH})
 
+# create our mds_defines.h file in the binary build directory
+configure_file(include/mdstress/mds_defines.h.in mds_defines.h @ONLY)
+
 # find all the source files
 file(GLOB SOURCES src/*.cpp src/*.cu contrib/voro++/src/*.cc)
 
@@ -51,7 +59,7 @@ list(REMOVE_ITEM SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/contrib/voro++/src/v_base_w
 list(REMOVE_ITEM SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/contrib/voro++/src/cmd_line.cc)
 
 # include the headers directory
-include_directories(include/mdstress include/voro++)
+include_directories(include/mdstress include/voro++ ${CMAKE_CURRENT_BINARY_DIR})
 #include_directories(${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES} include/mdstress include/voro++)
 #link_directories(${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}/lib64)
 
@@ -61,6 +69,7 @@ target_link_libraries(mdstress PRIVATE ${LAPACK_LIBRARY})
 
 install(TARGETS mdstress RUNTIME DESTINATION bin LIBRARY DESTINATION lib ARCHIVE DESTINATION lib/static)
 install(FILES ${MDSTRESS_SOURCES_H} DESTINATION include/mdstress)
+install(FILES ${CMAKE_CURRENT_BINARY_DIR}/mds_defines.h DESTINATION include/mdstress)
 install(FILES ${VORO_SOURCES_HH} DESTINATION include/voro++)
 
 # only process python bindings if requested

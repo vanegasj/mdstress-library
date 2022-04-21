@@ -156,27 +156,27 @@ class  mds::StressGrid
         
         /** Set/Get spacing in each direction: */
         //@{
-        void SetSpacing(double d)
+        void SetSpacing(real_ext d)
         {
             std::lock_guard<std::mutex> lock(m_mutex_state);
-            this->m_spacing = d;
+            this->m_spacing = (real_int)d;
         }
-        double  GetSpacingX( )
-        {   return (double)this->m_gridsp[0]; }
-        double  GetSpacingY( )
-        {   return (double)this->m_gridsp[1]; }
-        double  GetSpacingZ( )
-        {   return (double)this->m_gridsp[2]; }
-        void SetSpacingc(double dc)
+        real_ext  GetSpacingX( )
+        {   return (real_ext)this->m_gridsp[0]; }
+        real_ext  GetSpacingY( )
+        {   return (real_ext)this->m_gridsp[1]; }
+        real_ext  GetSpacingZ( )
+        {   return (real_ext)this->m_gridsp[2]; }
+        void SetSpacingc(real_ext dc)
         {
             std::lock_guard<std::mutex> lock(m_mutex_state);
             this->m_spacingc = dc;
         }
-        double  GetSpacingXC( )
+        real_ext  GetSpacingXC( )
         {   return this->m_gridspc[0]; }
-        double  GetSpacingYC( )
+        real_ext  GetSpacingYC( )
         {   return this->m_gridspc[1]; }
-        double  GetSpacingZC( )
+        real_ext  GetSpacingZC( )
         {   return this->m_gridspc[2]; }
         //@}        
         
@@ -215,24 +215,24 @@ class  mds::StressGrid
         
          /**Set/Get mindihangle */
         //@{
-        void SetMinDihAngle (double mindihangle)
+        void SetMinDihAngle (real_ext mindihangle)
         {
             std::lock_guard<std::mutex> lock(m_mutex_state);
-            this->m_mindihangle = mindihangle;
+            this->m_mindihangle = (real_int)mindihangle;
         }
-        double GetMinDihAngle ( )
-        {   return this->m_mindihangle;   }
+        real_ext GetMinDihAngle ( )
+        {   return (real_ext)this->m_mindihangle;   }
         //@}
          
          /**Set/Get Charge Cutoff*/
         //@{
-        void SetChargeParams(int gridctype, double epsfac, double rcoulomb, double ewaldcoeff_q)
+        void SetChargeParams(int gridctype, real_ext epsfac, real_ext rcoulomb, real_ext ewaldcoeff_q)
         {
             std::lock_guard<std::mutex> lock(m_mutex_state);
             this->m_gridctype = gridctype;
-            this->m_epsfac = epsfac;
-            this->m_rcoulomb = rcoulomb;
-            this->m_ewaldcoeff_q = ewaldcoeff_q;
+            this->m_epsfac = (real_int)epsfac;
+            this->m_rcoulomb = (real_int)rcoulomb;
+            this->m_ewaldcoeff_q = (real_int)ewaldcoeff_q;
         }
         //@}
         
@@ -247,21 +247,21 @@ class  mds::StressGrid
          * R       -> positions of the atoms
          * F       -> forces on the atoms
          * atomIDs -> labels of the atoms (optional, only needed if calculating stress/atom) */
-        void ComputeNbodyPairForces ( int nAtoms, darray *R, darray *F, int *atomIDs );
+        void ComputeNbodyPairForces ( int nAtoms, array3_ext *R, array3_ext *F, int *atomIDs );
 
-        darray * GetNbodyDecompPairForces()
+        array3_int * GetNbodyDecompPairForces()
         {   return this->p_Fij;    }
-        darray * GetNbodyDecompPairVectors()
+        array3_int * GetNbodyDecompPairVectors()
         {   return this->p_Rij;    }
         //@}
 
         /**Set box: */
-        void SetBox(dmatrix box)
+        void SetBox(matrix3_ext box)
         {   
             std::lock_guard<std::mutex> lock(m_mutex_state);
             for (int i = 0; i < mds_ndim; i++ )
                 for (int j = 0; j < mds_ndim; j++)
-                    this->m_box[i][j] = box[i][j];
+                    this->m_box[i][j] = (real_int)box[i][j];
         }
 
         /**Set the maximum cluster size (by default mds_maxpart) */
@@ -280,14 +280,14 @@ class  mds::StressGrid
             this->m_filename.assign(filename);
         }
         
-        void SetTemperature(double temperature)
+        void SetTemperature(real_ext temperature)
         {
-            this->m_temperature = temperature;
+            this->m_temperature = (real_int)temperature;
         }
         
-        double GetTemperature(double temperature)
+        real_ext GetTemperature(real_ext temperature)
         {
-            return this->m_temperature;
+            return (real_ext)this->m_temperature;
         }
         
         void EnableCuda()
@@ -323,13 +323,13 @@ class  mds::StressGrid
         void Init ( );
         
         /** This function updates the box, invboxm and also computes the new spacings */
-        void UpdateBoxSpacings ( dmatrix box );
+        void UpdateBoxSpacings ( matrix3_ext box );
         
         /** This function sums current_grid to sum_grid and sets current_grid to 0. It also increases the frame counter */
         void SumGrid ( );
         
         /** This function shifts current_grid by shift/ngrid */
-        void DispersionCorrection (double shift);
+        void DispersionCorrection (real_ext shift);
         
         /** Set both sum_grid and current_grid to zero. Sum the number of resets (this is used for 
          * printing files) and set the number of frames to zero */
@@ -349,7 +349,7 @@ class  mds::StressGrid
          * Requires:
          * radius  -> radius of the atom
          * atomID  -> label of the atom */
-        void SetVoronoiRadius(double radius, int atomID);
+        void SetVoronoiRadius(real_ext radius, int atomID);
 
         /** AddVoronoiAtom
          *
@@ -361,7 +361,7 @@ class  mds::StressGrid
          * radius  -> radius of the atom
          * atomID  -> label of the atom
          * moleID  -> label of the molecule this atom belongs to */
-        void AddVoronoiAtom(double px, double py, double pz, int atomID, int moleID);
+        void AddVoronoiAtom(real_ext px, real_ext py, real_ext pz, int atomID, int moleID);
 
         /** DistributeStress
          *
@@ -374,20 +374,20 @@ class  mds::StressGrid
          * R       -> positions of the atoms
          * F       -> forces on the atoms
          * atomIDs -> labels of the atoms (optional, only needed if calculating stress/atom) */
-        void DistributeInteraction ( int nAtoms, darray *R, darray *F, int *atomIDs );
+        void DistributeInteraction ( int nAtoms, array3_ext *R, array3_ext *F, int *atomIDs );
         
         /**
          *
-         *This Function Computes the Born term of the Elasticity Tensor for Pairwise interactions in 3 Dimensions
-	     *The Formula is from Tadmor Modeling Materials Section 8 Equation 8.84
-         *Currently only Lennard Jones Elasticity is being Implimented, Will impliment coulomb Later
-         *Based upon ROOT OF ALL EVIL (Take Care when debugging)
-         *Coordinates xi and xj correspond to the first pair of particles (alpha and beta in Tadmor's notation) over which the Born term will be distributed
-         *Coordinates xk and xl correspond to the second pair of particles in a multibody potential
-         *For simple pairwise potentials, xk and xi should be the same and also xj and xl
+         * This Function Computes the Born term of the Elasticity Tensor for Pairwise interactions in 3 Dimensions
+	 * The Formula is from Tadmor Modeling Materials Section 8 Equation 8.84
+         * Currently only Lennard Jones Elasticity is being Implimented, Will impliment coulomb Later
+         * Based upon ROOT OF ALL EVIL (Take Care when debugging)
+         * Coordinates xi and xj correspond to the first pair of particles (alpha and beta in Tadmor's notation) over which the Born term will be distributed
+         * Coordinates xk and xl correspond to the second pair of particles in a multibody potential
+         * For simple pairwise potentials, xk and xi should be the same and also xj and xl
          * */
-        void DistributePairElast (darray xi, darray xj, darray xk, darray xl, double phi, double kappa);
-
+        void DistributeElasticity (array3_ext xi_ext, array3_ext xj_ext, array3_ext xk_ext, array3_ext xl_ext, real_ext phi_ext, real_ext kappa_ext);
+        
         /** DistributeKinetic
          *
          * Distributes interactions onto the grid
@@ -405,13 +405,13 @@ class  mds::StressGrid
          * For velocity-verlet integrators we know va at the same time step, t, as the positions so the contribution is -m*va(t)*va(t)
          * */
         //@{
-        void DistributeKinetic   ( double mass, darray x, darray va, darray vb, int atomID  );
+        void DistributeKinetic   ( real_ext mass, array3_ext x, array3_ext va, array3_ext vb, int atomID  );
         //@}
 		
 		/** DistributeKineticElast
 		 * needs to be filled with some information
 		 * */
-		void DistributeKineticElast(double mass, darray x, darray va, darray vb);
+		void DistributeKineticElast(real_ext mass, array3_ext x, array3_ext va, array3_ext vb);
         
         /** DistributeCharge
          *
@@ -420,35 +420,35 @@ class  mds::StressGrid
          * x          -> position of the atom
          * charge     -> atomic charge
          * atomID     -> ID of the atom (optional, only needed if calculating stress/atom) */
-        void DistributeCharge    ( darray x, double charge );
+        void DistributeCharge    ( array3_ext x, real_ext charge );
 		
-		/** MDStress Auxiliary Functions for the Different potentials
-		 * */
-		// 2 Body Potentials
-		void HarmonicPhiKappa   (double deltaR, double k, double& phi, double& kappa);
-		
-		void BuckinghamPhiKappa   (double r, double a, double b, double c, double& phi, double& kappa);
-		
-		void FourthPowerPhiKappa   (double k4, double dist, double dist0, double& phi, double& kappa);
-		
-		void MorsePhiKappa   (double expadeltaR, double a, double d, double& phi, double& kappa);
-		
-		void CubicBondPhiKappa   (double deltaR, double k, double kcubic, double& phi, double& kappa);
-		
-		void FENEPhiKappa(double r, double k, double diffratio, double& phi, double& kappa);
-		
-		// 3 Body Potentials
-		void HarmonicAnglePhiKappa(double ab, double bg, double ag, double costheta, double deltatheta, double k, darray &phi, dmatrix &kappa);
-		
-		void HarmonicCosPhiKappa(double ab, double bg, double ag, double deltacos, double k, darray &phi, dmatrix &kappa);
-		
-		void UreyBradleyPhiKappa(double ab, double bg, double ag, double costheta, double deltaRag, double deltatheta, double ktheta, double kUB, darray &phi, dmatrix &kappa);
-		
-		void BondBondCrossPhiKappa(double k, double deltarab, double deltarbg, darray &phi, dmatrix &kappa);
-		
-		void BondAngleCrossPhiKappa(double k, double deltarab, double deltarbg, double deltarag, darray &phi, dmatrix &kappa);
-		
-		void QuarticAnglePhiKappa(double ab, double bg, double ag, double costheta, double deltatheta, double (&coeff)[5], darray &phi, dmatrix &kappa);
+        /** MDStress Auxiliary Functions for the Different potentials
+         * */
+        // 2 Body Potentials
+        void HarmonicPhiKappa   (real_ext deltaR, real_ext k, real_ext& phi, real_ext& kappa);
+        
+        void BuckinghamPhiKappa   (real_ext r, real_ext a, real_ext b, real_ext c, real_ext& phi, real_ext& kappa);
+        
+        void FourthPowerPhiKappa   (real_ext k4, real_ext dist, real_ext dist0, real_ext& phi, real_ext& kappa);
+        
+        void MorsePhiKappa   (real_ext expadeltaR, real_ext a, real_ext d, real_ext& phi, real_ext& kappa);
+        
+        void CubicBondPhiKappa   (real_ext deltaR, real_ext k, real_ext kcubic, real_ext& phi, real_ext& kappa);
+        
+        void FENEPhiKappa(real_ext r, real_ext k, real_ext diffratio, real_ext& phi, real_ext& kappa);
+        
+        // 3 Body Potentials
+        void HarmonicAnglePhiKappa(real_ext ab, real_ext bg, real_ext ag, real_ext costheta, real_ext deltatheta, real_ext k, array3_ext &phi, matrix3_ext &kappa);
+        
+        void HarmonicCosPhiKappa(real_ext ab, real_ext bg, real_ext ag, real_ext deltacos, real_ext k, array3_ext &phi, matrix3_ext &kappa);
+        
+        void UreyBradleyPhiKappa(real_ext ab, real_ext bg, real_ext ag, real_ext costheta, real_ext deltaRag, real_ext deltatheta, real_ext ktheta, real_ext kUB, array3_ext &phi, matrix3_ext &kappa);
+        
+        void BondBondCrossPhiKappa(real_ext k, real_ext deltarab, real_ext deltarbg, array3_ext &phi, matrix3_ext &kappa);
+        
+        void BondAngleCrossPhiKappa(real_ext k, real_ext deltarab, real_ext deltarbg, real_ext deltarag, array3_ext &phi, matrix3_ext &kappa);
+        
+        void QuarticAnglePhiKappa(real_ext ab, real_ext bg, real_ext ag, real_ext costheta, real_ext deltatheta, real_ext (&coeff)[5], array3_ext &phi, matrix3_ext &kappa);
         
         /** Constructor */
         StressGrid( );
@@ -466,9 +466,9 @@ class  mds::StressGrid
         long        m_ncells;         ///< Total number of cells in the calculation
         long        m_ncellsc;        ///< Total number of cells in the charge grid
         int         m_maxClust;
-        double      m_spacing;        ///< spacing requested for the grid
-        double      m_spacingc;       ///< spacing requested for the charge grid
-        dmatrix     m_box;            ///< Actual box
+        real_int    m_spacing;        ///< spacing requested for the grid
+        real_int    m_spacingc;       ///< spacing requested for the charge grid
+        matrix3_int m_box;            ///< Actual box
         int         m_spatatom;       ///< enSpat or enAtom
         int         m_fdecomp;        ///< which force decomposition
         int         m_contrib;        ///< which contribution
@@ -476,52 +476,52 @@ class  mds::StressGrid
         bool        m_nodispcor;      ///< disables dispersion correction if set to true
         bool        m_cuda;           ///< enables cuda
         barray      m_periodic;       ///< mark dimensions as periodic
-        double      m_mindihangle;
-        double      m_rcoulomb;
-        double      m_epsfac;
-        double      m_ewaldcoeff_q;
+        real_int    m_mindihangle;
+        real_int    m_rcoulomb;
+        real_int    m_epsfac;
+        real_int    m_ewaldcoeff_q;
         int         m_gridctype;
         int         m_maxpart;        ///< used to allocate Rij and Fij
         int         m_max_threads;    ///< number of threads to use
-        double      m_temperature;
+        real_int    m_temperature;
         //@}
     
         /** @name Outputs*/
         //@{
-        int      m_ierr;          ///< error type: 0, 1, etc (See GetError() function)
-        int      m_nframes;       ///< Number of frames
-        int      m_nreset;        ///< Number of resets (for writing files)
-        dmatrix  m_sumbox;        ///< Average box
-        dmatrix  m_invbox;        ///< Inverse of the box
-        double   m_sum_boxvol;    ///< Average box volume
-        real     m_gridsp[7];     ///< grid spacing
-        double   m_gridspc[7];    ///< grid spacing
-        real     m_invgridsp;     ///< inverse of grid spacing
-        double   m_invgridspc;    ///< inverse of grid spacing
-        Lapack **h_lapack;        ///< mds_lapack: solves underdetermined/overdetermined systems of equations and projects solution onto shape space
-        double  *p_Amat;          ///< matrix for linear systems (for systems with more than 5 particles)
-        double  *p_AmatT;         ///< transpose of the matrix (used for projecting solution onto the shape space)
-        double  *p_bvec;          ///< vector for solving the linear system    
-        darray  *p_Rij;           ///< distance vectors
-        darray  *p_Fij;           ///< force vectors
-        darray  *p_Uij;           ///< distance vectors
-        rmatrix3 *p_current_grid;  ///< Grid (either nx*ny*nz or nAtoms)
-        rmatrix3 *p_current_gridtot;  ///< Grid of size 1
-        rmatrix6 *p_current_grid_elborn;  ///< Grid (either nx*ny*nz or nAtoms)
-        rmatrix6 *p_current_grid_elkin;  ///< Grid (either nx*ny*nz or nAtoms)
-        double  *p_current_gridc; ///< Grid (either nx*ny*nz or nAtoms) (ewald)
-        rmatrix3 *p_sum_grid;      ///< Sum Grid
-        rmatrix3 *p_avg_grid;      ///< Sum Grid
-        rmatrix3 *p_avg_gridtot;  ///< Total Sum Grid
-        rmatrix6 *p_sum_grid_elcovar;  ///< Elasticity Grid Covariance Term
-        rmatrix6 *p_sum_grid_elborn;   ///< Elasticity Grid Born Term
-        rmatrix6 *p_sum_grid_elkin;    ///< Elasticity Grid Kinetic Term
-        double  *p_sum_gridc;     ///< Sum Grid (charge)
-        double  *p_sum_volume;    ///< Sum of volumes when using mds_atom
-        double  *p_radii;         ///< the radius of an atomic site
-        double  *p_positions;     ///< the position of an atomic site
-        darray  *p_pos_gridc;     ///< the position of an charge grid sites
-        int     *p_molecule_id;   ///< The molecule an atomic site belongs to
+        int      m_ierr;                  ///< error type: 0, 1, etc (See GetError() function)
+        int      m_nframes;               ///< Number of frames
+        int      m_nreset;                ///< Number of resets (for writing files)
+        matrix3_int m_sumbox;             ///< Average box
+        matrix3_int m_invbox;             ///< Inverse of the box
+        real_int m_sum_boxvol;            ///< Average box volume
+        real_int m_gridsp[7];             ///< grid spacing
+        real_int m_gridspc[7];            ///< grid spacing
+        real_int m_invgridsp;             ///< inverse of grid spacing
+        real_int m_invgridspc;            ///< inverse of grid spacing
+        Lapack **h_lapack;                ///< mds_lapack: solves underdetermined/overdetermined systems of equations and projects solution onto shape space
+        double  *p_Amat;                  ///< matrix for linear systems (for systems with more than 5 particles)
+        double  *p_AmatT;                 ///< transpose of the matrix (used for projecting solution onto the shape space)
+        double  *p_bvec;                  ///< vector for solving the linear system    
+        array3_int *p_Rij;                 ///< distance vectors
+        array3_int *p_Fij;                 ///< force vectors
+        array3_int *p_Uij;                 ///< distance vectors
+        matrix3_int *p_current_grid;      ///< Grid (either nx*ny*nz or nAtoms)
+        matrix3_int *p_current_gridtot;   ///< Grid of size 1
+        matrix6_int *p_current_grid_elborn; ///< Grid (either nx*ny*nz or nAtoms)
+        matrix6_int *p_current_grid_elkin;  ///< Grid (either nx*ny*nz or nAtoms)
+        real_int    *p_current_gridc;       ///< Grid (either nx*ny*nz or nAtoms) (ewald)
+        matrix3_int *p_sum_grid;            ///< Sum Grid
+        matrix3_int *p_avg_grid;            ///< Sum Grid
+        matrix3_int *p_avg_gridtot;         ///< Total Sum Grid
+        matrix6_int *p_sum_grid_elcovar;    ///< Elasticity Grid Covariance Term
+        matrix6_int *p_sum_grid_elborn;     ///< Elasticity Grid Born Term
+        matrix6_int *p_sum_grid_elkin;      ///< Elasticity Grid Kinetic Term
+        real_int *p_sum_gridc;              ///< Sum Grid (charge)
+        real_int *p_sum_volume;             ///< Sum of volumes when using mds_atom
+        real_int *p_radii;                  ///< the radius of an atomic site
+        real_int *p_positions;              ///< the position of an atomic site
+        array3_int *p_pos_gridc;             ///< the position of an charge grid sites
+        int     *p_molecule_id;             ///< The molecule an atomic site belongs to
         //@}
         
         /** @name Threads*/
@@ -535,6 +535,8 @@ class  mds::StressGrid
 
         /** This function is provided to avoid misleadings parameters, or to identify bad settings */
         int CheckSettings();
+
+        void DistributeElasticity_internal(array3_int xi, array3_int xj, array3_int xk, array3_int xl, real_int phi, real_int kappa);
         
         /** DistributePairInteraction
          *
@@ -543,43 +545,43 @@ class  mds::StressGrid
          * R1   -> position of particle I (A)
          * R2   -> position of particle J (B)
          * F    -> pairwise force */
-        void DistributePairInteraction     ( darray R1, darray R2, darray F, int batch_id );
-        void DistributePairInteraction1D   ( darray R1, darray R2, darray F, int batch_id );
-        void DistributePairInteraction3D   ( darray R1, darray R2, darray F, int batch_id );
+        void DistributePairInteraction     ( array3_int R1, array3_int R2, array3_int F, int batch_id );
+        void DistributePairInteraction1D   ( array3_int R1, array3_int R2, array3_int F, int batch_id );
+        void DistributePairInteraction3D   ( array3_int R1, array3_int R2, array3_int F, int batch_id );
         
         /** Decompose 3-body potentials (angles)*/
-        void DistributeN3                  ( darray Ra, darray Rb, darray Rc, darray Fa, darray Fb, darray Fc, int batch_id );
+        void DistributeN3                  ( array3_int Ra, array3_int Rb, array3_int Rc, array3_int Fa, array3_int Fb, array3_int Fc, int batch_id );
         
         /** Decompose Settle */
-        void DistributeSettle              ( darray Ra, darray Rb, darray Rc, darray Fa, darray Fb, darray Fc, int batch_id );
+        void DistributeSettle              ( array3_int Ra, array3_int Rb, array3_int Rc, array3_int Fa, array3_int Fb, array3_int Fc, int batch_id );
         
         /** Decompose 4-body potentials (dihedrals) */
-        void DistributeN4                  ( darray Ra, darray Rb, darray Rc, darray Rd, darray Fa, darray Fb, darray Fc, darray Fd, int batch_id );
+        void DistributeN4                  ( array3_int Ra, array3_int Rb, array3_int Rc, array3_int Rd, array3_int Fa, array3_int Fb, array3_int Fc, array3_int Fd, int batch_id );
         
         /** Decompose 5-body potentials (CMAP) */
-        void DistributeN5                  ( darray Ra, darray Rb, darray Rc, darray Rd, darray Re, darray Fa, darray Fb, darray Fc, darray Fd, darray Fe, int batch_id);
+        void DistributeN5                  ( array3_int Ra, array3_int Rb, array3_int Rc, array3_int Rd, array3_int Re, array3_int Fa, array3_int Fb, array3_int Fc, array3_int Fd, array3_int Fe, int batch_id);
         
         /** General function to decompose N-body potentials (it can be used to compute higher order terms coming from EAM for instance) */
-        void DistributeNBody               ( int nPart, darray *R, darray *F, bool distritube_stress, int batch_id);
-		
-		//Cosine Derivatives
-		//3 Body Triangle Derivatives
-		double CalcCosine                  (double ab, double bg, double ag); 
-		
-		double CalcTheta                   (double costheta);
-		
-		void ThreeBodyCosineD              (double ab, double bg, double ag, darray &d_cos_array);
-		
-		void ThreeBodyCosineD2             (double ab, double bg, double ag, dmatrix &d2_cos_array);
-		
-		void ThreeBodyThetaD               (double costheta, darray &d_cos_array, darray &d_theta_array);
-		
-		void ThreeBodyThetaD2              (double costheta, darray d_cos_array, dmatrix &d2_cos_array, dmatrix &d2_theta_array);
-		
-		double CalcCosineDihedral          (double ab, double ag, double ae, double bg, double be, double ge);
-		
-		void FourBodyThetaD                (double costheta, darray6 &d_cos_di_array, darray6 &d_theta_di_array);
-		
-		void FourBodyThetaD2               (double costheta, darray6 &d_cos_di_array, dmatrix6 &d2_cos_di_array, dmatrix6 &d2_theta_di_array);
+        void DistributeNBody               ( int nPart, array3_ext *R, array3_ext *F, bool distritube_stress, int batch_id);
+        
+        //Cosine Derivatives
+        //3 Body Triangle Derivatives
+        real_int CalcCosine                  (real_int ab, real_int bg, real_int ag); 
+        
+        real_int CalcTheta                   (real_int costheta);
+        
+        void ThreeBodyCosineD              (real_int ab, real_int bg, real_int ag, array3_int &d_cos_array);
+        
+        void ThreeBodyCosineD2             (real_int ab, real_int bg, real_int ag, matrix3_int &d2_cos_array);
+        
+        void ThreeBodyThetaD               (real_int costheta, array3_int &d_cos_array, array3_int &d_theta_array);
+        
+        void ThreeBodyThetaD2              (real_int costheta, array3_int d_cos_array, matrix3_int &d2_cos_array, matrix3_int &d2_theta_array);
+        
+        real_int CalcCosineDihedral          (real_int ab, real_int ag, real_int ae, real_int bg, real_int be, real_int ge);
+        
+        void FourBodyThetaD                (real_int costheta, array6_int &d_cos_di_array, array6_int &d_theta_di_array);
+        
+        void FourBodyThetaD2               (real_int costheta, array6_int &d_cos_di_array, matrix6_int &d2_cos_di_array, matrix6_int &d2_theta_di_array);
 };
 #endif // mds_stressgrid_h
