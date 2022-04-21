@@ -3,6 +3,9 @@ project(mdstress_test LANGUAGES CXX )
 #cmake_minimum_required(VERSION 3.12 FATAL_ERROR)
 #project(mdstress_test LANGUAGES CXX CUDA)
 
+# set the C++11 standard
+set(CMAKE_CXX_STANDARD 11)
+
 # set fast math etc
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG -ffast-math -march=native" CACHE STRING
     "Flags used by the compiler during release builds." FORCE)
