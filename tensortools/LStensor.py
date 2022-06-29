@@ -3,7 +3,7 @@
 #  Module    : LOCAL STRESS FROM GROMACS TRAJECTORIES
 #  File      : LStensor.py
 #  Authors   : A. Torres-Sanchez and J. M. Vanegas
-#  Modified  :
+#  Modified  : A. Lewis
 #  Purpose   : Compute the local stress from precomputed trajectories in GROMACS
 #  Date      : 25/03/2015
 #  Version   :
@@ -562,12 +562,166 @@ class LStensor:
             print("DONE!\n")
 
         return
-    
-    def g_invert(self):
-        
-        '''
-        Invert a Tensor
-        '''
+
+    def g_invert(self,basename):
+
+        out1 = basename+"_moduli.txt"
+        out2 = basename+"_compliance.txt"
+
+        fp1 = open(out1, 'w')
+        fp2 = open(out2, 'w')
+
+        ncells = self.nx*self.ny*self.nz
+        matlist = np.zeros((ncells,6,6))
+
+        for i in range(ncells):
+            elvoigt = np.zeros((6,6))
+            elvoigt[0,0] = self.data_grid[i,0]
+            elvoigt[0,1] = self.data_grid[i,1]
+            elvoigt[0,2] = self.data_grid[i,2]
+            elvoigt[0,3] = self.data_grid[i,3]
+            elvoigt[0,4] = self.data_grid[i,4]
+            elvoigt[0,5] = self.data_grid[i,5]
+
+            elvoigt[1,0] = self.data_grid[i,1]
+            elvoigt[1,1] = self.data_grid[i,7]
+            elvoigt[1,2] = self.data_grid[i,8]
+            elvoigt[1,3] = self.data_grid[i,9]
+            elvoigt[1,4] = self.data_grid[i,10]
+            elvoigt[1,5] = self.data_grid[i,11]
+
+            elvoigt[2,0] = self.data_grid[i,2]
+            elvoigt[2,1] = self.data_grid[i,8]
+            elvoigt[2,2] = self.data_grid[i,14]
+            elvoigt[2,3] = self.data_grid[i,15]
+            elvoigt[2,4] = self.data_grid[i,16]
+            elvoigt[2,5] = self.data_grid[i,17]
+
+            elvoigt[3,0] = self.data_grid[i,3]
+            elvoigt[3,1] = self.data_grid[i,9]
+            elvoigt[3,2] = self.data_grid[i,15]
+            elvoigt[3,3] = self.data_grid[i,21]
+            elvoigt[3,4] = self.data_grid[i,22]
+            elvoigt[3,5] = self.data_grid[i,23]
+
+            elvoigt[4,0] = self.data_grid[i,4]
+            elvoigt[4,1] = self.data_grid[i,10]
+            elvoigt[4,2] = self.data_grid[i,16]
+            elvoigt[4,3] = self.data_grid[i,22]
+            elvoigt[4,4] = self.data_grid[i,28]
+            elvoigt[4,5] = self.data_grid[i,29]
+
+            elvoigt[5,0] = self.data_grid[i,5]
+            elvoigt[5,1] = self.data_grid[i,11]
+            elvoigt[5,2] = self.data_grid[i,17]
+            elvoigt[5,3] = self.data_grid[i,23]
+            elvoigt[5,4] = self.data_grid[i,29]
+            elvoigt[5,5] = self.data_grid[i,35]
+
+            compvoigt = np.linalg.inv(elvoigt)
+            matlist[i] = compvoigt.copy()
+
+        modlist = np.zeros((ncells,7))
+
+        for i in range(ncells):
+            #if (moduli == 'x'):
+            Ex = matlist[i,0,0]
+            modlist[i,0] = 1/Ex
+            #if (moduli == 'y'):
+            Ey = matlist[i,1,1]
+            modlist[i,1] = 1/Ey
+            #if (moduli == 'z'):
+            Ez = matlist[i,2,2]
+            modlist[i,2] = 1/Ez
+            #if (moduli == 'xy'):
+            Axy = matlist[i,0,0] + matlist[i,1,1] + 2*matlist[i,0,1]
+            modlist[i,3] = 1/Axy
+            #if (moduli == 'yz'):
+            Ayz = matlist[i,1,1] + matlist[i,2,2] + 2*matlist[i,1,2]
+            modlist[i,4] = 1/Ayz
+            #if (moduli == 'xz'):
+            Axz = matlist[i,0,0] + matlist[i,2,2] + 2*matlist[i,0,2]
+            modlist[i,5] = 1/Axz
+            #if (moduli == 'xyz'):
+            B = matlist[i,0,0] + matlist[i,1,1] + matlist[i,2,2] + 2*(matlist[i,0,1] + matlist[i,1,2] + matlist[i,0,2])
+            modlist[i,6] = 1/B
+
+        complist = np.zeros((ncells,36))
+        for i in range(ncells):
+
+            complist[i,0] = matlist[i,0,0]
+            complist[i,1] = matlist[i,0,1]
+            complist[i,2] = matlist[i,0,2]
+            complist[i,3] = matlist[i,0,3]
+            complist[i,4] = matlist[i,0,4]
+            complist[i,5] = matlist[i,0,5]
+
+            complist[i,6] = matlist[i,1,0]
+            complist[i,7] = matlist[i,1,1]
+            complist[i,8] = matlist[i,1,2]
+            complist[i,9] = matlist[i,1,3]
+            complist[i,10] = matlist[i,1,4]
+            complist[i,11] = matlist[i,1,5]
+
+            complist[i,12] = matlist[i,2,0]
+            complist[i,13] = matlist[i,2,1]
+            complist[i,14] = matlist[i,2,2]
+            complist[i,15] = matlist[i,2,3]
+            complist[i,16] = matlist[i,2,4]
+            complist[i,17] = matlist[i,2,5]
+
+            complist[i,18] = matlist[i,3,0]
+            complist[i,19] = matlist[i,3,1]
+            complist[i,20] = matlist[i,3,2]
+            complist[i,21] = matlist[i,3,3]
+            complist[i,22] = matlist[i,3,4]
+            complist[i,23] = matlist[i,3,5]
+
+            complist[i,24] = matlist[i,4,0]
+            complist[i,25] = matlist[i,4,1]
+            complist[i,26] = matlist[i,4,2]
+            complist[i,27] = matlist[i,4,3]
+            complist[i,28] = matlist[i,4,4]
+            complist[i,29] = matlist[i,4,5]
+
+            complist[i,30] = matlist[i,5,0]
+            complist[i,31] = matlist[i,5,1]
+            complist[i,32] = matlist[i,5,2]
+            complist[i,33] = matlist[i,5,3]
+            complist[i,34] = matlist[i,5,4]
+            complist[i,35] = matlist[i,5,5]
+
+        fp1.write("#%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\n" % ("Ex","Ey","Ez","Axy","Ayz","Axz","B"))
+        for i in range(self.nx):
+            for j in range(self.ny):
+                for k in range(self.nz):
+                    if(self.nx > 1):
+                        fp1.write(("%15.8f" % (i*self.dx))+'\t')
+                    if(self.ny > 1):
+                        fp1.write(("%15.8f" % (j*self.dy))+'\t')
+                    if(self.nz > 1):
+                        fp1.write(("%15.8f" % (k*self.dz))+'\t')
+                    for d in [0,1,2,3,4,5,6]:
+                        temp = modlist[i*self.ny*self.nz+j*self.nz+k,d]
+                        fp1.write(("%15.8e" % temp)+'\t')
+                    fp1.write('\n')
+
+        fp2.write("#%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s%15s\t%15s\t%15s\n" % ("Sxxxx","Sxxyy","Sxxzz","Sxxyz","Sxxxz","Sxxxy","Syyyy","Syyzz","Syyyz","Syyxz","Syyxy","Szzzz","Szzyz","Szzxz","Szzxy","Syzyz","Syzxz","Syzxy","Sxzxz","Sxzxy","Sxyxy"))
+
+        for i in range(self.nx):
+            for j in range(self.ny):
+                for k in range(self.nz):
+                    if(self.nx > 1):
+                        fp2.write(("%15.8f" % (i*self.dx))+'\t')
+                    if(self.ny > 1):
+                        fp2.write(("%15.8f" % (j*self.dy))+'\t')
+                    if(self.nz > 1):
+                        fp2.write(("%15.8f" % (k*self.dz))+'\t')
+                    for d in [0,1,2,3,4,5,7,8,9,10,11,14,15,16,17,21,22,23,28,29,35]:
+                        temp = complist[i*self.ny*self.nz+j*self.nz+k,d]
+                        fp2.write(("%15.8e" % temp)+'\t')
+                    fp2.write('\n')
+
         return
 
     ####################################################################################################################

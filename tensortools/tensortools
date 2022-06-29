@@ -5,7 +5,7 @@
 #  Module    : LOCAL STRESS FROM GROMACS TRAJECTORIES
 #  File      : tensortools.py
 #  Authors   : A. Torres-Sanchez and J. M. Vanegas
-#  Modified  :
+#  Modified  : A. Lewis
 #  Purpose   : Compute the local stress from precomputed trajectories in GROMACS
 #  Date      : 25/03/2015
 #  Version   :
@@ -72,9 +72,10 @@ juan.m.vanegas@gmail.com  and/or torres.sanchez.a@gmail.com''')
     parser.add_argument('--prof',                                            help='Output a profile along a given dimension, values: x, y, or z (default)',metavar='z')
     parser.add_argument('--integ',                                           help='integrate out the stress profile along a given dimension, values: x, y, or z (default)',metavar='z')
     parser.add_argument('--gf',                                              help='Process input through a gaussian filter of a given standard deviation (in units of the grid spacing, default=1.0)',metavar='1.0')
-    parser.add_argument('--gridsp', nargs=3,                                 help='(For atom to grid conversion) Grid spacing for atom 2 grid conversion (default = 0.1,0.1,0.1 in nm)',metavar=(0.1,0.1,0.1), default=(0.1,0.1,0.1))
-    parser.add_argument('--transax', nargs=3,                                help='Translate data along a given axis (or multiple axes) assuming periodic boundaries. Provide 0 or 1 for each axis (default = 0,0,0). Must be used together with --transshift.',metavar=(0,0,0), default=(0,0,0))
+    parser.add_argument('--gridsp',   nargs=3,                               help='(For atom to grid conversion) Grid spacing for atom 2 grid conversion (default = 0.1,0.1,0.1 in nm)',metavar=(0.1,0.1,0.1), default=(0.1,0.1,0.1))
+    parser.add_argument('--transax',  nargs=3,                               help='Translate data along a given axis (or multiple axes) assuming periodic boundaries. Provide 0 or 1 for each axis (default = 0,0,0). Must be used together with --transshift.',metavar=(0,0,0), default=(0,0,0))
     parser.add_argument('--transshift', nargs=3,                             help='Translation shift for each axis (default = 0,0,0 in grid units). Must be used together with --transax.',metavar=(0,0,0), default=(0,0,0))
+    parser.add_argument('--moduli',   nargs='?', const=True, default=False,  help='Uses the elasticity tensor as input to compute the compliance tensor and calculate the Young\'s (E), area (A), and bulk (B) moduli (default = True)',metavar = '')
     
     # OUTPUT
     parser.add_argument('--orep',     nargs='?', default='spat_d',           help='Output data representation, values: spat (spatial stress/density distributed on a grid, default), atom (stress per atom)',metavar='spat')
@@ -155,6 +156,8 @@ juan.m.vanegas@gmail.com  and/or torres.sanchez.a@gmail.com''')
     # Average, sum, or delta?
     bAvg = args.mif
 
+    bModuli = None
+
     # Type of data: density (order=0), vector (order=1), or stress (order=2)
     if (itype == 'dens'):
         order = 0
@@ -165,6 +168,7 @@ juan.m.vanegas@gmail.com  and/or torres.sanchez.a@gmail.com''')
     elif (itype == 'elast'):
         order = 6
 
+    bModuli = args.moduli
 
     field = LStensor(order)
 
@@ -197,6 +201,11 @@ juan.m.vanegas@gmail.com  and/or torres.sanchez.a@gmail.com''')
     #If sym options is active separate the symmetric and antisymmetric components (ONLY FOR STRESS)
     if (sym):
         field.g_symasym()
+        
+    #Calculate the compliance tensor
+    if (bModuli == True):
+        field.g_invert(basename)
+        
     
     # Write data to file
     if(orep=='spat'):

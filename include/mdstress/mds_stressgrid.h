@@ -75,10 +75,29 @@ class  mds::StressGrid
         const char *GetNameOfClass() const
         {   return "StressGrid";     }
         
+        
+        /** Enable/Disable MDStress Library: */
+        //@{
+        void Enable()
+        {
+            std::lock_guard<std::mutex> lock(m_mutex_state);
+            if (this->m_disable == true && this->m_initialized == true)
+                this->m_disable = false;
+        }
+        void Disable()
+        {
+            std::lock_guard<std::mutex> lock(m_mutex_state);
+            this->m_disable = true;
+        }
+        //@}
+        
         /** Set max threads: */
         //@{
         void SetThreadIDs(int thread_id, int max_threads)
         {
+            if (true == this->m_disable)
+                return;
+
             std::lock_guard<std::mutex> lock(m_mutex_state);
             this->m_thread_map[std::this_thread::get_id()] = thread_id;
             this->m_max_threads = max_threads;
@@ -89,11 +108,16 @@ class  mds::StressGrid
         //@{
         void SetNumberOfAtoms(int n)
         {
+            if (true == this->m_disable)
+                return;
+
             std::lock_guard<std::mutex> lock(m_mutex_state);
             this->m_nAtoms = n;
         }
         int  GetNumberOfAtoms( )
-        {   return this->m_nAtoms; }
+        {
+            return this->m_nAtoms;
+        }
         //@}
         
         /** Set/Get periodic boundary conditions: */
@@ -112,16 +136,25 @@ class  mds::StressGrid
         //@{
         void SetNumberOfGridCellsX(int nx)
         {
+            if (true == this->m_disable)
+                return;
+
             std::lock_guard<std::mutex> lock(m_mutex_state);
             this->m_nxyz[0] = nx;
         }
         void SetNumberOfGridCellsY(int ny)
         {
+            if (true == this->m_disable)
+                return;
+
             std::lock_guard<std::mutex> lock(m_mutex_state);
             this->m_nxyz[1] = ny;
         }
         void SetNumberOfGridCellsZ(int nz)
         {
+            if (true == this->m_disable)
+                return;
+
             std::lock_guard<std::mutex> lock(m_mutex_state);
             this->m_nxyz[2] = nz;
         }
@@ -133,16 +166,25 @@ class  mds::StressGrid
         {   return this->m_nxyz[2]; }
         void SetNumberOfGridCellsXC(int nxc)
         {
+            if (true == this->m_disable)
+                return;
+
             std::lock_guard<std::mutex> lock(m_mutex_state);
             this->m_nxyzc[0] = nxc;
         }
         void SetNumberOfGridCellsYC(int nyc)
         {
+            if (true == this->m_disable)
+                return;
+
             std::lock_guard<std::mutex> lock(m_mutex_state);
             this->m_nxyzc[1] = nyc;
         }
         void SetNumberOfGridCellsZC(int nzc)
         {
+            if (true == this->m_disable)
+                return;
+
             std::lock_guard<std::mutex> lock(m_mutex_state);
             this->m_nxyzc[2] = nzc;
         }
@@ -158,6 +200,9 @@ class  mds::StressGrid
         //@{
         void SetSpacing(real_ext d)
         {
+            if (true == this->m_disable)
+                return;
+
             std::lock_guard<std::mutex> lock(m_mutex_state);
             this->m_spacing = (real_int)d;
         }
@@ -169,6 +214,9 @@ class  mds::StressGrid
         {   return (real_ext)this->m_gridsp[2]; }
         void SetSpacingc(real_ext dc)
         {
+            if (true == this->m_disable)
+                return;
+
             std::lock_guard<std::mutex> lock(m_mutex_state);
             this->m_spacingc = dc;
         }
@@ -184,6 +232,9 @@ class  mds::StressGrid
         //@{
         void SetForceDecomposition ( int fdecomp )
         {
+            if (true == this->m_disable)
+                return;
+
             std::lock_guard<std::mutex> lock(m_mutex_state);
             m_fdecomp = fdecomp;
         }
@@ -195,6 +246,9 @@ class  mds::StressGrid
         //@{
         void SetStressType ( int spatatom )
         {
+            if (true == this->m_disable)
+                return;
+
             std::lock_guard<std::mutex> lock(m_mutex_state);
             this->m_spatatom = spatatom;
         }
@@ -206,6 +260,9 @@ class  mds::StressGrid
         //@{
         void SetContribType ( int contrib )
         {
+            if (true == this->m_disable)
+                return;
+
             std::lock_guard<std::mutex> lock(m_mutex_state);
             this->m_contrib = contrib;
         }
@@ -217,6 +274,9 @@ class  mds::StressGrid
         //@{
         void SetMinDihAngle (real_ext mindihangle)
         {
+            if (true == this->m_disable)
+                return;
+
             std::lock_guard<std::mutex> lock(m_mutex_state);
             this->m_mindihangle = (real_int)mindihangle;
         }
@@ -228,6 +288,9 @@ class  mds::StressGrid
         //@{
         void SetChargeParams(int gridctype, real_ext epsfac, real_ext rcoulomb, real_ext ewaldcoeff_q)
         {
+            if (true == this->m_disable)
+                return;
+
             std::lock_guard<std::mutex> lock(m_mutex_state);
             this->m_gridctype = gridctype;
             this->m_epsfac = (real_int)epsfac;
@@ -258,6 +321,9 @@ class  mds::StressGrid
         /**Set box: */
         void SetBox(matrix3_ext box, int epc)
         {   
+            if (true == this->m_disable)
+                return;
+
             std::lock_guard<std::mutex> lock(m_mutex_state);
             if (epc != 0)
                 this->m_pcoupl = true;
@@ -269,6 +335,9 @@ class  mds::StressGrid
         /**Set the maximum cluster size (by default mds_maxpart) */
         void SetMaxCluster ( int maxClust )
         {
+            if (true == this->m_disable)
+                return;
+
             std::lock_guard<std::mutex> lock(m_mutex_state);
             this->m_maxClust = maxClust;
         }
@@ -278,12 +347,19 @@ class  mds::StressGrid
         /**Set name of the files (extension .mds and numbered by resets) */
         void SetFileName ( const char *filename )
         {
+            if (true == this->m_disable)
+                return;
+
             std::lock_guard<std::mutex> lock(m_mutex_state);
             this->m_filename.assign(filename);
         }
         
         void SetTemperature(real_ext temperature)
         {
+            if (true == this->m_disable)
+                return;
+
+            std::lock_guard<std::mutex> lock(m_mutex_state);
             this->m_temperature = (real_int)temperature;
         }
         
@@ -294,12 +370,18 @@ class  mds::StressGrid
         
         void EnableCuda()
         {
+            if (true == this->m_disable)
+                return;
+
             std::lock_guard<std::mutex> lock(m_mutex_state);
             this->m_cuda = true;
         }
         
         void DisableDispersionCorrection()
         {
+            if (true == this->m_disable)
+                return;
+
             std::lock_guard<std::mutex> lock(m_mutex_state);
             this->m_nodispcor = true;
         }
@@ -477,6 +559,8 @@ class  mds::StressGrid
         std::string m_filename;       ///< body of the filename where the stress is stored
         bool        m_nodispcor;      ///< disables dispersion correction if set to true
         bool        m_cuda;           ///< enables cuda
+        bool        m_initialized;    ///< disable mdstress library operations
+        bool        m_disable;        ///< disable mdstress library operations
         barray      m_periodic;       ///< mark dimensions as periodic
         real_int    m_mindihangle;
         real_int    m_rcoulomb;
@@ -542,7 +626,8 @@ class  mds::StressGrid
         /** This function is provided to avoid misleadings parameters, or to identify bad settings */
         int CheckSettings();
 
-        void DistributeElasticity_internal(array3_int xi, array3_int xj, array3_int xk, array3_int xl, real_int phi, real_int kappa);
+        void DistributeElasticity_internal1D(array3_int xi, array3_int xj, array3_int xk, array3_int xl, real_int phi, real_int kappa);
+        void DistributeElasticity_internal3D(array3_int xi, array3_int xj, array3_int xk, array3_int xl, real_int phi, real_int kappa);
         
         /** DistributePairInteraction
          *

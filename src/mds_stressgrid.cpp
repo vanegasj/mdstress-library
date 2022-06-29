@@ -30,6 +30,10 @@
 #include "mds_barrier.h"
 #include "voro++.hh"
 
+#define iab 0
+#define ibg 1
+#define iag 2
+
 //#define CUSTRESS_ENABLE
 //#ifdef CUSTRESS_ENABLE
 //#include "mds_custress.h"
@@ -117,6 +121,8 @@ StressGrid::StressGrid()
     this->p_pos_gridc     = nullptr;
     this->m_nodispcor   = false;
     this->m_cuda        = false;
+    this->m_initialized = false;
+    this->m_disable     = false;
     this->m_periodic[0] = false;
     this->m_periodic[1] = false;
     this->m_periodic[2] = false;
@@ -199,6 +205,9 @@ void StressGrid::Clear()
     this->p_positions     = nullptr;
     this->p_pos_gridc     = nullptr;
     this->h_lapack        = nullptr;
+
+    if (this->m_initialized)
+        this->m_initialized = false;
 
 #ifdef CUSTRESS_ENABLE
     if (this->m_cuda)
@@ -291,6 +300,7 @@ int StressGrid::CheckSettings()
 //it throws an error
 void StressGrid::Init()
 {
+    if (true == this->m_disable) return;
     std::lock_guard<std::mutex> lock(this->m_mutex_state);
     
     //First call checksettings to check if all parameters are OK
@@ -424,16 +434,22 @@ void StressGrid::Init()
         std::cout << "STRESSLIB: Internal Floating Points Precision set to " << sizeof(real_int) << " Bytes" << std::endl;
         std::cout << "STRESSLIB: External Floating Points Precision set to " << sizeof(real_ext) << " Bytes" << std::endl;
         std::cout << "STRESSLIB: Output Floating Points Precision set to " << sizeof(real_out) << " Bytes" << std::endl;
+
+        // we have successfully initialized
+        this->m_initialized = true;
     }
 }
 
 void StressGrid::SetPeriodicBoundaries(bool x, bool y, bool z, bool enforce)
 { 
+    if (true == this->m_disable) return;
     std::lock_guard<std::mutex> lock(m_mutex_state);
+
 #ifdef CUSTRESS_ENABLE
     if (this->m_cuda)
         custress_set_periodic(x, y, z, enforce);
 #endif//CUSTRESS_ENABLE
+
     this->m_periodic[0] = x;
     this->m_periodic[1] = y;
     this->m_periodic[2] = z;
@@ -443,6 +459,9 @@ void StressGrid::SetPeriodicBoundaries(bool x, bool y, bool z, bool enforce)
 // This function updates the box, invbox and computes the new spacings.
 void StressGrid::UpdateBoxSpacings ( matrix3_ext box )
 {
+    if (true == this->m_disable)
+        return;
+
     if ( !this->m_ierr )
     {
         // every thread must process this latch before proceeding
@@ -511,6 +530,9 @@ void StressGrid::UpdateBoxSpacings ( matrix3_ext box )
 // to zero.
 void StressGrid::SumGrid ( )
 {
+    if (true == this->m_disable)
+        return;
+
     if ( !this->m_ierr )
     {
         // get the thread id
@@ -823,6 +845,9 @@ void StressGrid::SumGrid ( )
 
 void StressGrid::DispersionCorrection (real_ext shift)
 {
+    if (true == this->m_disable)
+        return;
+
     if (this->m_nodispcor == false)
     {
         // select the correct grid
@@ -842,6 +867,9 @@ void StressGrid::DispersionCorrection (real_ext shift)
 //printing files) and set the number of frames to zero
 void StressGrid::Reset ( )
 {
+    if (true == this->m_disable)
+        return;
+
     if ( !this->m_ierr)
     {
         // get the thread id
@@ -903,6 +931,9 @@ void StressGrid::Reset ( )
 //Writes file with average stress to grid using the filename set by the user
 void StressGrid::Write ( )
 {
+    if (true == this->m_disable)
+        return;
+
     if ( !this->m_ierr)
     {
             int                Dtype=1;
@@ -1109,7 +1140,9 @@ void StressGrid::Write ( )
 // atomID  -> label of the atom
 void StressGrid::SetVoronoiRadius(real_ext radius, int atomID)
 {
+    if (true == this->m_disable) return;
     std::lock_guard<std::mutex> lock(this->m_mutex_state);
+
     // quick check if we have the correct number of atoms
     if (atomID > this->m_ncells)
     {
@@ -1137,7 +1170,9 @@ void StressGrid::SetVoronoiRadius(real_ext radius, int atomID)
 // moleID  -> label of the molecule this atom belongs to
 void StressGrid::AddVoronoiAtom(real_ext px, real_ext py, real_ext pz, int atomID, int moleID)
 {
+    if (true == this->m_disable) return;
     std::lock_guard<std::mutex> lock(this->m_mutex_state);
+
     // quick check if we have the correct number of atoms
     if (atomID > this->m_ncells)
     {
@@ -1171,6 +1206,9 @@ void StressGrid::AddVoronoiAtom(real_ext px, real_ext py, real_ext pz, int atomI
 // atomIDs -> labels of the atoms
 void StressGrid::DistributeInteraction(int nAtoms, array3_ext *R, array3_ext *F, int *atomIDs = nullptr)
 {
+    if (true == this->m_disable)
+        return;
+
     int    n;
     int    i,j;
     real_int temp;
@@ -1320,6 +1358,7 @@ void StressGrid::DistributeInteraction(int nAtoms, array3_ext *R, array3_ext *F,
 // F       -> forces on the atoms
 void StressGrid::ComputeNbodyPairForces(int nAtoms, array3_ext *R, array3_ext *F, int *atomIDs = nullptr)
 {
+    if (true == this->m_disable) return;
     this->DistributeNBody( nAtoms, R, F, false, 0);
 }
 
@@ -1539,8 +1578,103 @@ void StressGrid::DistributePairInteraction3D(array3_int xi, array3_int xj, array
     }
 }
 
+void StressGrid::DistributeElasticity_internal1D(array3_int xi, array3_int xj, array3_int xk, array3_int xl, real_int phi, real_int kappa)
+{
+    // this is the 1D case
+    int batch_id = this->m_thread_map[std::this_thread::get_id()];
+    matrix6_int * gridElast = this->p_current_grid_elborn+batch_id*this->m_ncells;
 
-void StressGrid::DistributeElasticity_internal(array3_int xi, array3_int xj, array3_int xk, array3_int xl, real_int phi, real_int kappa)
+    //------------------------------------------------------------------------------------
+    // Calculate the elasticity tensor
+    array3_int diff, diff2;
+    real_int rinv, rinv2, rinv3;
+    diffarray3( xj, xi, diff, this->m_box, this->m_periodic);
+    diffarray3( xl, xk, diff2, this->m_box, this->m_periodic);
+    rinv = realval_int(1.0)/normarray3(diff);
+    rinv2 = (real_int)(kappa)*rinv/normarray3(diff2);
+    rinv3 = (real_int)(phi)*rinv*rinv*rinv;
+
+    // Stiffness matrix in Voigt notation
+    // 0 = xx; 1 = yy; 2 = zz; 3 = yz or zy; 4 = xz or zx; 5 = xy or yx
+    // All indices                         Voigt indices           Stress indices
+    // ( xxxx xxyy xxzz xxyz xxxz xxxy ) = ( 00 01 02 03 04 05 ) = [ 0000 0011 0022 0012 0002 0001 ]
+    // (      yyyy yyzz yyyz yyxz yyxy ) = (    11 12 13 14 15 ) = [      1111 1122 1112 1102 1101 ]
+    // (           zzzz zzyz zzxz zzxy ) = (       22 23 24 25 ) = [           2222 2212 2202 2201 ]
+    // (                yzyz yzxz yzxy ) = (          33 34 35 ) = [                1212 1202 1201 ]
+    // (                     xzxz xzxy ) = (             44 45 ) = [                     0202 0201 ]
+    // (                          xyxy ) = (                55 ) = [                          0101 ]
+
+    matrix6_int elast;
+    elast[0][0] = diff[0]*diff[0]*diff2[0]*diff2[0]*rinv2 - diff[0]*diff[0]*diff[0]*diff[0]*rinv3;
+    elast[0][1] = diff[0]*diff[0]*diff2[1]*diff2[1]*rinv2 - diff[0]*diff[0]*diff[1]*diff[1]*rinv3;
+    elast[0][2] = diff[0]*diff[0]*diff2[2]*diff2[2]*rinv2 - diff[0]*diff[0]*diff[2]*diff[2]*rinv3;
+    elast[0][3] = diff[0]*diff[0]*diff2[1]*diff2[2]*rinv2 - diff[0]*diff[0]*diff[1]*diff[2]*rinv3;
+    elast[0][4] = diff[0]*diff[0]*diff2[0]*diff2[2]*rinv2 - diff[0]*diff[0]*diff[0]*diff[2]*rinv3;
+    elast[0][5] = diff[0]*diff[0]*diff2[0]*diff2[1]*rinv2 - diff[0]*diff[0]*diff[0]*diff[1]*rinv3;
+    elast[1][1] = diff[1]*diff[1]*diff2[1]*diff2[1]*rinv2 - diff[1]*diff[1]*diff[1]*diff[1]*rinv3;
+    elast[1][2] = diff[1]*diff[1]*diff2[2]*diff2[2]*rinv2 - diff[1]*diff[1]*diff[2]*diff[2]*rinv3;
+    elast[1][3] = diff[1]*diff[1]*diff2[1]*diff2[2]*rinv2 - diff[1]*diff[1]*diff[1]*diff[2]*rinv3;
+    elast[1][4] = diff[1]*diff[1]*diff2[0]*diff2[2]*rinv2 - diff[1]*diff[1]*diff[0]*diff[2]*rinv3;
+    elast[1][5] = diff[1]*diff[1]*diff2[0]*diff2[1]*rinv2 - diff[1]*diff[1]*diff[0]*diff[1]*rinv3;
+    elast[2][2] = diff[2]*diff[2]*diff2[2]*diff2[2]*rinv2 - diff[2]*diff[2]*diff[2]*diff[2]*rinv3;
+    elast[2][3] = diff[2]*diff[2]*diff2[1]*diff2[2]*rinv2 - diff[2]*diff[2]*diff[1]*diff[2]*rinv3;
+    elast[2][4] = diff[2]*diff[2]*diff2[0]*diff2[2]*rinv2 - diff[2]*diff[2]*diff[0]*diff[2]*rinv3;
+    elast[2][5] = diff[2]*diff[2]*diff2[0]*diff2[1]*rinv2 - diff[2]*diff[2]*diff[0]*diff[1]*rinv3;
+    elast[3][3] = diff[1]*diff[2]*diff2[1]*diff2[2]*rinv2 - diff[1]*diff[2]*diff[1]*diff[2]*rinv3;
+    elast[3][4] = diff[1]*diff[2]*diff2[0]*diff2[2]*rinv2 - diff[1]*diff[2]*diff[0]*diff[2]*rinv3;
+    elast[3][5] = diff[1]*diff[2]*diff2[0]*diff2[1]*rinv2 - diff[1]*diff[2]*diff[0]*diff[1]*rinv3;
+    elast[4][4] = diff[0]*diff[2]*diff2[0]*diff2[2]*rinv2 - diff[0]*diff[2]*diff[0]*diff[2]*rinv3;
+    elast[4][5] = diff[0]*diff[2]*diff2[0]*diff2[1]*rinv2 - diff[0]*diff[2]*diff[0]*diff[1]*rinv3;
+    elast[5][5] = diff[0]*diff[1]*diff2[0]*diff2[1]*rinv2 - diff[0]*diff[1]*diff[0]*diff[1]*rinv3;
+
+    // calculate the grid coordinates (no pbc) for the extreme points
+    int x = this->m_nxyz[this->m_griddim] * xi[this->m_griddim] * this->m_invbox[this->m_griddim][this->m_griddim] - (xi[this->m_griddim] < 0.0);
+    const int i2 = this->m_nxyz[this->m_griddim] * xj[this->m_griddim] * this->m_invbox[this->m_griddim][this->m_griddim] - (xj[this->m_griddim] < 0.0);
+    const int c = (i2>x)-(x>i2);
+    const real_int t_c1 = xi[this->m_griddim] / (xi[this->m_griddim]-xj[this->m_griddim]);
+    const real_int t_c2 = this->m_gridsp[this->m_griddim] / (xi[this->m_griddim]-xj[this->m_griddim]);
+    const real_int C = realval_int(0.5)*this->m_invgridsp*this->m_invgridsp;
+    real_int d_cgrid = xi[this->m_griddim]-(x+realval_int(0.5))*this->m_gridsp[this->m_griddim];
+    int xn = x+(c+1)/2;
+
+    //------------------------------------------------------------------------------------
+    // Distribute the stress
+
+    // track previous time of crossing and check that sum is complete (?)
+    real_int oldt = realval_int(0.0); 
+
+    // fix the number of iterations
+    const int iterations = c*(i2-x);
+    for (int count = 0; count <= iterations; ++count)
+    {
+        // there is always iterations+1, where the last iteration deals
+        // with any residual
+        const real_int newt = (iterations == count) ? realval_int(1.0) : t_c1-xn*t_c2;
+
+        // work out the parametric time constants
+        const real_int t12 = oldt*oldt;
+        const real_int t22 = newt*newt;
+        const real_int dt1 = newt - oldt;
+        const real_int dt2 = t22 - t12;
+
+        const int p1 = ((x + 1 + this->m_nxyz[this->m_griddim]) % this->m_nxyz[this->m_griddim]);
+        const int m1 = ((x + this->m_nxyz[this->m_griddim]) % this->m_nxyz[this->m_griddim]);
+
+        // the composite constants in terms of i, j, k
+        const real_int D1 = this->m_gridsp[5-this->m_griddim]*(realval_int(2.0)*d_cgrid*dt1+diff[this->m_griddim]*dt2);
+        const real_int D2 = this->m_gridsp[6]*dt1;
+        scalesummatrix6(C*( D1 + D2), elast, gridElast[p1]);
+        scalesummatrix6(C*(-D1 + D2), elast, gridElast[m1]);
+        
+        d_cgrid -= c * m_gridsp[this->m_griddim];
+        oldt = newt;
+        
+        x += c;
+        xn += c;
+    }
+}
+
+void StressGrid::DistributeElasticity_internal3D(array3_int xi, array3_int xj, array3_int xk, array3_int xl, real_int phi, real_int kappa)
 {
     // this is the 3D case
     int batch_id = this->m_thread_map[std::this_thread::get_id()];
@@ -1699,6 +1833,9 @@ void StressGrid::DistributeElasticity_internal(array3_int xi, array3_int xj, arr
 
 void StressGrid::DistributeElasticity(array3_ext xi_ext, array3_ext xj_ext, array3_ext xk_ext, array3_ext xl_ext, real_ext phi_ext, real_ext kappa_ext)
 {
+    if (true == this->m_disable)
+        return;
+
     array3_int xi, xj, xk, xl;
     real_int phi, kappa;
 
@@ -1709,7 +1846,10 @@ void StressGrid::DistributeElasticity(array3_ext xi_ext, array3_ext xj_ext, arra
     phi = (real_int)phi_ext;
     kappa = (real_int)kappa_ext;
     
-    DistributeElasticity_internal(xi, xj, xk, xl, phi, kappa);
+    if (this->m_griddim == mds_griddim_xyz)
+        DistributeElasticity_internal3D(xi, xj, xk, xl, phi, kappa);
+    else
+        DistributeElasticity_internal1D(xi, xj, xk, xl, phi, kappa);
 }
 
 
@@ -1731,6 +1871,9 @@ void StressGrid::DistributeElasticity(array3_ext xi_ext, array3_ext xj_ext, arra
 // For velocity-verlet integrators we know v at the same time step, t, as the positions so the contribution is -m*va(t)*va(t)
 void StressGrid::DistributeKinetic(real_ext mass, array3_ext x, array3_ext va, array3_ext vb = nullptr, int atomID = -1)
 {
+    if (true == this->m_disable)
+        return;
+
     matrix3_int stress;
 
     // Spreads the velocity in one point
@@ -1839,6 +1982,9 @@ void StressGrid::DistributeKinetic(real_ext mass, array3_ext x, array3_ext va, a
 // For velocity-verlet integrators we know v at the same time step, t, as the positions so the contribution is -m*va(t)*va(t)
 void StressGrid::DistributeKineticElast(real_ext mass, array3_ext x, array3_ext va, array3_ext vb = nullptr)
 {
+    if (true == this->m_disable)
+        return;
+
     matrix6_int elast;
 
     // Spreads the velocity in one point
@@ -2258,9 +2404,18 @@ void StressGrid::DistributeSettle( array3_int Ra, array3_int Rb, array3_int Rc, 
         
         //Calculate Elasticity
         //DistributeElasticity_internal(darray xi, darray xj, darray xk, darray xl, double phi, double kappa)
-        this->DistributeElasticity_internal(Ra, Rb, Ra, Rb, phi_ab, kappa_ab);
-        this->DistributeElasticity_internal(Ra, Rc, Ra, Rc, phi_ac, kappa_ac);
-        this->DistributeElasticity_internal(Rb, Rc, Rb, Rc, phi_bc, kappa_bc);
+        if (this->m_griddim == mds_griddim_xyz)
+        {
+            this->DistributeElasticity_internal3D(Ra, Rb, Ra, Rb, phi_ab, kappa_ab);
+            this->DistributeElasticity_internal3D(Ra, Rc, Ra, Rc, phi_ac, kappa_ac);
+            this->DistributeElasticity_internal3D(Rb, Rc, Rb, Rc, phi_bc, kappa_bc);
+        }
+        else
+        {
+            this->DistributeElasticity_internal1D(Ra, Rb, Ra, Rb, phi_ab, kappa_ab);
+            this->DistributeElasticity_internal1D(Ra, Rc, Ra, Rc, phi_ac, kappa_ac);
+            this->DistributeElasticity_internal1D(Rb, Rc, Rb, Rc, phi_bc, kappa_bc);
+        }
     }
 }
 
@@ -2792,19 +2947,19 @@ void StressGrid::ThreeBodyCosineD(real_int ab, real_int bg, real_int ag, array3_
 	numer = (ab * ab) - (bg * bg) + (ag * ag);
 	denom = realval_int(2.0) * ab * ab * bg;
 
-	d_cos_array[0] = numer / denom;
+	d_cos_array[iab] = numer / denom;
 
 	//dbg of costheta
 	numer = -(ab * ab) + (bg * bg) + (ag * ag);
 	denom = realval_int(2.0) * ag * bg * bg;
 
-	d_cos_array[1] = numer / denom;
+	d_cos_array[ibg] = numer / denom;
 
 	//dag of costheta
 	numer = -ag;
 	denom = ab * bg;
 
-	d_cos_array[2] = numer / denom;
+	d_cos_array[iag] = numer / denom;
 }
 
 //Second Derivative of Cosine Function (Creates derivative matrix)
@@ -2816,42 +2971,42 @@ void StressGrid::ThreeBodyCosineD2(real_int ab, real_int bg, real_int ag, matrix
 	numer = (bg * bg) - (ag * ag);
 	denom = (ab * ab * ab * bg);
 
-	d2_cos_array[0][0] = numer / denom;
+	d2_cos_array[iab][iab] = numer / denom;
 
 	// d01 and d10 of costheta
 
 	numer = -((ab * ab) + (bg * bg) + (ag * ag));
 	denom = realval_int(2.0) * (ab * ab) * (bg * bg);
 
-	d2_cos_array[0][1] = numer / denom;
-	d2_cos_array[1][0] = d2_cos_array[0][1];
+	d2_cos_array[iab][ibg] = numer / denom;
+	d2_cos_array[ibg][iab] = numer / denom;
 
 	// d02 and d20 of costheta
 
 	numer = ag;
 	denom = ab * ab * bg;
 
-	d2_cos_array[0][2] = numer / denom;
-	d2_cos_array[2][0] = d2_cos_array[0][2];
+	d2_cos_array[iab][iag] = numer / denom;
+	d2_cos_array[iag][iab] = numer / denom;
 
 	// d11 of costheta
 	numer = (ab * ab) - (ag * ag);
 	denom = (ab * bg * bg * bg);
 
-	d2_cos_array[1][1] = numer / denom;
+	d2_cos_array[ibg][ibg] = numer / denom;
 
 	// d12 and d21 of costheta
 	numer = ag;
 	denom = ab * bg * bg;
 
-	d2_cos_array[1][2] = numer / denom;
-	d2_cos_array[2][1] = d2_cos_array[1][2];
+	d2_cos_array[iag][ibg] = numer / denom;
+	d2_cos_array[ibg][iag] = numer / denom;
 
 	// d22 of costheta
 	numer = realval_int(-1.0);
 	denom = ab * bg;
 
-	d2_cos_array[2][2] = numer / denom;
+	d2_cos_array[iag][iag] = numer / denom;
 }
 
 //First Derivative of Theta Function (Creates 1st derivative vector)
@@ -2888,53 +3043,72 @@ void StressGrid::ThreeBodyThetaD2(real_int costheta, array3_int d_cos_array, mat
 
 //List of 2-body Potential Auxilery Functions
 //Calculate The Phi and Kappa for Harmonic Potential -> Implimented
-void StressGrid::HarmonicPhiKappa(real_ext deltaR, real_ext k, real_ext &phi, real_ext &kappa) {
+void StressGrid::HarmonicPhiKappa(real_ext deltaR, real_ext k, real_ext &phi, real_ext &kappa)
+{
+    if (true == this->m_disable)
+        return;
 
-	phi = k * deltaR;
-	kappa = k;
+    phi = k * deltaR;
+    kappa = k;
 }
 
 //Calculate the Phi and Kappa for Buckingham Potential -> Not Implimented, Nonbonded?
-void StressGrid::BuckinghamPhiKappa(real_ext r, real_ext a, real_ext b, real_ext c, real_ext &phi, real_ext &kappa) {
+void StressGrid::BuckinghamPhiKappa(real_ext r, real_ext a, real_ext b, real_ext c, real_ext &phi, real_ext &kappa)
+{
+    if (true == this->m_disable)
+        return;
 
-	double exponent = -b * r;
-	double rinv = 1 / r;
-	double rinvsq = rinv * rinv;
-	double rinvsix = rinvsq * rinvsq * rinvsq;
+    double exponent = -b * r;
+    double rinv = 1 / r;
+    double rinvsq = rinv * rinv;
+    double rinvsix = rinvsq * rinvsq * rinvsq;
 
-	phi = -a * b * exp(exponent) + (6 * c) * rinvsix * rinv;
-	kappa = a * b * b * exp(exponent) - (42 * c) * rinvsix * rinvsq;
+    phi = -a * b * exp(exponent) + (6 * c) * rinvsix * rinv;
+    kappa = a * b * b * exp(exponent) - (42 * c) * rinvsix * rinvsq;
 }
 
 //Calculate the Phi and Kappa for the Fourth Power Potential -> Implimented g96bond
-void StressGrid::FourthPowerPhiKappa(real_ext k4, real_ext dist, real_ext dist0, real_ext &phi, real_ext &kappa) {
+void StressGrid::FourthPowerPhiKappa(real_ext k4, real_ext dist, real_ext dist0, real_ext &phi, real_ext &kappa)
+{
+    if (true == this->m_disable)
+        return;
 
-	phi = k4 * dist * (dist * dist - dist0 * dist0);
-	kappa = k4 * (3 * dist * dist - dist0 * dist0);
+    phi = k4 * dist * (dist * dist - dist0 * dist0);
+    kappa = k4 * (3 * dist * dist - dist0 * dist0);
 }
 
 //Calculate the Phi and  Kappa for the Morse Potential -> Implimented
-void StressGrid::MorsePhiKappa(real_ext expadeltaR, real_ext a, real_ext d, real_ext &phi, real_ext &kappa) {
-	//expadeltaR = e^(-a*(r-r0))
-	double coeffexp = 2 * a * d * expadeltaR;
+void StressGrid::MorsePhiKappa(real_ext expadeltaR, real_ext a, real_ext d, real_ext &phi, real_ext &kappa)
+{
+    if (true == this->m_disable)
+        return;
 
-	phi = coeffexp * (1 - expadeltaR);
-	kappa = coeffexp * a * (2 * expadeltaR - 1);
+    //expadeltaR = e^(-a*(r-r0))
+    double coeffexp = 2 * a * d * expadeltaR;
+
+    phi = coeffexp * (1 - expadeltaR);
+    kappa = coeffexp * a * (2 * expadeltaR - 1);
 }
 
 //Calculate the Phi and Kappa for the Cubic Bond Potential -> Implimented
-void StressGrid::CubicBondPhiKappa(real_ext deltaR, real_ext k, real_ext kcubic, real_ext &phi, real_ext &kappa) {
+void StressGrid::CubicBondPhiKappa(real_ext deltaR, real_ext k, real_ext kcubic, real_ext &phi, real_ext &kappa)
+{
+    if (true == this->m_disable)
+        return;
 
-	phi = 2 * k * deltaR + 3 * k * kcubic * deltaR * deltaR;
-	kappa = 2 * k + 6 * k * kcubic * deltaR;
+    phi = 2 * k * deltaR + 3 * k * kcubic * deltaR * deltaR;
+    kappa = 2 * k + 6 * k * kcubic * deltaR;
 }
 
 //Calculate the Phi and Kappa for the FENE Potential -> Implimented
-void StressGrid::FENEPhiKappa(real_ext r, real_ext k, real_ext diffratio, real_ext& phi, real_ext& kappa) {
-	//diffratio = 1 - (r/r0)^2
+void StressGrid::FENEPhiKappa(real_ext r, real_ext k, real_ext diffratio, real_ext& phi, real_ext& kappa)
+{
+    if (true == this->m_disable)
+        return;
+    //diffratio = 1 - (r/r0)^2
 
-	phi = k * r / diffratio;
-	kappa = k * (2 - diffratio) / diffratio;
+    phi = k * r / diffratio;
+    kappa = k * (2 - diffratio) / diffratio;
 }
 
 //List of 3-body Potential Auxilery Functions
@@ -2951,6 +3125,9 @@ void StressGrid::FENEPhiKappa(real_ext r, real_ext k, real_ext diffratio, real_e
 //Calculate the Phi and Kappa for the Harmonic Angle Potential -> Implimented
 void StressGrid::HarmonicAnglePhiKappa(real_ext ab_ext, real_ext bg_ext, real_ext ag_ext, real_ext costheta_ext, real_ext deltatheta_ext, real_ext k_ext, array3_ext &phi, matrix3_ext &kappa) 
 {
+    if (true == this->m_disable)
+        return;
+
     // convert to internal precision
     real_int ab = (real_int)ab_ext;
     real_int bg = (real_int)bg_ext;
@@ -2989,6 +3166,9 @@ void StressGrid::HarmonicAnglePhiKappa(real_ext ab_ext, real_ext bg_ext, real_ex
 //Calculate the Phi and Kappa for the Harmonic Cosine Potential -> Implimented Gromos96
 void StressGrid::HarmonicCosPhiKappa(real_ext ab_ext, real_ext bg_ext, real_ext ag_ext, real_ext deltacos_ext, real_ext k_ext, array3_ext &phi, matrix3_ext &kappa)
 {
+    if (true == this->m_disable)
+        return;
+
     // convert to internal precision
     real_int ab = (real_int)ab_ext;
     real_int bg = (real_int)bg_ext;
@@ -3018,7 +3198,11 @@ void StressGrid::HarmonicCosPhiKappa(real_ext ab_ext, real_ext bg_ext, real_ext 
 }
 
 //Calculate the Phi and Kappa for the Urey-Bradley Potential -> Not Implimented needs an overhaul
-void StressGrid::UreyBradleyPhiKappa(real_ext ab_ext, real_ext bg_ext, real_ext ag_ext, real_ext costheta_ext, real_ext deltaRag_ext, real_ext deltatheta_ext, real_ext ktheta_ext, real_ext kUB_ext, array3_ext &phi, matrix3_ext &kappa) {
+void StressGrid::UreyBradleyPhiKappa(real_ext ab_ext, real_ext bg_ext, real_ext ag_ext, real_ext costheta_ext, real_ext deltaRag_ext, real_ext deltatheta_ext, real_ext ktheta_ext, real_ext kUB_ext, array3_ext &phi, matrix3_ext &kappa)
+{
+    if (true == this->m_disable)
+        return;
+
     // convert to internal precision
     real_int ab = (real_int)ab_ext;
     real_int bg = (real_int)bg_ext;
@@ -3071,53 +3255,63 @@ void StressGrid::UreyBradleyPhiKappa(real_ext ab_ext, real_ext bg_ext, real_ext 
 }
 
 //Calculate the Phi and Kappa due to the Bond Bond Cross Potential -> Implimented Gromos96
-void StressGrid::BondBondCrossPhiKappa(real_ext k, real_ext deltarab, real_ext deltarbg, array3_ext &phi, matrix3_ext &kappa) {
+void StressGrid::BondBondCrossPhiKappa(real_ext k, real_ext deltarab, real_ext deltarbg, array3_ext &phi, matrix3_ext &kappa)
+{
+    if (true == this->m_disable)
+        return;
 
-	//Calculate Phi
-	phi[0] = k * deltarbg;
-	phi[1] = k * deltarab;
-	phi[2] = 0;
+    //Calculate Phi
+    phi[0] = k * deltarbg;
+    phi[1] = k * deltarab;
+    phi[2] = 0;
 
-	//Calculate Kappa
-	//Zero Terms
-	kappa[0][0] = 0;
-	kappa[1][1] = 0;
-	kappa[2][2] = 0;
-	kappa[0][2] = 0;
-	kappa[2][0] = 0;
-	kappa[1][2] = 0;
-	kappa[2][1] = 0;
+    //Calculate Kappa
+    //Zero Terms
+    kappa[0][0] = 0;
+    kappa[1][1] = 0;
+    kappa[2][2] = 0;
+    kappa[0][2] = 0;
+    kappa[2][0] = 0;
+    kappa[1][2] = 0;
+    kappa[2][1] = 0;
 
-	//Constant Terms
-	kappa[0][1] = k;
-	kappa[1][0] = k;
+    //Constant Terms
+    kappa[0][1] = k;
+    kappa[1][0] = k;
 }
 
 //Calculate the Phi and Kappa for the Bond Angle Cross Potential -> Implimented Gromos96
-void StressGrid::BondAngleCrossPhiKappa(real_ext k, real_ext deltarab, real_ext deltarbg, real_ext deltarag, array3_ext &phi, matrix3_ext &kappa) {
+void StressGrid::BondAngleCrossPhiKappa(real_ext k, real_ext deltarab, real_ext deltarbg, real_ext deltarag, array3_ext &phi, matrix3_ext &kappa)
+{
+    if (true == this->m_disable)
+        return;
 
-	//Calculate Phi
-	phi[0] = k * deltarag;
-	phi[1] = phi[0];
-	phi[2] = k * (deltarab + deltarbg);
+    //Calculate Phi
+    phi[0] = k * deltarag;
+    phi[1] = phi[0];
+    phi[2] = k * (deltarab + deltarbg);
 
-	//Calculate Kappa
-	//Zero Terms
-	kappa[0][0] = 0;
-	kappa[1][1] = 0;
-	kappa[2][2] = 0;
-	kappa[0][1] = 0;
-	kappa[1][0] = 0;
+    //Calculate Kappa
+    //Zero Terms
+    kappa[0][0] = 0;
+    kappa[1][1] = 0;
+    kappa[2][2] = 0;
+    kappa[0][1] = 0;
+    kappa[1][0] = 0;
 
-	//Constant Terms
-	kappa[0][2] = k;
-	kappa[2][0] = k;
-	kappa[1][2] = k;
-	kappa[2][1] = k;
+    //Constant Terms
+    kappa[0][2] = k;
+    kappa[2][0] = k;
+    kappa[1][2] = k;
+    kappa[2][1] = k;
 }
 
 //Calculate the Phi and Kappa for Quartic Angle Potential -> Implimented
-void StressGrid::QuarticAnglePhiKappa(real_ext ab_ext, real_ext bg_ext, real_ext ag_ext, real_ext costheta_ext, real_ext deltatheta_ext, real_ext (&coeff)[5], array3_ext &phi, matrix3_ext &kappa) {
+void StressGrid::QuarticAnglePhiKappa(real_ext ab_ext, real_ext bg_ext, real_ext ag_ext, real_ext costheta_ext, real_ext deltatheta_ext, real_ext (&coeff)[5], array3_ext &phi, matrix3_ext &kappa)
+{
+    if (true == this->m_disable)
+        return;
+
     // convert to internal precision
     real_int ab = (real_int)ab_ext;
     real_int bg = (real_int)bg_ext;
