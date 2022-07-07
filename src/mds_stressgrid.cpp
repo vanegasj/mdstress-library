@@ -1026,7 +1026,8 @@ void StressGrid::Write ( )
 
             // calculate stress factors
             real_int stressfac, stress2fac, covfac, covfac2;
-            stressfac = real_int(mds_units)/this->m_nframes;
+            //stressfac = real_int(mds_units)/this->m_nframes;
+            stressfac = real_int(mds_units)
             stress2fac = real_int(mds_units)*real_int(mds_units)/this->m_nframes;
             covfac = -real_int(mds_units)*real_int(mds_units)*this->m_avg_boxvol/(this->m_temperature*real_int(KBfac)*this->m_nframes);
             covfac2 = realval_int(0.0);
@@ -1049,7 +1050,8 @@ void StressGrid::Write ( )
             matrix6_int npt_covar_corr[1];
             for ( int i = 0; i < this->m_ncells; i++ )
             {
-                scalematrix3(this->p_sum_grid[i], stressfac, this->p_sum_grid[i]);
+                //scalematrix3(this->p_sum_grid[i], stressfac, this->p_sum_grid[i]);
+                scalematrix3(this->p_avg_grid[i], stressfac, this->p_avg_grid[i]); // Use the online average stress instead of the cummulative stress divided by the number of frames
                 scalematrix6(this->p_sum_grid_elcovar[i], covfac, this->p_sum_grid_elcovar[i]);
                 scalematrix6(this->p_sum_grid_elborn[i], stressfac, this->p_sum_grid_elborn[i]);
                 scalematrix6(this->p_sum_grid_elkin[i], stressfac, this->p_sum_grid_elkin[i]);
@@ -1059,7 +1061,8 @@ void StressGrid::Write ( )
                 summatrix6(this->p_sum_grid_elcovar[i], npt_covar_corr[0], this->p_sum_grid_elcovar[i]);
                 
                 // copying to dmatrix3/6 here for m_ncell writes to respective files
-                copymatrix3(this->p_sum_grid[i], sum_grid);
+                //copymatrix3(this->p_sum_grid[i], sum_grid);
+                copymatrix3(this->p_avg_grid[i], sum_grid);
                 copymatrix6(this->p_sum_grid_elcovar[i], sum_grid_elcovar);
                 copymatrix6(this->p_sum_grid_elborn[i], sum_grid_elborn);
                 copymatrix6(this->p_sum_grid_elkin[i], sum_grid_elkin);
@@ -2908,7 +2911,7 @@ void StressGrid::DistributeNBody ( int nPart, array3_ext *R, array3_ext *F, bool
     }
 }
 
-//Auxilery Methods to Calculate the Phi and Kappa Terms for the Born Term
+//Auxiliary Methods to Calculate the Phi and Kappa Terms for the Born Term
 // For cosine derivative functions must be called before the theta derivatives. 
 // derivative identifier dertype ab = 0, bg = 1, ag = 3
 
@@ -2951,7 +2954,7 @@ void StressGrid::ThreeBodyCosineD(real_int ab, real_int bg, real_int ag, array3_
 
 	//dbg of costheta
 	numer = -(ab * ab) + (bg * bg) + (ag * ag);
-	denom = realval_int(2.0) * ag * bg * bg;
+	denom = realval_int(2.0) * ab * bg * bg;
 
 	d_cos_array[ibg] = numer / denom;
 
@@ -3111,7 +3114,7 @@ void StressGrid::FENEPhiKappa(real_ext r, real_ext k, real_ext diffratio, real_e
     kappa = k * (2 - diffratio) / diffratio;
 }
 
-//List of 3-body Potential Auxilery Functions
+//List of 3-body Potential Auxiliary Functions
 //Derivative Vector/Matrix form
 // derivative identifier ab = 0, bg = 1, ag = 3
 
@@ -3232,26 +3235,19 @@ void StressGrid::UreyBradleyPhiKappa(real_ext ab_ext, real_ext bg_ext, real_ext 
     this->ThreeBodyThetaD2(costheta, d_cos_array, d2_cos_array, d2_theta_array);
 
     //Calculate Phi ab(0) and bg(1) for phi vector
-    for (int i = 0; i < 2; i++) {
-        if (i == 2) {
-            phi[i] = (real_ext)(ktheta * deltatheta * d_theta_array[i] + kUB * deltaRag );
-        }
-        else {
-            phi[i] = (real_ext)(ktheta * deltatheta * d_theta_array[i] );
-        }
+    for (int i = 0; i < 3; i++) {
+        phi[i] = (real_ext)(ktheta * deltatheta * d_theta_array[i]);
     }
+
+    phi[iag] = (real_ext)(phi[oag] + kUB * deltaRag);
 
     //Calculate Kappa Matrix (will calculate kappa[2][2] separately)
     for (int i = 0; i < 3; i++) {
         for (int j = 0; j < 3; j++) {
-            if (i == 2 && j == 2) {
-                kappa[i][j] = (real_ext)(ktheta * (d_theta_array[i] * d_theta_array[j] + deltatheta * d2_theta_array[i][j]) + kUB);
-            }
-            else {
-                kappa[i][j] = (real_ext)(ktheta * (d_theta_array[i] * d_theta_array[j] + deltatheta * d2_theta_array[i][j]) );
-            }
+            kappa[i][j] = (real_ext)(ktheta * (d_theta_array[i] * d_theta_array[j] + deltatheta * d2_theta_array[i][j]));
         }
     }
+    kappa[iag][iag] = (real_ext)(kappa[iag][iag] + kUB);
 }
 
 //Calculate the Phi and Kappa due to the Bond Bond Cross Potential -> Implimented Gromos96
