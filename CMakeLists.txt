@@ -47,13 +47,13 @@ endif()
 set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake" ${CMAKE_MODULE_PATH})
 
 # create our mds_defines.h file in the binary build directory
-configure_file(include/mdstress/mds_defines.h.in mds_defines.h @ONLY)
+configure_file(include/mdstress/mds_defines.h.in ${CMAKE_CURRENT_SOURCE_DIR}/include/mdstress/mds_defines.h @ONLY)
 
 # find all the source files
 file(GLOB SOURCES src/*.cpp src/*.cu contrib/voro++/src/*.cc)
 
 # the include files
-file(GLOB MDSTRESS_SOURCES_H   include/mdstress/*.h)
+file(GLOB MDSTRESS_SOURCES_H include/mdstress/*.h )
 file(GLOB VORO_SOURCES_HH include/voro++/*.hh)
 
 # remove sources
@@ -72,7 +72,7 @@ target_link_libraries(mdstress PRIVATE ${LAPACK_LIBRARY})
 
 install(TARGETS mdstress RUNTIME DESTINATION bin LIBRARY DESTINATION lib ARCHIVE DESTINATION lib/static)
 install(FILES ${MDSTRESS_SOURCES_H} DESTINATION include/mdstress)
-install(FILES ${CMAKE_CURRENT_BINARY_DIR}/mds_defines.h DESTINATION include/mdstress)
+#install(FILES ${CMAKE_CURRENT_BINARY_DIR}/mds_defines.h DESTINATION include/mdstress)
 install(FILES ${VORO_SOURCES_HH} DESTINATION include/voro++)
 
 # only process python bindings if requested

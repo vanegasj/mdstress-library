@@ -1027,7 +1027,7 @@ void StressGrid::Write ( )
             // calculate stress factors
             real_int stressfac, stress2fac, covfac, covfac2;
             //stressfac = real_int(mds_units)/this->m_nframes;
-            stressfac = real_int(mds_units)
+            stressfac = real_int(mds_units);
             stress2fac = real_int(mds_units)*real_int(mds_units)/this->m_nframes;
             covfac = -real_int(mds_units)*real_int(mds_units)*this->m_avg_boxvol/(this->m_temperature*real_int(KBfac)*this->m_nframes);
             covfac2 = realval_int(0.0);
@@ -3035,7 +3035,7 @@ void StressGrid::ThreeBodyThetaD2(real_int costheta, array3_int d_cos_array, mat
 
 	sinthetasq = realval_int(1.0) - (costheta * costheta);
 
-	scalefactor = realval_int(1.00) / (sinthetasq * sqrt(sinthetasq));
+	scalefactor = realval_int(1.0) / (sinthetasq * sqrt(sinthetasq));
 
 	for (int i = 0; i < 3; i++) {
 		for (int j = 0; j < 3; j++) {
@@ -3239,7 +3239,7 @@ void StressGrid::UreyBradleyPhiKappa(real_ext ab_ext, real_ext bg_ext, real_ext 
         phi[i] = (real_ext)(ktheta * deltatheta * d_theta_array[i]);
     }
 
-    phi[iag] = (real_ext)(phi[oag] + kUB * deltaRag);
+    phi[iag] = (real_ext)(phi[iag] + kUB * deltaRag);
 
     //Calculate Kappa Matrix (will calculate kappa[2][2] separately)
     for (int i = 0; i < 3; i++) {
