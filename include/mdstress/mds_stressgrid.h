@@ -74,8 +74,8 @@ class  mds::StressGrid
         /** Return the name of this class as a string. */
         const char *GetNameOfClass() const
         {   return "StressGrid";     }
-        
-        
+
+
         /** Enable/Disable MDStress Library: */
         //@{
         void Enable()
@@ -89,8 +89,14 @@ class  mds::StressGrid
             std::lock_guard<std::mutex> lock(m_mutex_state);
             this->m_disable = true;
         }
-        //@}
-        
+        //@
+        /** Check if the library has been initialized */
+        //@{
+        bool CheckInit()
+        {
+            return this->m_initialized;
+        }
+        //@
         /** Set max threads: */
         //@{
         void SetThreadIDs(int thread_id, int max_threads)
@@ -226,7 +232,7 @@ class  mds::StressGrid
         {   return this->m_gridspc[1]; }
         real_ext  GetSpacingZC( )
         {   return this->m_gridspc[2]; }
-        //@}        
+        //@}
         
          /**Set/Get force decomposition */
         //@{
