@@ -465,8 +465,8 @@ void StressGrid::UpdateBoxSpacings ( matrix3_ext box )
     if ( !this->m_ierr )
     {
         // every thread must process this latch before proceeding
-        static barrier ubs_entry(this->m_max_threads);
-        ubs_entry.count_down_and_wait();
+        //static barrier ubs_entry(this->m_max_threads);
+        //ubs_entry.count_down_and_wait();
 
         // only thread 0 performs update
         if (this->m_thread_map[std::this_thread::get_id()] == 0)
@@ -521,8 +521,8 @@ void StressGrid::UpdateBoxSpacings ( matrix3_ext box )
         }
 
         // every thread must process this latch before exiting
-        static barrier ubs_exit(this->m_max_threads);
-        ubs_exit.count_down_and_wait();
+        //static barrier ubs_exit(this->m_max_threads);
+        //ubs_exit.count_down_and_wait();
     }
 }
 
