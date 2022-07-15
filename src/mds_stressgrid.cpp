@@ -1053,13 +1053,16 @@ void StressGrid::Write ( )
                 //scalematrix3(this->p_sum_grid[i], stressfac, this->p_sum_grid[i]);
                 scalematrix3(this->p_avg_grid[i], stressfac, this->p_avg_grid[i]); // Use the online average stress instead of the cummulative stress divided by the number of frames
                 scalematrix6(this->p_sum_grid_elcovar[i], covfac, this->p_sum_grid_elcovar[i]);
-                scalematrix6(this->p_sum_grid_elborn[i], stressfac, this->p_sum_grid_elborn[i]);
-                scalematrix6(this->p_sum_grid_elkin[i], stressfac, this->p_sum_grid_elkin[i]);
+                scalematrix6(this->p_sum_grid_elborn[i], stressfac/this->m_nframes, this->p_sum_grid_elborn[i]);
+                scalematrix6(this->p_sum_grid_elkin[i], stressfac/this->m_nframes, this->p_sum_grid_elkin[i]);
 
-                matrixouterprod6(this->p_sum_grid_volcovar[i], this->p_sum_gridtot_volcovar[0], npt_covar_corr[0]); // Cov(sigma_local_ij,V)*Cov(sigma_total_kl,V)
-                scalematrix6(npt_covar_corr[0], covfac2, npt_covar_corr[0]); // scale the term above by <V>/kT*Var(V)
-                summatrix6(this->p_sum_grid_elcovar[i], npt_covar_corr[0], this->p_sum_grid_elcovar[i]);
-                
+                if (this->m_pcoupl == true)
+                {
+                    matrixouterprod6(this->p_sum_grid_volcovar[i], this->p_sum_gridtot_volcovar[0], npt_covar_corr[0]); // Cov(sigma_local_ij,V)*Cov(sigma_total_kl,V)
+                    scalematrix6(npt_covar_corr[0], covfac2, npt_covar_corr[0]); // scale the term above by <V>/kT*Var(V)
+                    summatrix6(this->p_sum_grid_elcovar[i], npt_covar_corr[0], this->p_sum_grid_elcovar[i]);
+                }
+
                 // copying to dmatrix3/6 here for m_ncell writes to respective files
                 //copymatrix3(this->p_sum_grid[i], sum_grid);
                 copymatrix3(this->p_avg_grid[i], sum_grid);
@@ -1091,7 +1094,7 @@ void StressGrid::Write ( )
             {
                 summatrix6(this->p_sum_grid_elcovar[i], this->p_sum_grid_elborn[i], this->p_sum_grid_elcovar[i]); // add up all the contributions to the total elasticity tensor
                 summatrix6(this->p_sum_grid_elcovar[i], this->p_sum_grid_elkin[i], this->p_sum_grid_elcovar[i]);
-                
+
                 // need to store matrices in double precision
                 copymatrix6(this->p_sum_grid_elcovar[i], sum_grid_elcovar);
 
