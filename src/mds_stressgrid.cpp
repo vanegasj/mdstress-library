@@ -937,14 +937,15 @@ void StressGrid::Write ( )
     if ( !this->m_ierr)
     {
             int                Dtype=1;
-            std::string        outname, charge_outname,  elborn_outname, elcovar_outname, elkin_outname, eltotal_outname;
+            std::string        outname, charge_outname,  elborn_outname, elcovar_outname, elkin_outname, eltotal_outname, eltotalhooke_outname;
             std::ostringstream outnumber;
             FILE *outfile = nullptr;
             FILE *charge_outfile = nullptr;
             FILE *elborn_outfile = nullptr;
             FILE *elcovar_outfile = nullptr;
             FILE *elkin_outfile = nullptr;
-            FILE *eltotal_outfile = nullptr;;
+            FILE *eltotal_outfile = nullptr;
+            FILE *eltotalhooke_outfile = nullptr;
 
             outnumber << this->m_nreset;
             size_t lastindex = this->m_filename.find_last_of(".");
@@ -959,6 +960,7 @@ void StressGrid::Write ( )
             elkin_outname = rawname + "_elkin.dat" + outnumber.str();
             elborn_outname = rawname + "_elborn.dat" + outnumber.str();
             eltotal_outname = rawname + "_eltotal.dat" + outnumber.str();
+            eltotalhooke_outname = rawname + "_eltotalhooke.dat" + outnumber.str();
 
             // open the main output file
             outfile = fopen(outname.c_str(), "wb" );
@@ -973,17 +975,19 @@ void StressGrid::Write ( )
             elborn_outfile = fopen(elborn_outname.c_str(), "wb" );
             elkin_outfile = fopen(elkin_outname.c_str(), "wb" );
             eltotal_outfile = fopen(eltotal_outname.c_str(), "wb" );
+            eltotalhooke_outfile = fopen(eltotalhooke_outname.c_str(), "wb" );
 
             Dtype = 6;
             fwrite(&Dtype, sizeof(int), 1, elcovar_outfile);
             fwrite(&Dtype, sizeof(int), 1, elborn_outfile);
             fwrite(&Dtype, sizeof(int), 1, elkin_outfile);
             fwrite(&Dtype, sizeof(int), 1, eltotal_outfile);
+            fwrite(&Dtype, sizeof(int), 1, eltotalhooke_outfile);
 
             //Divide sumbox with respect to the number of frames to get the avg
             matrix3_int        avgbox;
             scalematrix3( this->m_sumbox, realval_int(1.0)/this->m_nframes, avgbox);
-            
+
             //Need to copy to an array of output precision
             matrix3_out        avgbox_out;
             copymatrix3(avgbox, avgbox_out);
@@ -994,6 +998,7 @@ void StressGrid::Write ( )
             fwrite(avgbox_out, sizeof(matrix3_out), 1, elborn_outfile);
             fwrite(avgbox_out, sizeof(matrix3_out), 1, elkin_outfile);
             fwrite(avgbox_out, sizeof(matrix3_out), 1, eltotal_outfile);
+            fwrite(avgbox_out, sizeof(matrix3_out), 1, eltotalhooke_outfile);
 
             if (this->m_spatatom == mds_spat)
             {
@@ -1013,6 +1018,9 @@ void StressGrid::Write ( )
                 fwrite(&this->m_nxyz[0], sizeof(this->m_nxyz[0]), 1, eltotal_outfile);
                 fwrite(&this->m_nxyz[1], sizeof(this->m_nxyz[1]), 1, eltotal_outfile);
                 fwrite(&this->m_nxyz[2], sizeof(this->m_nxyz[2]), 1, eltotal_outfile);
+                fwrite(&this->m_nxyz[0], sizeof(this->m_nxyz[0]), 1, eltotalhooke_outfile);
+                fwrite(&this->m_nxyz[1], sizeof(this->m_nxyz[1]), 1, eltotalhooke_outfile);
+                fwrite(&this->m_nxyz[2], sizeof(this->m_nxyz[2]), 1, eltotalhooke_outfile);
             }
             else
             {
@@ -1022,6 +1030,7 @@ void StressGrid::Write ( )
                 fwrite(&this->m_ncells, sizeof(int), 1, elborn_outfile);
                 fwrite(&this->m_ncells, sizeof(int), 1, elkin_outfile);
                 fwrite(&this->m_ncells, sizeof(int), 1, eltotal_outfile);
+                fwrite(&this->m_ncells, sizeof(int), 1, eltotalhooke_outfile);
             }
 
             // calculate stress factors
@@ -1039,12 +1048,16 @@ void StressGrid::Write ( )
             matrix6_out sum_grid_elcovar;
             matrix6_out sum_grid_elborn;
             matrix6_out sum_grid_elkin;
+            matrix3_out s;
+            matrix6_out elast;
 
             // zero them
             zeromatrix3(sum_grid);
+            zeromatrix3(s);
             zeromatrix6(sum_grid_elcovar);
             zeromatrix6(sum_grid_elborn);
             zeromatrix6(sum_grid_elkin);
+            zeromatrix6(elast);
 
             // need this for corrections below
             matrix6_int npt_covar_corr[1];
@@ -1096,12 +1109,69 @@ void StressGrid::Write ( )
                 summatrix6(this->p_sum_grid_elcovar[i], this->p_sum_grid_elkin[i], this->p_sum_grid_elcovar[i]);
 
                 // need to store matrices in double precision
-                copymatrix6(this->p_sum_grid_elcovar[i], sum_grid_elcovar);
+                copymatrix6(this->p_sum_grid_elcovar[i], elast);
+                fwrite(&elast[0], sizeof(matrix6_out), 1, eltotal_outfile);
 
-                fwrite(&sum_grid_elcovar[0], sizeof(matrix6_out), 1, eltotal_outfile);
+                // Correct the elasticity tensor using the stress tensor to obtain the Hooke's law elasticity tensor
+                //
+                // Stiffness matrix in Voigt notation
+                // 0 = xx; 1 = yy; 2 = zz; 3 = yz or zy; 4 = xz or zx; 5 = xy or yx
+                // All indices                         Voigt indices           Stress indices
+                // ( xxxx xxyy xxzz xxyz xxxz xxxy ) = ( 00 01 02 03 04 05 ) = [ 0000 0011 0022 0012 0002 0001 ]
+                // ( yyxx yyyy yyzz yyyz yyxz yyxy ) = ( 10 11 12 13 14 15 ) = [ 1100 1111 1122 1112 1102 1101 ]
+                // ( zzxx zzyy zzzz zzyz zzxz zzxy ) = ( 20 21 22 23 24 25 ) = [ 2200 2211 2222 2212 2202 2201 ]
+                // ( yzxx yzyy yzzz yzyz yzxz yzxy ) = ( 30 31 32 33 34 35 ) = [ 1200 1211 1222 1212 1202 1201 ]
+                // ( xzxx xzyy xzzz xzyz xzxz xzxy ) = ( 40 41 42 43 44 45 ) = [ 0200 0211 0222 0212 0202 0201 ]
+                // ( xyxx xyyy xyzz xyyz xyxz xyxy ) = ( 50 51 52 53 54 55 ) = [ 0100 0111 0122 0112 0102 0101 ]
+
+                // C_hook[ijkl] = C[ijkl] + 1/2*( s[ik]d[jl] + s[il]d[jk] + s[jk]d[il] + s[jl]d[ik] - 2*s[ij]d[kl])
+
+                copymatrix3(this->p_avg_grid[i], s);
+                                                           // ijkl
+                elast[0][0] +=  s[0][0];                   // 0000
+                elast[0][1] += -s[0][0];                   // 0011
+                elast[0][2] += -s[0][0];                   // 0022
+                elast[0][3] +=  0;                         // 0012
+                elast[0][4] +=  s[0][2];                   // 0002
+                elast[0][5] +=  s[0][1];                   // 0001
+                elast[1][0] += -s[1][1];                   // 1100
+                elast[1][1] +=  s[1][1];                   // 1111
+                elast[1][2] += -s[1][1];                   // 1122
+                elast[1][3] +=  s[1][2];                   // 1112
+                elast[1][4] +=  0;                         // 1102
+                elast[1][5] +=  s[1][0];                   // 1101
+                elast[2][0] += -s[2][2];                   // 2200
+                elast[2][1] += -s[2][2];                   // 2211
+                elast[2][2] +=  s[2][2];                   // 2222
+                elast[2][3] +=  s[2][1];                   // 2212
+                elast[2][4] +=  s[2][0];                   // 2202
+                elast[2][5] +=  0;                         // 2201
+                elast[3][0] += -s[1][2];                   // 1200
+                elast[3][1] +=  s[2][1]-s[1][2];           // 1211
+                elast[3][2] +=  0;                         // 1222
+                elast[3][3] +=  0.5*(s[1][1] + s[2][2]);   // 1212
+                elast[3][4] +=  0.5*(s[1][0]);             // 1202
+                elast[3][5] +=  0.5*(s[2][0]);             // 1201
+                elast[4][0] +=  s[2][0]-s[0][2];           // 0200
+                elast[4][1] += -s[0][2];                   // 0211
+                elast[4][2] +=  0;                         // 0222
+                elast[4][3] +=  0.5*(s[0][1]);             // 0212
+                elast[4][4] +=  0.5*(s[0][0] + s[2][2]);   // 0202
+                elast[4][5] +=  0.5*(s[2][1]);             // 0201
+                elast[5][0] +=  s[1][0]-s[0][1];           // 0100
+                elast[5][1] +=  0;                         // 0111
+                elast[5][2] += -s[0][1];                   // 0122
+                elast[5][3] +=  0.5*(s[0][2]);             // 0112
+                elast[5][4] +=  0.5*(s[1][2]);             // 0102
+                elast[5][5] +=  0.5*(s[0][0] + s[1][1]);   // 0101
+
+                // need to store matrices in double precision
+                fwrite(&elast[0], sizeof(matrix6_out), 1, eltotalhooke_outfile);
             }
 
             fclose(eltotal_outfile);
+            fclose(eltotalhooke_outfile);
+
             if (this->m_gridctype != mds_gridc_off)
             {
                 charge_outname = "charge_" + this->m_filename + outnumber.str();

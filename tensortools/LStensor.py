@@ -163,7 +163,7 @@ class LStensor:
         each file
         '''
         # Read first input file
-        self.data_grid,self.box,self.nx,self.ny,self.nz = self.__readGridbin__(files[0])
+        self.data_grid,self.box,self.nx,self.ny,self.nz = self.__readGridbin__(files[0], self.dsize)
 
         # Read subsequent input files if necessary
         nfiles = len(files)
@@ -174,7 +174,7 @@ class LStensor:
         else:
             mult = -1
         for i in range(1, nfiles):
-            tdata,tbox,tx,ty,tz = self.__readGridbin__(files[i])
+            tdata,tbox,tx,ty,tz = self.__readGridbin__(files[i], self.dsize)
             self.data_grid = self.data_grid + mult*tdata
             if (bAvg == 'avg'):
                 self.box += tbox
@@ -527,7 +527,7 @@ class LStensor:
         if(self.verbose):
             print("DONE!\n")
 
-    def g_translate (self, transax, transshift):
+    def g_translate (self, trans):
         '''
         Translate data along a given axis asumming periodic boundary conditions
         '''
@@ -538,17 +538,17 @@ class LStensor:
 
         ax = []
         shift = []
-        if (transax[0] == 1):
+        if (trans[0] != 0):
             ax.append(0)
-            shift.append(transshift[0])
+            shift.append(trans[0])
 
-        if (transax[1] == 1):
+        if (transax[1] != 0):
             ax.append(1)
-            shift.append(transshift[1])
+            shift.append(trans[1])
 
-        if (transax[2] == 1):
+        if (transax[2] != 0):
             ax.append(2)
-            shift.append(transshift[2])
+            shift.append(trans[2])
 
         data_ = np.reshape(self.data_grid,(self.nx, self.ny, self.nz, self.dsize))
 
@@ -557,6 +557,80 @@ class LStensor:
         data_ = np.reshape(data_,(self.nx*self.ny*self.nz,self.dsize))
 
         self.data_grid = data_
+
+        if (self.verbose):
+            print("DONE!\n")
+
+        return
+
+    def g_elhookecorr (self, stress):
+        '''
+        Correct the elasticity tensor using the stress tensor to obtain the Hooke\'s law elasiticity tensor
+        '''
+
+        if (self.gridFlag == False):
+            print("ERROR: LStensor: g_elhookcoor: grid is not defined")
+            return 1
+        #print(stress[0])
+        s,box,nx,ny,nz = self.__readGridbin__(stress,9)
+        s = np.reshape(s, (nx*ny*nz,3,3))
+
+        elast = np.reshape(self.data_grid,(self.nx*self.ny*self.nz,6,6))
+
+        # Stiffness matrix in Voigt notation
+        # 0 = xx; 1 = yy; 2 = zz; 3 = yz or zy; 4 = xz or zx; 5 = xy or yx
+        # All indices                         Voigt indices           Stress indices
+        # ( xxxx xxyy xxzz xxyz xxxz xxxy ) = ( 00 01 02 03 04 05 ) = [ 0000 0011 0022 0012 0002 0001 ]
+        # ( yyxx yyyy yyzz yyyz yyxz yyxy ) = ( 10 11 12 13 14 15 ) = [ 1100 1111 1122 1112 1102 1101 ]
+        # ( zzxx zzyy zzzz zzyz zzxz zzxy ) = ( 20 21 22 23 24 25 ) = [ 2200 2211 2222 2212 2202 2201 ]
+        # ( yzxx yzyy yzzz yzyz yzxz yzxy ) = ( 30 31 32 33 34 35 ) = [ 1200 1211 1222 1212 1202 1201 ]
+        # ( xzxx xzyy xzzz xzyz xzxz xzxy ) = ( 40 41 42 43 44 45 ) = [ 0200 0211 0222 0212 0202 0201 ]
+        # ( xyxx xyyy xyzz xyyz xyxz xyxy ) = ( 50 51 52 53 54 55 ) = [ 0100 0111 0122 0112 0102 0101 ]
+
+        # C_hook[ijkl] = C[ijkl] + 1/2*( s[ik]d[jl] + s[il]d[jk] + s[jk]d[il] + s[jl]d[ik] - 2*s[ij]d[kl])
+
+        ncells = self.nx*self.ny*self.nz
+        for i in range(ncells):                 # ijkl
+            elast[i,0,0] +=  s[i,0,0]           # 0000
+            elast[i,0,1] += -s[i,0,0]           # 0011
+            elast[i,0,2] += -s[i,0,0]           # 0022
+            elast[i,0,3] +=  0                  # 0012
+            elast[i,0,4] +=  s[i,0,2]           # 0002
+            elast[i,0,5] +=  s[i,0,1]           # 0001
+            elast[i,1,0] += -s[i,1,1]           # 1100
+            elast[i,1,1] +=  s[i,1,1]           # 1111
+            elast[i,1,2] += -s[i,1,1]           # 1122
+            elast[i,1,3] +=  s[i,1,2]           # 1112
+            elast[i,1,4] +=  0                  # 1102
+            elast[i,1,5] +=  s[i,1,0]           # 1101
+            elast[i,2,0] += -s[i,2,2]           # 2200
+            elast[i,2,1] += -s[i,2,2]           # 2211
+            elast[i,2,2] +=  s[i,2,2]           # 2222
+            elast[i,2,3] +=  s[i,2,1]           # 2212
+            elast[i,2,4] +=  s[i,2,0]           # 2202
+            elast[i,2,5] +=  0                  # 2201
+            elast[i,3,0] += -s[i,1,2]           # 1200
+            elast[i,3,1] +=  s[i,2,1]-s[i,1,2]  # 1211
+            elast[i,3,2] +=  0                  # 1222
+            elast[i,3,3] +=  0.5*(s[i,1,1] + s[i,2,2])  # 1212
+            elast[i,3,4] +=  0.5*(s[i,1,0])     # 1202
+            elast[i,3,5] +=  0.5*(s[i,2,0])     # 1201
+            elast[i,4,0] +=  s[i,2,0]-s[i,0,2]  # 0200
+            elast[i,4,1] += -s[i,0,2]           # 0211
+            elast[i,4,2] +=  0                  # 0222
+            elast[i,4,3] +=  0.5*(s[i,0,1])     # 0212
+            elast[i,4,4] +=  0.5*(s[i,0,0] + s[i,2,2])  # 0202
+            elast[i,4,5] +=  0.5*(s[i,2,1])     # 0201
+            elast[i,5,0] +=  s[i,1,0]-s[i,0,1]  # 0100
+            elast[i,5,1] +=  0                  # 0111
+            elast[i,5,2] += -s[i,0,1]           # 0122
+            elast[i,5,3] +=  0.5*(s[i,0,2])     # 0112
+            elast[i,5,4] +=  0.5*(s[i,1,2])     # 0102
+            elast[i,5,5] +=  0.5*(s[i,0,0] + s[i,1,1])  # 0101
+
+        elast = np.reshape(elast,(self.nx*self.ny*self.nz,self.dsize))
+
+        self.data_grid = elast
 
         if (self.verbose):
             print("DONE!\n")
@@ -1125,7 +1199,7 @@ class LStensor:
     ####################################################################################################################
     # LOAD DATA (PRIVATE):
 
-    def __readGridbin__(self,inputfile):
+    def __readGridbin__(self,inputfile,dsize):
 
         fp = open(inputfile, 'rb')
         dtype = struct.unpack('i', fp.read(1*self.__sizeofint__))[0]
@@ -1142,14 +1216,14 @@ class LStensor:
             print("\tGrid size = ({0},{1},{2})".format(nx,ny,nz))
 
         ntot = nx*ny*nz
-        data = np.array(struct.unpack(str(self.dsize*ntot)+'d', fp.read(self.dsize*ntot*self.__sizeofdouble__)))
+        data = np.array(struct.unpack(str(dsize*ntot)+'d', fp.read(dsize*ntot*self.__sizeofdouble__)))
 
         if(self.verbose):
             print("DONE!\n")
 
         fp.close()
 
-        data = data.reshape((ntot,self.dsize))
+        data = data.reshape((ntot,dsize))
 
         return data,box,nx,ny,nz
 
