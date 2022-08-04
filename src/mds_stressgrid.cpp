@@ -706,7 +706,8 @@ void StressGrid::SumGrid ( )
                     summatrix3(dx[0], this->p_current_grid[i], dx[0]); // dx += x
                     scalesummatrix3(realval_int(1.0)/this->m_nframes, dx[0], this->p_avg_grid[i]); //compute meanx
                     scalesummatrix3(deltaV, dx[0], this->p_sum_grid_volcovar[i]); // accumulate covar(sigma_local_ij, Vol)
-                    matrixouterprod6( dx[0], this->p_current_gridtot[0], tmp_covar[0]); // dx*dy
+                    matrixouterprod6( dx[0], this->p_current_gridtot[0], tmp_covar[0]); // dx*dy - uncomment this line to do local-vs-total fluctuations
+                    //matrixouterprod6( dx[0], dx[0], tmp_covar[0]); // dx*dy - uncomment this line to do local-vs-local fluctuations
                     summatrix6(this->p_sum_grid_elcovar[i], tmp_covar[0], this->p_sum_grid_elcovar[i]); //this accumulates the covar of sigma_local_ij*sigma_total_kl
                 }
 
