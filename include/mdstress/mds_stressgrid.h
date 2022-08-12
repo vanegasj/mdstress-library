@@ -78,33 +78,39 @@ class  mds::StressGrid
 
         /** Enable/Disable MDStress Library: */
         //@{
+        bool LoadCheckpoint(const char * filename);
+        bool SaveCheckpoint(const char * filename, const char * temp_filename);
+        //@}
+        /** Enable/Disable MDStress Library: */
+        //@{
         void Enable()
         {
             std::lock_guard<std::mutex> lock(m_mutex_state);
-            if (this->m_disable == true && this->m_initialized == true)
-                this->m_disable = false;
+            if (this->m_state.disable == true && this->m_state.initialized == true)
+                this->m_state.disable = false;
         }
         void Disable()
         {
             std::lock_guard<std::mutex> lock(m_mutex_state);
-            this->m_disable = true;
+            this->m_state.disable = true;
         }
-        //@
+        //@}
         /** Check if the library has been initialized */
         //@{
         bool CheckInit()
         {
-            return this->m_initialized;
+            return this->m_state.initialized;
         }
-        //@
+        //@}
         /** Set max threads: */
         //@{
         void SetThreadIDs(int thread_id, int max_threads)
         {
-            if (true == this->m_disable)
+            if (true == this->m_state.disable)
                 return;
 
             std::lock_guard<std::mutex> lock(m_mutex_state);
+            printf("STRESSLIB: thread index %ld registering\n", this->m_thread_map.size());
             this->m_thread_map[std::this_thread::get_id()] = thread_id;
             this->m_max_threads = max_threads;
         }
@@ -114,15 +120,15 @@ class  mds::StressGrid
         //@{
         void SetNumberOfAtoms(int n)
         {
-            if (true == this->m_disable)
+            if (true == this->m_state.disable)
                 return;
 
             std::lock_guard<std::mutex> lock(m_mutex_state);
-            this->m_nAtoms = n;
+            this->m_state.nAtoms = n;
         }
         int  GetNumberOfAtoms( )
         {
-            return this->m_nAtoms;
+            return this->m_state.nAtoms;
         }
         //@}
         
@@ -131,10 +137,10 @@ class  mds::StressGrid
         void SetPeriodicBoundaries(bool x, bool y, bool z, bool enforce);
         void  GetPeriodicBoundaries(bool & x, bool & y, bool & z, bool enforce)
         { 
-            x = this->m_periodic[0];
-            y = this->m_periodic[1];
-            z = this->m_periodic[2];
-            enforce = this->m_periodic[3];
+            x = this->m_state.periodic[0];
+            y = this->m_state.periodic[1];
+            z = this->m_state.periodic[2];
+            enforce = this->m_state.periodic[3];
         }
         //@}
         
@@ -142,166 +148,166 @@ class  mds::StressGrid
         //@{
         void SetNumberOfGridCellsX(int nx)
         {
-            if (true == this->m_disable)
+            if (true == this->m_state.disable)
                 return;
 
             std::lock_guard<std::mutex> lock(m_mutex_state);
-            this->m_nxyz[0] = nx;
+            this->m_state.nxyz[0] = nx;
         }
         void SetNumberOfGridCellsY(int ny)
         {
-            if (true == this->m_disable)
+            if (true == this->m_state.disable)
                 return;
 
             std::lock_guard<std::mutex> lock(m_mutex_state);
-            this->m_nxyz[1] = ny;
+            this->m_state.nxyz[1] = ny;
         }
         void SetNumberOfGridCellsZ(int nz)
         {
-            if (true == this->m_disable)
+            if (true == this->m_state.disable)
                 return;
 
             std::lock_guard<std::mutex> lock(m_mutex_state);
-            this->m_nxyz[2] = nz;
+            this->m_state.nxyz[2] = nz;
         }
         int  GetNumberOfGridCellsX( )
-        {   return this->m_nxyz[0]; }
+        {   return this->m_state.nxyz[0]; }
         int  GetNumberOfGridCellsY( )
-        {   return this->m_nxyz[1]; }
+        {   return this->m_state.nxyz[1]; }
         int  GetNumberOfGridCellsZ( )
-        {   return this->m_nxyz[2]; }
+        {   return this->m_state.nxyz[2]; }
         void SetNumberOfGridCellsXC(int nxc)
         {
-            if (true == this->m_disable)
+            if (true == this->m_state.disable)
                 return;
 
             std::lock_guard<std::mutex> lock(m_mutex_state);
-            this->m_nxyzc[0] = nxc;
+            this->m_state.nxyzc[0] = nxc;
         }
         void SetNumberOfGridCellsYC(int nyc)
         {
-            if (true == this->m_disable)
+            if (true == this->m_state.disable)
                 return;
 
             std::lock_guard<std::mutex> lock(m_mutex_state);
-            this->m_nxyzc[1] = nyc;
+            this->m_state.nxyzc[1] = nyc;
         }
         void SetNumberOfGridCellsZC(int nzc)
         {
-            if (true == this->m_disable)
+            if (true == this->m_state.disable)
                 return;
 
             std::lock_guard<std::mutex> lock(m_mutex_state);
-            this->m_nxyzc[2] = nzc;
+            this->m_state.nxyzc[2] = nzc;
         }
         int  GetNumberOfGridCellsXC( )
-        {   return this->m_nxyzc[0]; }
+        {   return this->m_state.nxyzc[0]; }
         int  GetNumberOfGridCellsYC( )
-        {   return this->m_nxyzc[1]; }
+        {   return this->m_state.nxyzc[1]; }
         int  GetNumberOfGridCellsZC( )
-        {   return this->m_nxyzc[2]; }
+        {   return this->m_state.nxyzc[2]; }
         //@}
         
         /** Set/Get spacing in each direction: */
         //@{
         void SetSpacing(real_ext d)
         {
-            if (true == this->m_disable)
+            if (true == this->m_state.disable)
                 return;
 
             std::lock_guard<std::mutex> lock(m_mutex_state);
-            this->m_spacing = (real_int)d;
+            this->m_state.spacing = (real_int)d;
         }
         real_ext  GetSpacingX( )
-        {   return (real_ext)this->m_gridsp[0]; }
+        {   return (real_ext)this->m_state.gridsp[0]; }
         real_ext  GetSpacingY( )
-        {   return (real_ext)this->m_gridsp[1]; }
+        {   return (real_ext)this->m_state.gridsp[1]; }
         real_ext  GetSpacingZ( )
-        {   return (real_ext)this->m_gridsp[2]; }
+        {   return (real_ext)this->m_state.gridsp[2]; }
         void SetSpacingc(real_ext dc)
         {
-            if (true == this->m_disable)
+            if (true == this->m_state.disable)
                 return;
 
             std::lock_guard<std::mutex> lock(m_mutex_state);
-            this->m_spacingc = dc;
+            this->m_state.spacingc = dc;
         }
         real_ext  GetSpacingXC( )
-        {   return this->m_gridspc[0]; }
+        {   return this->m_state.gridspc[0]; }
         real_ext  GetSpacingYC( )
-        {   return this->m_gridspc[1]; }
+        {   return this->m_state.gridspc[1]; }
         real_ext  GetSpacingZC( )
-        {   return this->m_gridspc[2]; }
+        {   return this->m_state.gridspc[2]; }
         //@}
         
          /**Set/Get force decomposition */
         //@{
         void SetForceDecomposition ( int fdecomp )
         {
-            if (true == this->m_disable)
+            if (true == this->m_state.disable)
                 return;
 
             std::lock_guard<std::mutex> lock(m_mutex_state);
-            m_fdecomp = fdecomp;
+            this->m_state.fdecomp = fdecomp;
         }
         int GetForceDecomposition ( void ) const
-        {   return m_fdecomp;   }
+        {   return this->m_state.fdecomp;   }
         //@}
         
          /**Set/Get stress type */
         //@{
         void SetStressType ( int spatatom )
         {
-            if (true == this->m_disable)
+            if (true == this->m_state.disable)
                 return;
 
             std::lock_guard<std::mutex> lock(m_mutex_state);
-            this->m_spatatom = spatatom;
+            this->m_state.spatatom = spatatom;
         }
         int GetStressType ( void ) const
-        {   return this->m_spatatom;   }
+        {   return this->m_state.spatatom;   }
         //@}
         
          /**Set/Get contrib type */
         //@{
         void SetContribType ( int contrib )
         {
-            if (true == this->m_disable)
+            if (true == this->m_state.disable)
                 return;
 
             std::lock_guard<std::mutex> lock(m_mutex_state);
-            this->m_contrib = contrib;
+            this->m_state.contrib = contrib;
         }
         int GetContribType ( void ) const
-        {   return this->m_contrib;   }
+        {   return this->m_state.contrib;   }
         //@}
         
          /**Set/Get mindihangle */
         //@{
         void SetMinDihAngle (real_ext mindihangle)
         {
-            if (true == this->m_disable)
+            if (true == this->m_state.disable)
                 return;
 
             std::lock_guard<std::mutex> lock(m_mutex_state);
-            this->m_mindihangle = (real_int)mindihangle;
+            this->m_state.mindihangle = (real_int)mindihangle;
         }
         real_ext GetMinDihAngle ( )
-        {   return (real_ext)this->m_mindihangle;   }
+        {   return (real_ext)this->m_state.mindihangle;   }
         //@}
          
          /**Set/Get Charge Cutoff*/
         //@{
         void SetChargeParams(int gridctype, real_ext epsfac, real_ext rcoulomb, real_ext ewaldcoeff_q)
         {
-            if (true == this->m_disable)
+            if (true == this->m_state.disable)
                 return;
 
             std::lock_guard<std::mutex> lock(m_mutex_state);
-            this->m_gridctype = gridctype;
-            this->m_epsfac = (real_int)epsfac;
-            this->m_rcoulomb = (real_int)rcoulomb;
-            this->m_ewaldcoeff_q = (real_int)ewaldcoeff_q;
+            this->m_state.gridctype = gridctype;
+            this->m_state.epsfac = (real_int)epsfac;
+            this->m_state.rcoulomb = (real_int)rcoulomb;
+            this->m_state.ewaldcoeff_q = (real_int)ewaldcoeff_q;
         }
         //@}
         
@@ -327,33 +333,33 @@ class  mds::StressGrid
         /**Set box: */
         void SetBox(matrix3_ext box, int epc)
         {   
-            if (true == this->m_disable)
+            if (true == this->m_state.disable)
                 return;
 
             std::lock_guard<std::mutex> lock(m_mutex_state);
             if (epc != 0)
-                this->m_pcoupl = true;
+                this->m_state.pcoupl = true;
             for (int i = 0; i < mds_ndim; i++ )
                 for (int j = 0; j < mds_ndim; j++)
-                    this->m_box[i][j] = (real_int)box[i][j];
+                    this->m_state.box[i][j] = (real_int)box[i][j];
         }
 
         /**Set the maximum cluster size (by default mds_maxpart) */
         void SetMaxCluster ( int maxClust )
         {
-            if (true == this->m_disable)
+            if (true == this->m_state.disable)
                 return;
 
             std::lock_guard<std::mutex> lock(m_mutex_state);
-            this->m_maxClust = maxClust;
+            this->m_state.maxClust = maxClust;
         }
         int GetMaxCluster ( ) const
-        {   return this->m_maxClust;  }
+        {   return this->m_state.maxClust;  }
         
         /**Set name of the files (extension .mds and numbered by resets) */
         void SetFileName ( const char *filename )
         {
-            if (true == this->m_disable)
+            if (true == this->m_state.disable)
                 return;
 
             std::lock_guard<std::mutex> lock(m_mutex_state);
@@ -362,34 +368,34 @@ class  mds::StressGrid
         
         void SetTemperature(real_ext temperature)
         {
-            if (true == this->m_disable)
+            if (true == this->m_state.disable)
                 return;
 
             std::lock_guard<std::mutex> lock(m_mutex_state);
-            this->m_temperature = (real_int)temperature;
+            this->m_state.temperature = (real_int)temperature;
         }
         
         real_ext GetTemperature(real_ext temperature)
         {
-            return (real_ext)this->m_temperature;
+            return (real_ext)this->m_state.temperature;
         }
         
         void EnableCuda()
         {
-            if (true == this->m_disable)
+            if (true == this->m_state.disable)
                 return;
 
             std::lock_guard<std::mutex> lock(m_mutex_state);
-            this->m_cuda = true;
+            this->m_state.cuda = true;
         }
         
         void DisableDispersionCorrection()
         {
-            if (true == this->m_disable)
+            if (true == this->m_state.disable)
                 return;
 
             std::lock_guard<std::mutex> lock(m_mutex_state);
-            this->m_nodispcor = true;
+            this->m_state.nodispcor = true;
         }
         
         /** Returns the kind of error produced by the class. Values:
@@ -406,7 +412,7 @@ class  mds::StressGrid
          * 10: Lapack failed 
          * 11: Voronoi cell count did not match natoms */
         int GetError ( )
-        {   return this->m_ierr;  }
+        {   return this->m_state.ierr;  }
         
         /** This function initialize the grid depending on the settings. If the settings are incorrect, 
          * it throws an error */
@@ -547,51 +553,59 @@ class  mds::StressGrid
         ~StressGrid();
         
     private:
+        // store state as a single struct for easy saving/loading
+        struct STRESSGRID_STATE_STRUCT {
+            /// basic and basic-derived types
+            // inputs
+            int         nAtoms;         ///< Number of atoms
+            iarray      nxyz;           ///< Number of grid cells in the x direction
+            iarray      nxyzc;          ///< Number of grid cells in the x direction
+            int         griddim;        ///< the type of grid
+            long        ncells;         ///< Total number of cells in the calculation
+            long        ncellsc;        ///< Total number of cells in the charge grid
+            int         maxClust;
+            real_int    spacing;        ///< spacing requested for the grid
+            real_int    spacingc;       ///< spacing requested for the charge grid
+            matrix3_int box;            ///< Actual box
+            int         spatatom;       ///< enSpat or enAtom
+            int         fdecomp;        ///< which force decomposition
+            int         contrib;        ///< which contribution
+            bool        nodispcor;      ///< disables dispersion correction if set to true
+            bool        cuda;           ///< enables cuda
+            bool        initialized;    ///< disable mdstress library operations
+            bool        disable;        ///< disable mdstress library operations
+            barray      periodic;       ///< mark dimensions as periodic
+            real_int    mindihangle;
+            real_int    rcoulomb;
+            real_int    epsfac;
+            real_int    ewaldcoeff_q;
+            int         gridctype;
+            int         maxpart;        ///< used to allocate Rij and Fij
+            real_int    temperature;
+            bool        pcoupl;
+        
+            // outputs
+            int         ierr;           ///< error type: 0, 1, etc (See GetError() function)
+            int         nframes;        ///< Number of frames
+            int         nreset;         ///< Number of resets (for writing files)
+            matrix3_int sumbox;         ///< Average box
+            matrix3_int invbox;         ///< Inverse of the box
+            real_int    avg_boxvol;     ///< Average box volume
+            real_int    var_boxvol;     ///< Variance of box volume
+            real_int    gridsp[7];      ///< grid spacing
+            real_int    gridspc[7];     ///< grid spacing
+            real_int    invgridsp;      ///< inverse of grid spacing
+            real_int    invgridspc;     ///< inverse of grid spacing
+        } m_state;
+        
         /** @name Inputs*/
         //@{
-        int         m_nAtoms;         ///< Number of atoms
-        iarray      m_nxyz;           ///< Number of grid cells in the x direction
-        iarray      m_nxyzc;          ///< Number of grid cells in the x direction
-        int         m_griddim;        ///< the type of grid
-        long        m_ncells;         ///< Total number of cells in the calculation
-        long        m_ncellsc;        ///< Total number of cells in the charge grid
-        int         m_maxClust;
-        real_int    m_spacing;        ///< spacing requested for the grid
-        real_int    m_spacingc;       ///< spacing requested for the charge grid
-        matrix3_int m_box;            ///< Actual box
-        int         m_spatatom;       ///< enSpat or enAtom
-        int         m_fdecomp;        ///< which force decomposition
-        int         m_contrib;        ///< which contribution
         std::string m_filename;       ///< body of the filename where the stress is stored
-        bool        m_nodispcor;      ///< disables dispersion correction if set to true
-        bool        m_cuda;           ///< enables cuda
-        bool        m_initialized;    ///< disable mdstress library operations
-        bool        m_disable;        ///< disable mdstress library operations
-        barray      m_periodic;       ///< mark dimensions as periodic
-        real_int    m_mindihangle;
-        real_int    m_rcoulomb;
-        real_int    m_epsfac;
-        real_int    m_ewaldcoeff_q;
-        int         m_gridctype;
-        int         m_maxpart;        ///< used to allocate Rij and Fij
-        int         m_max_threads;    ///< number of threads to use
-        real_int    m_temperature;
-        bool        m_pcoupl;
+        std::string m_load_filename;       ///< body of the filename where the stress is stored
         //@}
     
         /** @name Outputs*/
         //@{
-        int      m_ierr;                  ///< error type: 0, 1, etc (See GetError() function)
-        int      m_nframes;               ///< Number of frames
-        int      m_nreset;                ///< Number of resets (for writing files)
-        matrix3_int m_sumbox;             ///< Average box
-        matrix3_int m_invbox;             ///< Inverse of the box
-        real_int m_avg_boxvol;            ///< Average box volume
-        real_int m_var_boxvol;            ///< Variance of box volume
-        real_int m_gridsp[7];             ///< grid spacing
-        real_int m_gridspc[7];            ///< grid spacing
-        real_int m_invgridsp;             ///< inverse of grid spacing
-        real_int m_invgridspc;            ///< inverse of grid spacing
         Lapack **h_lapack;                ///< mds_lapack: solves underdetermined/overdetermined systems of equations and projects solution onto shape space
         double  *p_Amat;                  ///< matrix for linear systems (for systems with more than 5 particles)
         double  *p_AmatT;                 ///< transpose of the matrix (used for projecting solution onto the shape space)
@@ -599,6 +613,7 @@ class  mds::StressGrid
         array3_int *p_Rij;                 ///< distance vectors
         array3_int *p_Fij;                 ///< force vectors
         array3_int *p_Uij;                 ///< distance vectors
+
         matrix3_int *p_current_grid;      ///< Grid (either nx*ny*nz or nAtoms)
         matrix3_int *p_current_gridtot;   ///< Grid of size 1
         matrix6_int *p_current_grid_elborn; ///< Grid (either nx*ny*nz or nAtoms)
@@ -622,6 +637,7 @@ class  mds::StressGrid
         
         /** @name Threads*/
         //@{
+        int m_max_threads;    ///< number of threads to use
         std::map<std::thread::id,int> m_thread_map;
         std::mutex m_mutex_state;
         //@}
