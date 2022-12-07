@@ -512,7 +512,6 @@ void StressGrid::UpdateBoxSpacings ( matrix3_ext box )
 
             }
 
-            summatrix3( this->m_box, this->m_sumbox, this->m_sumbox );
             //this->m_sum_boxvol = this->m_sum_boxvol + box[0][0]*box[1][1]*box[2][2];
 #ifdef CUSTRESS_ENABLE
             if (this->m_cuda)
@@ -680,6 +679,9 @@ void StressGrid::SumGrid ( )
             */
 
             this->m_nframes++;
+
+            summatrix3( this->m_box, this->m_sumbox, this->m_sumbox ); //Update the cummulative system box - only used for box dimensions in output, it does not change elasticity/stress values
+
             real_int Vnew, deltaV, deltaV2;
             Vnew = this->m_box[0][0]*this->m_box[1][1]*this->m_box[2][2];
             deltaV = Vnew - this->m_avg_boxvol;
@@ -711,6 +713,15 @@ void StressGrid::SumGrid ( )
                     summatrix6(this->p_sum_grid_elcovar[i], tmp_covar[0], this->p_sum_grid_elcovar[i]); //this accumulates the covar of sigma_local_ij*sigma_total_kl
                 }
 
+                /* Dirty hack to output some values for convergence testing
+                double cf = -mds_units*mds_units*this->m_avg_boxvol/(this->m_temperature*KBfac*this->m_nframes);
+                double bf = mds_units/this->m_nframes;
+                printf("t %d\tBC11 %e\tBC12 %e\tBC44 %e\tFC11 %e\tFC12 %e\tFC44 %e\tKC11 %e\tKC12 %e\tKC44 %e\n",
+                        this->m_nframes,
+                        this->p_sum_grid_elborn[0][0][0]*bf, this->p_sum_grid_elborn[0][0][1]*bf, this->p_sum_grid_elborn[0][3][3]*bf,
+                        this->p_sum_grid_elcovar[0][0][0]*cf, this->p_sum_grid_elcovar[0][0][1]*cf, this->p_sum_grid_elcovar[0][3][3]*cf,
+                        this->p_sum_grid_elkin[0][0][0]*bf, this->p_sum_grid_elkin[0][0][1]*bf, this->p_sum_grid_elkin[0][3][3]*bf);
+                End dirty hack */
                 for (int i = 0; i < this->m_ncellsc; i++)
                 {
                     this->p_sum_gridc[i] = this->p_sum_gridc[i] + this->p_current_gridc[i];
@@ -1040,6 +1051,7 @@ void StressGrid::Write ( )
             stressfac = real_int(mds_units);
             stress2fac = real_int(mds_units)*real_int(mds_units)/this->m_nframes;
             covfac = -real_int(mds_units)*real_int(mds_units)*this->m_avg_boxvol/(this->m_temperature*real_int(KBfac)*this->m_nframes);
+            //covfac /= this->m_ncells; // uncomment this for for local-vs-local fluctuations
             covfac2 = realval_int(0.0);
             if (this->m_pcoupl == true)
                 covfac2 = real_int(mds_units)*real_int(mds_units)*this->m_avg_boxvol/(this->m_temperature*real_int(KBfac)*this->m_var_boxvol*this->m_nframes);

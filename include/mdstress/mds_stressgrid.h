@@ -220,12 +220,14 @@ class  mds::StressGrid
         {   return (real_ext)this->m_gridsp[2]; }
         void SetSpacingc(real_ext dc)
         {
-            if (true == this->m_disable)
-                return;
+            //if (true == this->m_disable)
+            //    return;
 
             std::lock_guard<std::mutex> lock(m_mutex_state);
-            this->m_spacingc = dc;
+            this->m_spacingc = (real_int)dc;
         }
+        real_ext  GetSpacingC( )
+        {   return this->m_spacingc; }
         real_ext  GetSpacingXC( )
         {   return this->m_gridspc[0]; }
         real_ext  GetSpacingYC( )
