@@ -47,9 +47,6 @@ StressGrid::StressGrid()
     this->m_nxyz[0] = 0;
     this->m_nxyz[1] = 0;
     this->m_nxyz[2] = 0;
-    this->m_nxyzc[0] = 0;
-    this->m_nxyzc[1] = 0;
-    this->m_nxyzc[2] = 0;
     this->m_griddim = mds_griddim_xyz;
     this->m_maxClust = mds_maxpart;
     this->m_gridsp[0] = 0.0;
@@ -59,17 +56,8 @@ StressGrid::StressGrid()
     this->m_gridsp[4] = 0.0;
     this->m_gridsp[5] = 0.0;
     this->m_gridsp[6] = 0.0;
-    this->m_gridspc[0] = 0.0;
-    this->m_gridspc[1] = 0.0;
-    this->m_gridspc[2] = 0.0;
-    this->m_gridspc[3] = 0.0;
-    this->m_gridspc[4] = 0.0;
-    this->m_gridspc[5] = 0.0;
-    this->m_gridspc[6] = 0.0;
     this->m_invgridsp = 0.0;
-    this->m_invgridspc = 0.0;
     this->m_spacing = 0.0;
-    this->m_spacingc = 0.0;
     
     this->m_spatatom = 0;
     this->m_fdecomp  = 0;
@@ -104,11 +92,9 @@ StressGrid::StressGrid()
     this->p_current_gridtot = nullptr;
     this->p_current_grid_elborn  = nullptr;
     this->p_current_grid_elkin  = nullptr;
-    this->p_current_gridc = nullptr;
     this->p_sum_grid      = nullptr;
     this->p_avg_grid      = nullptr;
     this->p_avg_gridtot   = nullptr;
-    this->p_sum_gridc     = nullptr;
     this->p_sum_grid_elcovar = nullptr;
     this->p_sum_grid_elkin = nullptr;
     this->p_sum_grid_elborn = nullptr;
@@ -118,7 +104,6 @@ StressGrid::StressGrid()
     this->p_molecule_id   = nullptr;
     this->p_radii         = nullptr;
     this->p_positions     = nullptr;
-    this->p_pos_gridc     = nullptr;
     this->m_nodispcor   = false;
     this->m_cuda        = false;
     this->m_initialized = false;
@@ -128,9 +113,6 @@ StressGrid::StressGrid()
     this->m_periodic[2] = false;
     this->m_pcoupl      = false;
     this->m_mindihangle = 0.0;
-    this->m_rcoulomb    = 0.0;
-    this->m_epsfac      = 0.0;
-    this->m_gridctype   = mds_gridc_off;
 
     this->m_max_threads = 0;
 }
@@ -154,7 +136,6 @@ void StressGrid::Clear()
     if (this->p_current_gridtot      != nullptr ) delete [] this->p_current_gridtot;
     if (this->p_current_grid_elborn  != nullptr ) delete [] this->p_current_grid_elborn;
     if (this->p_current_grid_elkin   != nullptr ) delete [] this->p_current_grid_elkin;
-    if (this->p_current_gridc        != nullptr ) delete [] this->p_current_gridc;
     if (this->p_sum_grid             != nullptr ) delete [] this->p_sum_grid;
     if (this->p_avg_grid             != nullptr ) delete [] this->p_avg_grid;
     if (this->p_avg_gridtot          != nullptr ) delete [] this->p_avg_gridtot;
@@ -163,12 +144,10 @@ void StressGrid::Clear()
     if (this->p_sum_grid_elborn      != nullptr ) delete [] this->p_sum_grid_elborn;
     if (this->p_sum_grid_volcovar    != nullptr ) delete [] this->p_sum_grid_volcovar;
     if (this->p_sum_gridtot_volcovar != nullptr ) delete [] this->p_sum_gridtot_volcovar;
-    if (this->p_sum_gridc            != nullptr ) delete [] this->p_sum_gridc;
     if (this->p_sum_volume           != nullptr ) delete [] this->p_sum_volume;
     if (this->p_molecule_id          != nullptr ) delete [] this->p_molecule_id;
     if (this->p_radii                != nullptr ) delete [] this->p_radii;
     if (this->p_positions            != nullptr ) delete [] this->p_positions;
-    if (this->p_pos_gridc            != nullptr ) delete [] this->p_pos_gridc;
     if (this->h_lapack               != nullptr )
     {
         for (int i = 0; i < m_max_threads; ++i)
@@ -189,7 +168,6 @@ void StressGrid::Clear()
     this->p_current_gridtot  = nullptr;
     this->p_current_grid_elborn  = nullptr;
     this->p_current_grid_elkin  = nullptr;
-    this->p_current_gridc = nullptr;
     this->p_sum_grid      = nullptr;
     this->p_avg_grid      = nullptr;
     this->p_avg_gridtot   = nullptr;
@@ -198,12 +176,10 @@ void StressGrid::Clear()
     this->p_sum_grid_elborn      = nullptr;
     this->p_sum_grid_volcovar      = nullptr;
     this->p_sum_gridtot_volcovar      = nullptr;
-    this->p_sum_gridc     = nullptr;
     this->p_sum_volume    = nullptr;
     this->p_molecule_id   = nullptr;
     this->p_radii         = nullptr;
     this->p_positions     = nullptr;
-    this->p_pos_gridc     = nullptr;
     this->h_lapack        = nullptr;
 
     if (this->m_initialized)
@@ -231,12 +207,6 @@ int StressGrid::CheckSettings()
             return 2;
         }
         
-        if ( this->m_nxyzc[0] < 0 || this->m_nxyzc[1] < 0 || this->m_nxyzc[2] < 0)
-        {
-            std::cout << "ERROR::StressGrid: The number of charge grid cells are negative: (nxc,nyc,nzc)=" << " ( " <<this->m_nxyzc[0] << ", " << this->m_nxyzc[1] << ", " <<this->m_nxyzc[2] << " )\n"; 
-            return 2;
-        }
-        
         if ( this->m_nxyz[0] == 0 && this->m_nxyz[1] == 0 && this->m_nxyz[2] == 0)
         {
             if ( this->m_spacing < mds_eps )
@@ -252,20 +222,6 @@ int StressGrid::CheckSettings()
             }
         }
         
-        if ( this->m_nxyzc[0] == 0 && this->m_nxyzc[1] == 0 && this->m_nxyzc[2] == 0)
-        {
-            if ( this->m_spacingc < mds_eps )
-            {
-                std::cout << "ERROR::StressGrid: The local charge spacing is too small: " << this->m_spacingc << "( < " << mds_eps << " )\n"; 
-                return 3;
-            }
-            
-            if ( iszeromatrix3(this->m_box) )
-            {
-                std::cout << "ERROR::StressGrid: The initial MD box haven't been set or it's too small\n"; 
-                return 4;
-            }
-        }
         if ( this->m_fdecomp < mds_ccfd || this->m_fdecomp > mds_gld )
         {
             std::cout << "ERROR::StressGrid: The stress type (SetForceDecomposition) should be: 0 (cCFD), 1 (nCFD), 2 (GLD) or 3 (GMC)\n";
@@ -332,32 +288,6 @@ void StressGrid::Init()
             else
                 this->m_griddim = mds_griddim_xyz;
             
-            // charge distribution grid
-            if (this->m_gridctype != mds_gridc_off)
-            {
-                if(this->m_nxyzc[0] == 0)   this->m_nxyzc[0] = static_cast<int>(this->m_box[0][0]/this->m_spacingc);
-                if(this->m_nxyzc[1] == 0)   this->m_nxyzc[1] = static_cast<int>(this->m_box[1][1]/this->m_spacingc);
-                if(this->m_nxyzc[2] == 0)   this->m_nxyzc[2] = static_cast<int>(this->m_box[2][2]/this->m_spacingc);
-                
-                if(this->m_nxyzc[0]==0)  this->m_nxyzc[0]=1;
-                if(this->m_nxyzc[1]==0)  this->m_nxyzc[1]=1;
-                if(this->m_nxyzc[2]==0)  this->m_nxyzc[2]=1;
-                
-                this->m_ncellsc = this->m_nxyzc[0]*this->m_nxyzc[1]*this->m_nxyzc[2];
-                this->p_pos_gridc     = new array3_int [this->m_ncellsc];
-                this->p_sum_gridc     = new real_int [this->m_ncellsc];
-                this->p_current_gridc = new real_int [this->m_ncellsc*this->m_max_threads];
-                
-                for (int i=0; i < this->m_ncellsc; i++)
-                {
-                    this->p_sum_gridc[i] = 0.0;
-                }
-
-                for (int i=0; i < this->m_ncellsc*this->m_max_threads; i++)
-                {
-                    this->p_current_gridc[i] = 0.0;
-                }
-            }
         }
         else
         {
@@ -483,35 +413,6 @@ void StressGrid::UpdateBoxSpacings ( matrix3_ext box )
             this->m_gridsp[6] = this->m_gridsp[0]*this->m_gridsp[1]*this->m_gridsp[2];
             this->m_invgridsp =  realval_int(1.0)/(this->m_gridsp[0]*this->m_gridsp[1]*this->m_gridsp[2]);
 
-            if (this->m_gridctype != mds_gridc_off)
-            {
-                this->m_gridspc[0] = this->m_box[0][0]/static_cast<real_int>(this->m_nxyzc[0]);
-                this->m_gridspc[1] = this->m_box[1][1]/static_cast<real_int>(this->m_nxyzc[1]);
-                this->m_gridspc[2] = this->m_box[2][2]/static_cast<real_int>(this->m_nxyzc[2]);
-                this->m_gridspc[3] = this->m_gridspc[0]*this->m_gridspc[1];
-                this->m_gridspc[4] = this->m_gridspc[0]*this->m_gridspc[2];
-                this->m_gridspc[5] = this->m_gridspc[1]*this->m_gridspc[2];
-                this->m_gridspc[6] = this->m_gridspc[0]*this->m_gridspc[1]*this->m_gridspc[2];
-                this->m_invgridspc = realval_int(1.0)/(this->m_gridspc[0]*this->m_gridspc[1]*this->m_gridspc[2]);
-
-                for (int i=0; i < this->m_ncellsc; i++)
-                {
-                    iarray xi;
-                    //xi[0] = i/(this->m_nxyzc[1]*this->m_nxyzc[2]);
-                    //xi[1] = (i-xi[0]*this->m_nxyzc[1]*this->m_nxyzc[2])/this->m_nxyzc[2];
-                    //xi[2] = (i-xi[0]*this->m_nxyzc[1]*this->m_nxyzc[2]-xi[1]*this->m_nxyzc[2]);
-                    xi[0] = i/(this->m_nxyzc[2]*this->m_nxyzc[1]);
-                    xi[1] = (i/this->m_nxyzc[2])%this->m_nxyzc[1];
-                    xi[2] = i%this->m_nxyzc[2];
-
-                    // calculate the position
-                    this->p_pos_gridc[i][0] = this->m_gridspc[0]*xi[0];
-                    this->p_pos_gridc[i][1] = this->m_gridspc[1]*xi[1];
-                    this->p_pos_gridc[i][2] = this->m_gridspc[2]*xi[2];
-                }
-
-            }
-
             //this->m_sum_boxvol = this->m_sum_boxvol + box[0][0]*box[1][1]*box[2][2];
 #ifdef CUSTRESS_ENABLE
             if (this->m_cuda)
@@ -537,79 +438,6 @@ void StressGrid::SumGrid ( )
         // get the thread id
         int thread_id = this->m_thread_map[std::this_thread::get_id()];
 
-        if (this->m_gridctype != mds_gridc_off)
-        {
-            // every thread must process this latch before proceeding
-            static barrier sumgrid_enter_charge_reduction(this->m_max_threads);
-            sumgrid_enter_charge_reduction.count_down_and_wait();
-
-            // reduce all charge current grids
-            for (int i = thread_id; i < this->m_ncellsc; i+=this->m_max_threads)
-            {
-                if (i < this->m_ncellsc)
-                {
-                    for (int j = 1; j < this->m_max_threads; ++j)
-                    {
-                        this->p_current_gridc[i] = this->p_current_gridc[i] + this->p_current_gridc[i+j*this->m_ncellsc];
-                        this->p_current_gridc[i+j*this->m_ncellsc] = 0.0;
-                    }
-                }
-            }
-
-            // every thread must process this latch before proceeding
-            static barrier sumgrid_enter_coulomb(this->m_max_threads);
-            sumgrid_enter_coulomb.count_down_and_wait();
-            real_int beta = this->m_ewaldcoeff_q;
-            // do coulomb distribute stress here
-            for (int i = thread_id; i < this->m_ncellsc; i+=this->m_max_threads)
-            {
-                // calculate the charge
-                real_int qi = this->p_current_gridc[i];
-                if (abs(qi) > realval_int(1E-16) )
-                {
-                    qi /= this->m_invgridspc;
-                    // calculate the indices
-                    for (int j = i+1; j < this->m_ncellsc; j+=1)
-                    {
-                        // calculate the charge
-                        real_int qj = this->p_current_gridc[j];
-                        if (abs(qj) > realval_int(1E-16) )
-                        {
-                            qj /= this->m_invgridspc;
-
-                            // calculate r
-                            array3_int diff;
-                            diffarray3(this->p_pos_gridc[i], this->p_pos_gridc[j], diff, this->m_box, this->m_periodic);
-
-                            // calculate r and rinv
-                            real_int r2 = (real_int)(diff[0]*diff[0])+(real_int)(diff[1]*diff[1])+(real_int)(diff[2]*diff[2]);
-                            real_int r = sqrt(r2);
-                            real_int rinv = realval_int(1.0)/r;
-
-                            // calculate the force
-                            //double F = -this->m_epsfac*(qi*qj)*(rinv*rinv*rinv);
-                            real_int F = -this->m_epsfac*qi*qj*(realval_int(2.0)*beta*exp(-beta*beta*r2)/sqrt(PI) - erf(beta*r)*rinv)*rinv*rinv;
-
-                            // calculate the force vectors
-                            array3_int Fij = {
-                                F*diff[0],
-                                F*diff[1],
-                                F*diff[2],
-                                };
-                            
-                            // correct Ri
-                            array3_int Ri;
-                            sumarray3(this->p_pos_gridc[j], diff, Ri);
-
-                            // distribute stress
-                            this->DistributePairInteraction(Ri, this->p_pos_gridc[j], Fij, thread_id);
-                        }
-                    }
-                }
-            }
-            // end coulomb distribute stress
-        }
-        
         // every thread must process this latch before proceeding
         static barrier sumgrid_enter_stress_reduction(this->m_max_threads);
         sumgrid_enter_stress_reduction.count_down_and_wait();
@@ -711,20 +539,6 @@ void StressGrid::SumGrid ( )
                     matrixouterprod6( dx[0], this->p_current_gridtot[0], tmp_covar[0]); // dx*dy - uncomment this line to do local-vs-total fluctuations
                     //matrixouterprod6( dx[0], dx[0], tmp_covar[0]); // dx*dy - uncomment this line to do local-vs-local fluctuations
                     summatrix6(this->p_sum_grid_elcovar[i], tmp_covar[0], this->p_sum_grid_elcovar[i]); //this accumulates the covar of sigma_local_ij*sigma_total_kl
-                }
-
-                /* Dirty hack to output some values for convergence testing
-                double cf = -mds_units*mds_units*this->m_avg_boxvol/(this->m_temperature*KBfac*this->m_nframes);
-                double bf = mds_units/this->m_nframes;
-                printf("t %d\tBC11 %e\tBC12 %e\tBC44 %e\tFC11 %e\tFC12 %e\tFC44 %e\tKC11 %e\tKC12 %e\tKC44 %e\n",
-                        this->m_nframes,
-                        this->p_sum_grid_elborn[0][0][0]*bf, this->p_sum_grid_elborn[0][0][1]*bf, this->p_sum_grid_elborn[0][3][3]*bf,
-                        this->p_sum_grid_elcovar[0][0][0]*cf, this->p_sum_grid_elcovar[0][0][1]*cf, this->p_sum_grid_elcovar[0][3][3]*cf,
-                        this->p_sum_grid_elkin[0][0][0]*bf, this->p_sum_grid_elkin[0][0][1]*bf, this->p_sum_grid_elkin[0][3][3]*bf);
-                End dirty hack */
-                for (int i = 0; i < this->m_ncellsc; i++)
-                {
-                    this->p_sum_gridc[i] = this->p_sum_gridc[i] + this->p_current_gridc[i];
                 }
             }
             else
@@ -843,10 +657,6 @@ void StressGrid::SumGrid ( )
                 zeromatrix6(this->p_current_grid_elborn[i]);
                 zeromatrix6(this->p_current_grid_elkin[i]);
             }
-            for(int i = 0; i < this->m_ncellsc; ++i)
-            {
-                this->p_current_gridc[i] = 0.0;
-            }
         }
 
         // every thread must process this latch before exiting
@@ -898,10 +708,6 @@ void StressGrid::Reset ( )
             zeromatrix6(this->p_current_grid_elborn[i+thread_id*this->m_max_threads]);
             zeromatrix6(this->p_current_grid_elkin[i+thread_id*this->m_max_threads]);
         }
-        for( int i=0; i<this->m_ncellsc; i++ )
-        {
-            this->p_current_gridc[i+thread_id*this->m_max_threads] = 0.0;
-        }
 
         if (thread_id == 0)
         {
@@ -917,16 +723,13 @@ void StressGrid::Reset ( )
                 zeromatrix6( this->p_sum_grid_elcovar[i] );
                 zeromatrix6( this->p_sum_grid_elkin[i] );
             }
-            for( int i=0; i<this->m_ncellsc; i++ )
-            {
-                this->p_sum_gridc[i] = 0.0;
-            }
 
             if (this->m_spatatom == mds_atom)
             {
                 for( int i=0; i<this->m_ncells; i++ )
                     this->p_sum_volume[i] = 0.0;
             }
+
             this->m_nframes = 0;
             this->m_nreset ++;
             this->m_avg_boxvol = 0.0;
@@ -949,10 +752,9 @@ void StressGrid::Write ( )
     if ( !this->m_ierr)
     {
             int                Dtype=1;
-            std::string        outname, charge_outname,  elborn_outname, elcovar_outname, elkin_outname, eltotal_outname, eltotalhooke_outname;
+            std::string        outname, elborn_outname, elcovar_outname, elkin_outname, eltotal_outname, eltotalhooke_outname;
             std::ostringstream outnumber;
             FILE *outfile = nullptr;
-            FILE *charge_outfile = nullptr;
             FILE *elborn_outfile = nullptr;
             FILE *elcovar_outfile = nullptr;
             FILE *elkin_outfile = nullptr;
@@ -1046,10 +848,9 @@ void StressGrid::Write ( )
             }
 
             // calculate stress factors
-            real_int stressfac, stress2fac, covfac, covfac2;
+            real_int stressfac, covfac, covfac2;
             //stressfac = real_int(mds_units)/this->m_nframes;
             stressfac = real_int(mds_units);
-            stress2fac = real_int(mds_units)*real_int(mds_units)/this->m_nframes;
             covfac = -real_int(mds_units)*real_int(mds_units)*this->m_avg_boxvol/(this->m_temperature*real_int(KBfac)*this->m_nframes);
             //covfac /= this->m_ncells; // uncomment this for for local-vs-local fluctuations
             covfac2 = realval_int(0.0);
@@ -1184,39 +985,6 @@ void StressGrid::Write ( )
 
             fclose(eltotal_outfile);
             fclose(eltotalhooke_outfile);
-
-            if (this->m_gridctype != mds_gridc_off)
-            {
-                charge_outname = "charge_" + this->m_filename + outnumber.str();
-                if (charge_outname.find(".dat") == std::string::npos)
-                    charge_outname = charge_outname + "." + mds_fileext;
-                charge_outfile = fopen(charge_outname.c_str(), "wb" );
-
-                // use different dtype for charge file
-                Dtype = 3;
-                fwrite(&Dtype, sizeof(int), 1, charge_outfile);
-                fwrite(avgbox, sizeof(matrix3_out), 1, charge_outfile);
-
-                if (this->m_spatatom == mds_spat)
-                {
-                    fwrite(&this->m_nxyzc[0], sizeof(this->m_nxyzc[0]), 1, charge_outfile);
-                    fwrite(&this->m_nxyzc[1], sizeof(this->m_nxyzc[1]), 1, charge_outfile);
-                    fwrite(&this->m_nxyzc[2], sizeof(this->m_nxyzc[2]), 1, charge_outfile);
-                }
-                else
-                {
-                    fwrite(&this->m_ncellsc, sizeof(int), 1, charge_outfile);
-                }
-
-                for ( int i = 0; i < this->m_ncellsc; i++ )
-                {
-                    this->p_sum_gridc[i] = this->p_sum_gridc[i]/this->m_nframes;
-                    real_out sum_gridc = (real_out)this->p_sum_gridc[i];
-                    fwrite(&sum_gridc, sizeof(real_out), 1, charge_outfile);
-                }
-
-                fclose(charge_outfile);
-            }
     }
 }
 
@@ -1693,7 +1461,7 @@ void StressGrid::DistributeElasticity_internal1D(array3_int xi, array3_int xj, a
     // (                     xzxz xzxy ) = (             44 45 ) = [                     0202 0201 ]
     // (                          xyxy ) = (                55 ) = [                          0101 ]
 
-    matrix6_int elast;
+    matrix6_int elast = {0};
     elast[0][0] = diff[0]*diff[0]*diff2[0]*diff2[0]*rinv2 - diff[0]*diff[0]*diff[0]*diff[0]*rinv3;
     elast[0][1] = diff[0]*diff[0]*diff2[1]*diff2[1]*rinv2 - diff[0]*diff[0]*diff[1]*diff[1]*rinv3;
     elast[0][2] = diff[0]*diff[0]*diff2[2]*diff2[2]*rinv2 - diff[0]*diff[0]*diff[2]*diff[2]*rinv3;
@@ -1789,7 +1557,7 @@ void StressGrid::DistributeElasticity_internal3D(array3_int xi, array3_int xj, a
     // (                     xzxz xzxy ) = (             44 45 ) = [                     0202 0201 ]
     // (                          xyxy ) = (                55 ) = [                          0101 ]
 
-    matrix6_int elast;
+    matrix6_int elast = {0};
     elast[0][0] = diff[0]*diff[0]*diff2[0]*diff2[0]*rinv2 - diff[0]*diff[0]*diff[0]*diff[0]*rinv3;
     elast[0][1] = diff[0]*diff[0]*diff2[1]*diff2[1]*rinv2 - diff[0]*diff[0]*diff[1]*diff[1]*rinv3;
     elast[0][2] = diff[0]*diff[0]*diff2[2]*diff2[2]*rinv2 - diff[0]*diff[0]*diff[2]*diff[2]*rinv3;
@@ -1968,8 +1736,8 @@ void StressGrid::DistributeKinetic(real_ext mass, array3_ext x, array3_ext va, a
     // Spreads the velocity in one point
     iarray i1;
     array3_int xc,xd;
-    int index, iip1, iim1, jjp1, jjm1, kkp1, kkm1;
-    real_int factor,C;
+    int iip1, iim1, jjp1, jjm1, kkp1, kkm1;
+    real_int C;
 
     if ( !this->m_ierr )
     {
@@ -2074,13 +1842,13 @@ void StressGrid::DistributeKineticElast(real_ext mass, array3_ext x, array3_ext 
     if (true == this->m_disable)
         return;
 
-    matrix6_int elast;
+    matrix6_int elast = {0};
 
     // Spreads the velocity in one point
     iarray i1;
-    array3_int xc,xd,pa,pb;
-    int index, iip1, iim1, jjp1, jjm1, kkp1, kkm1;
-    real_int factor,C;
+    array3_int xc,xd;
+    int iip1, iim1, jjp1, jjm1, kkp1, kkm1;
+    real_int C;
     if ( !this->m_ierr )
     {
         // get the batch id
@@ -2235,69 +2003,6 @@ void StressGrid::DistributeKineticElast(real_ext mass, array3_ext x, array3_ext 
     }
 }
 
-// DistributeCharge
-//
-// Distributes charge contributions onto a grid
-// Requires:
-// x          -> position of the atom
-// charge     -> atomic charge
-void StressGrid::DistributeCharge ( array3_ext x_ext, real_ext charge )
-{
-    // disabling distribute charge for now
-    return;
-    // Spreads the velocity in one point
-    iarray i1;
-    array3_int x, xc,xd;
-    
-    // copy the array to internal precision
-    copyarray3(x_ext, x);
-
-    int index, iip1, iim1, jjp1, jjm1, kkp1, kkm1;
-    real_int factor,C;
-
-    if ( !this->m_ierr )
-    {
-        // get the batch id
-        int batch_id = this->m_thread_map[std::this_thread::get_id()];
-        
-        // select grid based on batch index
-        real_int * gridc = this->p_current_gridc+batch_id*this->m_ncellsc;
-            
-        // Get the coordinates of the point in the grid
-        i1[0] = this->m_nxyzc[0] * x[0] * this->m_invbox[0][0] - (x[0] < realval_int(0.0) );
-        i1[1] = this->m_nxyzc[1] * x[1] * this->m_invbox[1][1] - (x[1] < realval_int(0.0) );
-        i1[2] = this->m_nxyzc[2] * x[2] * this->m_invbox[2][2] - (x[2] < realval_int(0.0) );
-        
-        // and the index constants
-        iip1 = ((i1[0] + 1 + this->m_nxyzc[0]) % this->m_nxyzc[0])*this->m_nxyzc[1]*this->m_nxyzc[2];
-        jjp1 = ((i1[1] + 1 + this->m_nxyzc[1]) % this->m_nxyzc[1])*this->m_nxyzc[2];
-        kkp1 = ((i1[2] + 1 + this->m_nxyzc[2]) % this->m_nxyzc[2]);
-        iim1 = ((i1[0] + this->m_nxyzc[0]) % this->m_nxyzc[0])*this->m_nxyzc[1]*this->m_nxyzc[2];
-        jjm1 = ((i1[1] + this->m_nxyzc[1]) % this->m_nxyzc[1])*this->m_nxyzc[2];
-        kkm1 = ((i1[2] + this->m_nxyzc[2]) % this->m_nxyzc[2]);
-        
-        // xc = vector from the corner of the point to the corner of the cell
-        C = this->m_invgridspc * this->m_invgridspc;
-        xc[0] = x[0]-this->m_gridspc[0]*i1[0];
-        xc[1] = x[1]-this->m_gridspc[1]*i1[1];
-        xc[2] = x[2]-this->m_gridspc[2]*i1[2];
-        xd[0] = xc[0]-this->m_gridspc[0];
-        xd[1] = xc[1]-this->m_gridspc[1];
-        xd[2] = xc[2]-this->m_gridspc[2];
-        
-        // Spread it
-        gridc[iip1+jjp1+kkp1] +=  C*xc[0]*xc[1]*xc[2]*charge;
-        gridc[iip1+jjp1+kkm1] += -C*xc[0]*xc[1]*xd[2]*charge;
-        gridc[iip1+jjm1+kkp1] += -C*xc[0]*xd[1]*xc[2]*charge;
-        gridc[iip1+jjm1+kkm1] +=  C*xc[0]*xd[1]*xd[2]*charge;
-        gridc[iim1+jjp1+kkp1] += -C*xd[0]*xc[1]*xc[2]*charge;
-        gridc[iim1+jjp1+kkm1] +=  C*xd[0]*xc[1]*xd[2]*charge;
-        gridc[iim1+jjm1+kkp1] +=  C*xd[0]*xd[1]*xc[2]*charge;
-        gridc[iim1+jjm1+kkm1] += -C*xd[0]*xd[1]*xd[2]*charge;
-    }
-}
-//----------------------------------------------------------------------------------------
-
 //----------------------------------------------------------------------------------------
 //SPECIFIC DECOMPOSITIONS FOR 3,4 AND 5 AND N PARTICLES
 
@@ -2312,26 +2017,19 @@ void StressGrid::DistributeN3( array3_int Ra, array3_int Rb, array3_int Rc, arra
     // UNIT vectors between particles
     array3_int AB, AC, BC;
 
-    // Distances
-    real_int normAB,normAC,normBC;
-
     // (Covariant) Central Force decomposition
     real_int lab, lac, lbc;
 
     array3_int Fij;
     //************************************************************************************
 
-    //Dimension and number of particles
-    int nDim = 3;
-    int nPart = 3;
-
     //Number of rows and columns
-    int nRow = mds_nrow3, nCol = mds_ncol3, nRHS = 1;
+    int nRow = mds_nrow3, nCol = mds_ncol3;
 
     // Matrix of the system (9 equations x 3 unknowns)
     double M[mds_nrow3*mds_ncol3];
     // Vector, we want to solve M*x = b
-    double b[mds_nrow3], s[mds_ncol3];
+    double b[mds_nrow3];
 
     // If the force decomposition is cCFD or CFD
     if(this->m_fdecomp == mds_ccfd || this->m_fdecomp == mds_ncfd)
@@ -2339,10 +2037,6 @@ void StressGrid::DistributeN3( array3_int Ra, array3_int Rb, array3_int Rc, arra
         diffarray3(Rb, Ra, AB, this->m_box, this->m_periodic);
         diffarray3(Rc, Ra, AC, this->m_box, this->m_periodic);
         diffarray3(Rc, Rb, BC, this->m_box, this->m_periodic);
-
-        normAB=normarray3(AB);
-        normAC=normarray3(AC);
-        normBC=normarray3(BC);
 
         for ( i = 0; i < nCol*nRow; i++ )
         {
@@ -2417,18 +2111,14 @@ void StressGrid::DistributeSettle( array3_int Ra, array3_int Rb, array3_int Rc, 
     array3_int Fij;
     //************************************************************************************
 
-    //Dimension and number of particles
-    int nDim = 3;
-    int nPart = 3;
-
     //Number of rows and columns
-    int nRow = mds_nrow3, nCol = mds_ncol3, nRHS = 1;
+    int nRow = mds_nrow3, nCol = mds_ncol3;
 
     // Matrix of the system (12 equations x 6 unknowns)
     double M[mds_nrow3*mds_ncol3];
     // Vector, we want to solve M*x = b
-    double b[mds_nrow3], s[mds_ncol3];
-	
+    double b[mds_nrow3];
+    
     real_int phi_ab, phi_ac, phi_bc;
     real_int kappa_ab, kappa_ac, kappa_bc;
 
@@ -2474,14 +2164,14 @@ void StressGrid::DistributeSettle( array3_int Ra, array3_int Rb, array3_int Rc, 
         // Sum the 3 contributions to the stress
         lab = (real_int)b[0];
         lac = (real_int)b[1];
-        lbc = (real_int)b[2];		
+        lbc = (real_int)b[2];        
         Fij[0] = lab * AB[0]; Fij[1] = lab * AB[1]; Fij[2] = lab * AB[2];
         this->DistributePairInteraction( Ra, Rb, Fij, batch_id);
         Fij[0] = lac * AC[0]; Fij[1] = lac * AC[1]; Fij[2] = lac * AC[2];
         this->DistributePairInteraction( Ra, Rc, Fij, batch_id );
         Fij[0] = lbc * BC[0]; Fij[1] = lbc * BC[1]; Fij[2] = lbc * BC[2];
         this->DistributePairInteraction( Rb, Rc, Fij, batch_id );
-		
+        
         // Calculate scalar force and bond stiffness
         phi_ab = lab*normAB;
         phi_ac = lac*normAC;
@@ -2518,26 +2208,19 @@ void StressGrid::DistributeN4( array3_int Ra, array3_int Rb, array3_int Rc, arra
     // UNIT vectors between particles
     array3_int AB, AC, AD, BC, BD, CD;
 
-    // Distances
-    real_int normAB,normAC,normAD,normBC,normBD,normCD;
-
     // (Covariant) Central Force decomposition
     real_int lab, lac, lad, lbc, lbd, lcd;
 
     array3_int Fij;
     //************************************************************************************
 
-    //Dimension and number of particles
-    int nDim = 3;
-    int nPart = 4;
-
     //Number of rows and columns
-    int nRow = mds_nrow4, nCol = mds_ncol4, nRHS = 1;
+    int nRow = mds_nrow4, nCol = mds_ncol4;
 
     // Matrix of the system (12 equations x 6 unknowns)
     double M[mds_nrow4*mds_ncol4];
     // Vector, we want to solve M*x = b
-    double b[mds_nrow4], s[mds_ncol4];
+    double b[mds_nrow4];
 
     // If the force decomposition is cCFD or CFD
     if(this->m_fdecomp == mds_ccfd || this->m_fdecomp == mds_ncfd)
@@ -2548,13 +2231,6 @@ void StressGrid::DistributeN4( array3_int Ra, array3_int Rb, array3_int Rc, arra
         diffarray3(Rc, Rb, BC, this->m_box, this->m_periodic);
         diffarray3(Rd, Rb, BD, this->m_box, this->m_periodic);
         diffarray3(Rd, Rc, CD, this->m_box, this->m_periodic);
-
-        normAB=normarray3(AB);
-        normAC=normarray3(AC);
-        normAD=normarray3(AD);
-        normBC=normarray3(BC);
-        normBD=normarray3(BD);
-        normCD=normarray3(CD);
 
         for ( i = 0; i < nCol*nRow; i++ )
         {
@@ -2659,17 +2335,13 @@ void StressGrid::DistributeN5(array3_int Ra, array3_int Rb, array3_int Rc, array
     array3_int Fij;
     //************************************************************************************
 
-    //Dimension and number of particles
-    int nDim = 3;
-    int nPart = 5;
-
     //Number of rows and columns
-    int nRow = mds_nrow5, nCol = mds_ncol5, nRHS = 1;
+    int nRow = mds_nrow5, nCol = mds_ncol5;
 
     // Matrix of the system (15 equations x 10 unknowns)
     double M[mds_nrow5*mds_ncol5];
     // Vector, we want to solve M*x = b
-    double b[mds_nrow5], s[mds_ncol5];
+    double b[mds_nrow5];
     // Scalar product of the Normal and the initial CFD
     real_int prod, CaleyMengerNormal[mds_ncol5];
 
@@ -2881,7 +2553,6 @@ void StressGrid::DistributeNBody ( int nPart, array3_ext *R, array3_ext *F, bool
         this->p_Fij  = new array3_int [nPart*nPart];
         this->p_Uij  = new array3_int [maxcols];
         
-        int maxrows_prev = mds_ndim*m_maxpart;
         int maxcols_prev = (m_maxpart*(m_maxpart-1))/2;
         printf("batch_id(%i) grew p_bvec from %i to %i \n", batch_id, maxcols_prev, maxcols);
         
@@ -3008,107 +2679,107 @@ void StressGrid::DistributeNBody ( int nPart, array3_ext *R, array3_ext *F, bool
 //indices are flipped be careful!
 
 /*
- * abab | bgab | agab	= 00 | 01 | 02
- * abbg | bgbg | agbg	= 10 | 11 | 12
- * abag | bgag | agag	= 20 | 21 | 22
+ * abab | bgab | agab    = 00 | 01 | 02
+ * abbg | bgbg | agbg    = 10 | 11 | 12
+ * abag | bgag | agag    = 20 | 21 | 22
  */
 
  //Cosine and Theta Calculations (may only be needed sometimes)
 real_int StressGrid::CalcCosine(real_int ab, real_int bg, real_int ag) {
-	real_int costheta, numer, denom;
+    real_int costheta, numer, denom;
 
-	numer = (ab * ab) + (bg * bg) - (ag * ag);
-	denom = realval_int(2.0) * ab * bg;
-	costheta = numer / denom;
-	return costheta;
+    numer = (ab * ab) + (bg * bg) - (ag * ag);
+    denom = realval_int(2.0) * ab * bg;
+    costheta = numer / denom;
+    return costheta;
 }
 
 real_int StressGrid::CalcTheta(real_int costheta) {
-	return acos(costheta);
+    return acos(costheta);
 }
 
 //Derivative of Cosine Function (creates derivative vector)
 void StressGrid::ThreeBodyCosineD(real_int ab, real_int bg, real_int ag, array3_int &d_cos_array) {
-	real_int numer, denom;
+    real_int numer, denom;
 
 
-	//dab of costheta
-	numer = (ab * ab) - (bg * bg) + (ag * ag);
-	denom = realval_int(2.0) * ab * ab * bg;
+    //dab of costheta
+    numer = (ab * ab) - (bg * bg) + (ag * ag);
+    denom = realval_int(2.0) * ab * ab * bg;
 
-	d_cos_array[iab] = numer / denom;
+    d_cos_array[iab] = numer / denom;
 
-	//dbg of costheta
-	numer = -(ab * ab) + (bg * bg) + (ag * ag);
-	denom = realval_int(2.0) * ab * bg * bg;
+    //dbg of costheta
+    numer = -(ab * ab) + (bg * bg) + (ag * ag);
+    denom = realval_int(2.0) * ab * bg * bg;
 
-	d_cos_array[ibg] = numer / denom;
+    d_cos_array[ibg] = numer / denom;
 
-	//dag of costheta
-	numer = -ag;
-	denom = ab * bg;
+    //dag of costheta
+    numer = -ag;
+    denom = ab * bg;
 
-	d_cos_array[iag] = numer / denom;
+    d_cos_array[iag] = numer / denom;
 }
 
 //Second Derivative of Cosine Function (Creates derivative matrix)
 void StressGrid::ThreeBodyCosineD2(real_int ab, real_int bg, real_int ag, matrix3_int &d2_cos_array) {
-	real_int numer;
-	real_int denom;
+    real_int numer;
+    real_int denom;
 
-	//d00 of costheta
-	numer = (bg * bg) - (ag * ag);
-	denom = (ab * ab * ab * bg);
+    //d00 of costheta
+    numer = (bg * bg) - (ag * ag);
+    denom = (ab * ab * ab * bg);
 
-	d2_cos_array[iab][iab] = numer / denom;
+    d2_cos_array[iab][iab] = numer / denom;
 
-	// d01 and d10 of costheta
+    // d01 and d10 of costheta
 
-	numer = -((ab * ab) + (bg * bg) + (ag * ag));
-	denom = realval_int(2.0) * (ab * ab) * (bg * bg);
+    numer = -((ab * ab) + (bg * bg) + (ag * ag));
+    denom = realval_int(2.0) * (ab * ab) * (bg * bg);
 
-	d2_cos_array[iab][ibg] = numer / denom;
-	d2_cos_array[ibg][iab] = numer / denom;
+    d2_cos_array[iab][ibg] = numer / denom;
+    d2_cos_array[ibg][iab] = numer / denom;
 
-	// d02 and d20 of costheta
+    // d02 and d20 of costheta
 
-	numer = ag;
-	denom = ab * ab * bg;
+    numer = ag;
+    denom = ab * ab * bg;
 
-	d2_cos_array[iab][iag] = numer / denom;
-	d2_cos_array[iag][iab] = numer / denom;
+    d2_cos_array[iab][iag] = numer / denom;
+    d2_cos_array[iag][iab] = numer / denom;
 
-	// d11 of costheta
-	numer = (ab * ab) - (ag * ag);
-	denom = (ab * bg * bg * bg);
+    // d11 of costheta
+    numer = (ab * ab) - (ag * ag);
+    denom = (ab * bg * bg * bg);
 
-	d2_cos_array[ibg][ibg] = numer / denom;
+    d2_cos_array[ibg][ibg] = numer / denom;
 
-	// d12 and d21 of costheta
-	numer = ag;
-	denom = ab * bg * bg;
+    // d12 and d21 of costheta
+    numer = ag;
+    denom = ab * bg * bg;
 
-	d2_cos_array[iag][ibg] = numer / denom;
-	d2_cos_array[ibg][iag] = numer / denom;
+    d2_cos_array[iag][ibg] = numer / denom;
+    d2_cos_array[ibg][iag] = numer / denom;
 
-	// d22 of costheta
-	numer = realval_int(-1.0);
-	denom = ab * bg;
+    // d22 of costheta
+    numer = realval_int(-1.0);
+    denom = ab * bg;
 
-	d2_cos_array[iag][iag] = numer / denom;
+    d2_cos_array[iag][iag] = numer / denom;
 }
 
 //First Derivative of Theta Function (Creates 1st derivative vector)
 //Need Cosine Theta
 //Need Derivative of Cosine Vector
 void StressGrid::ThreeBodyThetaD(real_int costheta, array3_int &d_cos_array, array3_int &d_theta_array) {
-	real_int scalefactor;
+    real_int scalefactor;
 
-	scalefactor = realval_int(-1.0) / sqrt(realval_int(1.0) - (costheta * costheta));
+    scalefactor = realval_int(-1.0) / sqrt(realval_int(1.0) - (costheta * costheta));
 
-	for (int i = 0; i < 3; i++) {
-		d_theta_array[i] = scalefactor * d_cos_array[i];
-	}
+    for (int i = 0; i < 3; i++) {
+        d_theta_array[i] = scalefactor * d_cos_array[i];
+    }
 }
 
 //Second Derivative of Theta Function (Creates 2nd Derivative Matix)
@@ -3116,18 +2787,18 @@ void StressGrid::ThreeBodyThetaD(real_int costheta, array3_int &d_cos_array, arr
 //Need Derivative of Cosine Vector
 //Need 2nd Derivative of Cosine Matrix
 void StressGrid::ThreeBodyThetaD2(real_int costheta, array3_int d_cos_array, matrix3_int &d2_cos_array, matrix3_int &d2_theta_array) {
-	real_int scalefactor;
-	real_int sinthetasq;
+    real_int scalefactor;
+    real_int sinthetasq;
 
-	sinthetasq = realval_int(1.0) - (costheta * costheta);
+    sinthetasq = realval_int(1.0) - (costheta * costheta);
 
-	scalefactor = realval_int(1.0) / (sinthetasq * sqrt(sinthetasq));
+    scalefactor = realval_int(1.0) / (sinthetasq * sqrt(sinthetasq));
 
-	for (int i = 0; i < 3; i++) {
-		for (int j = 0; j < 3; j++) {
-			d2_theta_array[i][j] = scalefactor * ((-sinthetasq) * d2_cos_array[i][j] - costheta * d_cos_array[i] * d_cos_array[j]);
-		}
-	}
+    for (int i = 0; i < 3; i++) {
+        for (int j = 0; j < 3; j++) {
+            d2_theta_array[i][j] = scalefactor * ((-sinthetasq) * d2_cos_array[i][j] - costheta * d_cos_array[i] * d_cos_array[j]);
+        }
+    }
 }
 
 //List of 2-body Potential Auxilery Functions
@@ -3206,9 +2877,9 @@ void StressGrid::FENEPhiKappa(real_ext r, real_ext k, real_ext diffratio, real_e
 
 // ab|bg|ag = 0 | 1 | 2
 /*
- * abab | bgab | agab	= 00 | 01 | 02
- * abbg | bgbg | agbg	= 10 | 11 | 12
- * abag | bgag | agag	= 20 | 21 | 22
+ * abab | bgab | agab    = 00 | 01 | 02
+ * abbg | bgbg | agbg    = 10 | 11 | 12
+ * abag | bgag | agag    = 20 | 21 | 22
  */
 
 //Calculate the Phi and Kappa for the Harmonic Angle Potential -> Implimented
@@ -3299,8 +2970,8 @@ void StressGrid::UreyBradleyPhiKappa(real_ext ab_ext, real_ext bg_ext, real_ext 
     real_int costheta = (real_int)costheta_ext;
     real_int deltaRag = (real_int)deltaRag_ext;
     real_int deltatheta = (real_int)deltatheta_ext;
-    real_int ktheta = (real_int)ktheta;
-    real_int kUB = (real_int)kUB;
+    real_int ktheta = (real_int)ktheta_ext;
+    real_int kUB = (real_int)kUB_ext;
 
     //double costh = this->CalcCosine(ab, bg, ag);
     array3_int d_cos_array;

@@ -50,23 +50,31 @@ set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake" ${CMAKE_MODULE_PATH})
 configure_file(include/mdstress/mds_defines.h.in ${CMAKE_CURRENT_SOURCE_DIR}/include/mdstress/mds_defines.h @ONLY)
 
 # find all the source files
-file(GLOB SOURCES src/*.cpp src/*.cu contrib/voro++/src/*.cc)
+file(GLOB MDSTRESS_SOURCES src/*.cpp src/*.cu)
+file(GLOB VORO_SOURCES contrib/voro++/src/*.cc)
 
 # the include files
 file(GLOB MDSTRESS_SOURCES_H include/mdstress/*.h )
 file(GLOB VORO_SOURCES_HH include/voro++/*.hh)
 
 # remove sources
-list(REMOVE_ITEM SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/contrib/voro++/src/voro++.cc)
-list(REMOVE_ITEM SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/contrib/voro++/src/v_base_wl.cc)
-list(REMOVE_ITEM SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/contrib/voro++/src/cmd_line.cc)
+list(REMOVE_ITEM VORO_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/contrib/voro++/src/voro++.cc)
+list(REMOVE_ITEM VORO_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/contrib/voro++/src/v_base_wl.cc)
+list(REMOVE_ITEM VORO_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/contrib/voro++/src/cmd_line.cc)
+
+# add warnings etc for compiling mdstress
+set_source_files_properties(
+    ${MDSTRESS_SOURCES} ${MDSTRESS_SOURCES_HH}
+    PROPERTIES
+    COMPILE_FLAGS "-Wall -Werror -Wfatal-errors"
+)
 
 # include the headers directory
 include_directories(include/mdstress include/voro++ ${CMAKE_CURRENT_BINARY_DIR})
 #include_directories(${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES} include/mdstress include/voro++)
 #link_directories(${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}/lib64)
 
-add_library(mdstress SHARED ${SOURCES})
+add_library(mdstress SHARED ${MDSTRESS_SOURCES} ${VORO_SOURCES})
 #set_target_properties(mdstress PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
 target_link_libraries(mdstress PRIVATE ${LAPACK_LIBRARY})
 

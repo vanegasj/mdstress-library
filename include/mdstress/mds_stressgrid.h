@@ -90,6 +90,7 @@ class  mds::StressGrid
             this->m_disable = true;
         }
         //@
+
         /** Check if the library has been initialized */
         //@{
         bool CheckInit()
@@ -97,6 +98,7 @@ class  mds::StressGrid
             return this->m_initialized;
         }
         //@
+
         /** Set max threads: */
         //@{
         void SetThreadIDs(int thread_id, int max_threads)
@@ -170,36 +172,6 @@ class  mds::StressGrid
         {   return this->m_nxyz[1]; }
         int  GetNumberOfGridCellsZ( )
         {   return this->m_nxyz[2]; }
-        void SetNumberOfGridCellsXC(int nxc)
-        {
-            if (true == this->m_disable)
-                return;
-
-            std::lock_guard<std::mutex> lock(m_mutex_state);
-            this->m_nxyzc[0] = nxc;
-        }
-        void SetNumberOfGridCellsYC(int nyc)
-        {
-            if (true == this->m_disable)
-                return;
-
-            std::lock_guard<std::mutex> lock(m_mutex_state);
-            this->m_nxyzc[1] = nyc;
-        }
-        void SetNumberOfGridCellsZC(int nzc)
-        {
-            if (true == this->m_disable)
-                return;
-
-            std::lock_guard<std::mutex> lock(m_mutex_state);
-            this->m_nxyzc[2] = nzc;
-        }
-        int  GetNumberOfGridCellsXC( )
-        {   return this->m_nxyzc[0]; }
-        int  GetNumberOfGridCellsYC( )
-        {   return this->m_nxyzc[1]; }
-        int  GetNumberOfGridCellsZC( )
-        {   return this->m_nxyzc[2]; }
         //@}
         
         /** Set/Get spacing in each direction: */
@@ -212,28 +184,14 @@ class  mds::StressGrid
             std::lock_guard<std::mutex> lock(m_mutex_state);
             this->m_spacing = (real_int)d;
         }
+        real_ext  GetSpacing( )
+        {   return (real_ext)this->m_spacing; }
         real_ext  GetSpacingX( )
         {   return (real_ext)this->m_gridsp[0]; }
         real_ext  GetSpacingY( )
         {   return (real_ext)this->m_gridsp[1]; }
         real_ext  GetSpacingZ( )
         {   return (real_ext)this->m_gridsp[2]; }
-        void SetSpacingc(real_ext dc)
-        {
-            //if (true == this->m_disable)
-            //    return;
-
-            std::lock_guard<std::mutex> lock(m_mutex_state);
-            this->m_spacingc = (real_int)dc;
-        }
-        real_ext  GetSpacingC( )
-        {   return this->m_spacingc; }
-        real_ext  GetSpacingXC( )
-        {   return this->m_gridspc[0]; }
-        real_ext  GetSpacingYC( )
-        {   return this->m_gridspc[1]; }
-        real_ext  GetSpacingZC( )
-        {   return this->m_gridspc[2]; }
         //@}
         
          /**Set/Get force decomposition */
@@ -292,20 +250,6 @@ class  mds::StressGrid
         {   return (real_ext)this->m_mindihangle;   }
         //@}
          
-         /**Set/Get Charge Cutoff*/
-        //@{
-        void SetChargeParams(int gridctype, real_ext epsfac, real_ext rcoulomb, real_ext ewaldcoeff_q)
-        {
-            if (true == this->m_disable)
-                return;
-
-            std::lock_guard<std::mutex> lock(m_mutex_state);
-            this->m_gridctype = gridctype;
-            this->m_epsfac = (real_int)epsfac;
-            this->m_rcoulomb = (real_int)rcoulomb;
-            this->m_ewaldcoeff_q = (real_int)ewaldcoeff_q;
-        }
-        //@}
         
         /** Compute N-body force decomposition: */
         //@{
@@ -471,7 +415,7 @@ class  mds::StressGrid
         /**
          *
          * This Function Computes the Born term of the Elasticity Tensor for Pairwise interactions in 3 Dimensions
-	 * The Formula is from Tadmor Modeling Materials Section 8 Equation 8.84
+     * The Formula is from Tadmor Modeling Materials Section 8 Equation 8.84
          * Currently only Lennard Jones Elasticity is being Implimented, Will impliment coulomb Later
          * Based upon ROOT OF ALL EVIL (Take Care when debugging)
          * Coordinates xi and xj correspond to the first pair of particles (alpha and beta in Tadmor's notation) over which the Born term will be distributed
@@ -499,21 +443,12 @@ class  mds::StressGrid
         //@{
         void DistributeKinetic   ( real_ext mass, array3_ext x, array3_ext va, array3_ext vb, int atomID  );
         //@}
-		
-		/** DistributeKineticElast
-		 * needs to be filled with some information
-		 * */
-		void DistributeKineticElast(real_ext mass, array3_ext x, array3_ext va, array3_ext vb);
         
-        /** DistributeCharge
-         *
-         * Distributes charge contributions onto a grid
-         * Requires:
-         * x          -> position of the atom
-         * charge     -> atomic charge
-         * atomID     -> ID of the atom (optional, only needed if calculating stress/atom) */
-        void DistributeCharge    ( array3_ext x, real_ext charge );
-		
+        /** DistributeKineticElast
+         * needs to be filled with some information
+         * */
+        void DistributeKineticElast(real_ext mass, array3_ext x, array3_ext va, array3_ext vb);
+        
         /** MDStress Auxiliary Functions for the Different potentials
          * */
         // 2 Body Potentials
@@ -553,13 +488,10 @@ class  mds::StressGrid
         //@{
         int         m_nAtoms;         ///< Number of atoms
         iarray      m_nxyz;           ///< Number of grid cells in the x direction
-        iarray      m_nxyzc;          ///< Number of grid cells in the x direction
         int         m_griddim;        ///< the type of grid
         long        m_ncells;         ///< Total number of cells in the calculation
-        long        m_ncellsc;        ///< Total number of cells in the charge grid
         int         m_maxClust;
         real_int    m_spacing;        ///< spacing requested for the grid
-        real_int    m_spacingc;       ///< spacing requested for the charge grid
         matrix3_int m_box;            ///< Actual box
         int         m_spatatom;       ///< enSpat or enAtom
         int         m_fdecomp;        ///< which force decomposition
@@ -571,10 +503,6 @@ class  mds::StressGrid
         bool        m_disable;        ///< disable mdstress library operations
         barray      m_periodic;       ///< mark dimensions as periodic
         real_int    m_mindihangle;
-        real_int    m_rcoulomb;
-        real_int    m_epsfac;
-        real_int    m_ewaldcoeff_q;
-        int         m_gridctype;
         int         m_maxpart;        ///< used to allocate Rij and Fij
         int         m_max_threads;    ///< number of threads to use
         real_int    m_temperature;
@@ -591,9 +519,7 @@ class  mds::StressGrid
         real_int m_avg_boxvol;            ///< Average box volume
         real_int m_var_boxvol;            ///< Variance of box volume
         real_int m_gridsp[7];             ///< grid spacing
-        real_int m_gridspc[7];            ///< grid spacing
         real_int m_invgridsp;             ///< inverse of grid spacing
-        real_int m_invgridspc;            ///< inverse of grid spacing
         Lapack **h_lapack;                ///< mds_lapack: solves underdetermined/overdetermined systems of equations and projects solution onto shape space
         double  *p_Amat;                  ///< matrix for linear systems (for systems with more than 5 particles)
         double  *p_AmatT;                 ///< transpose of the matrix (used for projecting solution onto the shape space)
@@ -605,7 +531,6 @@ class  mds::StressGrid
         matrix3_int *p_current_gridtot;   ///< Grid of size 1
         matrix6_int *p_current_grid_elborn; ///< Grid (either nx*ny*nz or nAtoms)
         matrix6_int *p_current_grid_elkin;  ///< Grid (either nx*ny*nz or nAtoms)
-        real_int    *p_current_gridc;       ///< Grid (either nx*ny*nz or nAtoms) (ewald)
         matrix3_int *p_sum_grid;            ///< Sum Grid
         matrix3_int *p_avg_grid;            ///< Sum Grid
         matrix3_int *p_avg_gridtot;         ///< Total Sum Grid
@@ -614,11 +539,9 @@ class  mds::StressGrid
         matrix6_int *p_sum_grid_elcovar;    ///< Elasticity Grid Covariance Term
         matrix6_int *p_sum_grid_elborn;     ///< Elasticity Grid Born Term
         matrix6_int *p_sum_grid_elkin;      ///< Elasticity Grid Kinetic Term
-        real_int *p_sum_gridc;              ///< Sum Grid (charge)
         real_int *p_sum_volume;             ///< Sum of volumes when using mds_atom
         real_int *p_radii;                  ///< the radius of an atomic site
         real_int *p_positions;              ///< the position of an atomic site
-        array3_int *p_pos_gridc;             ///< the position of an charge grid sites
         int     *p_molecule_id;             ///< The molecule an atomic site belongs to
         //@}
         

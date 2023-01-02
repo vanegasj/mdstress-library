@@ -27,7 +27,6 @@
 mds::Lapack::Lapack( int nRowMax, int nColMax )
 {
     int nRhsMax = 1;
-    int liwork;
     int nlvl;
     double smlsiz = 25.0;
 
