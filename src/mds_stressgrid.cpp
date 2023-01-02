@@ -19,20 +19,12 @@
      torres.sanchez.a@gmail.com
      juan.m.vanegas@gmail.com
 =========================================================================*/
-#define PI 3.1415926536
-#define KB 1.38064852E-23
-
 //KBfac is equal to KB*10E22 to convert V/(KB*T) from J/m^3 to bar^-1
 #define KBfac 1.38064852E-1
-#define KBN 8.31446261815324
 
 #include "mds_stressgrid.h"
 #include "mds_barrier.h"
 #include "voro++.hh"
-
-#define iab 0
-#define ibg 1
-#define iag 2
 
 //#define CUSTRESS_ENABLE
 //#ifdef CUSTRESS_ENABLE
@@ -40,6 +32,16 @@
 //#endif//CUSTRESS_ENABLE
 
 using namespace mds;
+
+/**
+ * BEGIN PRIVATE FUNCTIONS
+ */
+
+
+/**
+ * END PRIVATE FUNCTIONS
+ */
+
 
 //Constructor
 StressGrid::StressGrid()
@@ -121,135 +123,6 @@ StressGrid::StressGrid()
 StressGrid::~StressGrid()
 {
     this->Clear();
-}
-
-// Method to delete the preallocated member variables
-void StressGrid::Clear()
-{
-    if (this->p_Amat                 != nullptr ) delete [] this->p_Amat;
-    if (this->p_AmatT                != nullptr ) delete [] this->p_AmatT;
-    if (this->p_bvec                 != nullptr ) delete [] this->p_bvec;
-    if (this->p_Rij                  != nullptr ) delete [] this->p_Rij;
-    if (this->p_Fij                  != nullptr ) delete [] this->p_Fij;
-    if (this->p_Uij                  != nullptr ) delete [] this->p_Uij;
-    if (this->p_current_grid         != nullptr ) delete [] this->p_current_grid;
-    if (this->p_current_gridtot      != nullptr ) delete [] this->p_current_gridtot;
-    if (this->p_current_grid_elborn  != nullptr ) delete [] this->p_current_grid_elborn;
-    if (this->p_current_grid_elkin   != nullptr ) delete [] this->p_current_grid_elkin;
-    if (this->p_sum_grid             != nullptr ) delete [] this->p_sum_grid;
-    if (this->p_avg_grid             != nullptr ) delete [] this->p_avg_grid;
-    if (this->p_avg_gridtot          != nullptr ) delete [] this->p_avg_gridtot;
-    if (this->p_sum_grid_elcovar     != nullptr ) delete [] this->p_sum_grid_elcovar;
-    if (this->p_sum_grid_elkin       != nullptr ) delete [] this->p_sum_grid_elkin;
-    if (this->p_sum_grid_elborn      != nullptr ) delete [] this->p_sum_grid_elborn;
-    if (this->p_sum_grid_volcovar    != nullptr ) delete [] this->p_sum_grid_volcovar;
-    if (this->p_sum_gridtot_volcovar != nullptr ) delete [] this->p_sum_gridtot_volcovar;
-    if (this->p_sum_volume           != nullptr ) delete [] this->p_sum_volume;
-    if (this->p_molecule_id          != nullptr ) delete [] this->p_molecule_id;
-    if (this->p_radii                != nullptr ) delete [] this->p_radii;
-    if (this->p_positions            != nullptr ) delete [] this->p_positions;
-    if (this->h_lapack               != nullptr )
-    {
-        for (int i = 0; i < m_max_threads; ++i)
-            delete this->h_lapack[i];
-        delete [] this->h_lapack;
-    }
-    
-    this->m_avg_boxvol    = 0.0;
-    this->m_var_boxvol    = 0.0;
-    this->m_maxpart       = 0;
-    this->p_Amat          = nullptr;
-    this->p_AmatT         = nullptr;
-    this->p_bvec          = nullptr;
-    this->p_Rij           = nullptr;
-    this->p_Fij           = nullptr;
-    this->p_Uij           = nullptr;
-    this->p_current_grid  = nullptr;
-    this->p_current_gridtot  = nullptr;
-    this->p_current_grid_elborn  = nullptr;
-    this->p_current_grid_elkin  = nullptr;
-    this->p_sum_grid      = nullptr;
-    this->p_avg_grid      = nullptr;
-    this->p_avg_gridtot   = nullptr;
-    this->p_sum_grid_elcovar      = nullptr;
-    this->p_sum_grid_elkin      = nullptr;
-    this->p_sum_grid_elborn      = nullptr;
-    this->p_sum_grid_volcovar      = nullptr;
-    this->p_sum_gridtot_volcovar      = nullptr;
-    this->p_sum_volume    = nullptr;
-    this->p_molecule_id   = nullptr;
-    this->p_radii         = nullptr;
-    this->p_positions     = nullptr;
-    this->h_lapack        = nullptr;
-
-    if (this->m_initialized)
-        this->m_initialized = false;
-
-#ifdef CUSTRESS_ENABLE
-    if (this->m_cuda)
-        custress_clear();
-#endif//CUSTRESS_ENABLE
-}
-
-// This function is provided to identify bad settings
-int StressGrid::CheckSettings()
-{
-    if ( this->m_spatatom != mds_spat && this->m_spatatom != mds_atom )
-    {
-        std::cout << "ERROR::StressGrid: The stress type (SetStressType) should be either spatial (0) or atomic (1)\n";
-        return 1;
-    }
-    if ( this->m_spatatom == mds_spat )
-    {
-        if ( this->m_nxyz[0] < 0 || this->m_nxyz[1] < 0 || this->m_nxyz[2] < 0)
-        {
-            std::cout << "ERROR::StressGrid: The number of grid cells are negative: (nx,ny,nz)=" << " ( " <<this->m_nxyz[0] << ", " << this->m_nxyz[1] << ", " <<this->m_nxyz[2] << " )\n"; 
-            return 2;
-        }
-        
-        if ( this->m_nxyz[0] == 0 && this->m_nxyz[1] == 0 && this->m_nxyz[2] == 0)
-        {
-            if ( this->m_spacing < mds_eps )
-            {
-                std::cout << "ERROR::StressGrid: The local spacing is too small: " << this->m_spacing << "( < " << mds_eps << " )\n"; 
-                return 3;
-            }
-            
-            if ( iszeromatrix3(this->m_box) )
-            {
-                std::cout << "ERROR::StressGrid: The initial MD box haven't been set or it's too small\n"; 
-                return 4;
-            }
-        }
-        
-        if ( this->m_fdecomp < mds_ccfd || this->m_fdecomp > mds_gld )
-        {
-            std::cout << "ERROR::StressGrid: The stress type (SetForceDecomposition) should be: 0 (cCFD), 1 (nCFD), 2 (GLD) or 3 (GMC)\n";
-            return 5;
-        }
-    }
-    else
-    {
-        if ( this->m_nAtoms <= 0 )
-        {
-            std::cout << "ERROR::StressGrid: Number of atoms must > 0\n";
-            return 6;
-        }
-    }
-
-    if ( this->m_filename.size() == 0 )
-    {
-        std::cout << "ERROR::StressGrid: Filename for output is not set (SetFileName)" << mds_sl << " and " << mds_cmp << "\n";
-        return 8;
-    }
-    
-    if ( this->m_maxClust <= 1 )
-    {
-        std::cout << "ERROR:StressGrid: The maximum number of particles in a cluster is not valid:" << this->m_maxClust << "\n";
-    }
-    this->Clear();
-    
-    return 0;
 }
 
 //This function initialize the grid depending on the settings. If the settings are incorrect, 
@@ -1219,475 +1092,6 @@ void StressGrid::ComputeNbodyPairForces(int nAtoms, array3_ext *R, array3_ext *F
     this->DistributeNBody( nAtoms, R, F, false, 0);
 }
 
-//----------------------------------------------------------------------------------------
-// DistributePairInteraction
-//
-// Distributes interactions onto locals_grid (from the initial grid point to the last grid point)
-// Requires:
-// xi   -> position of particle I (A)
-// xj   -> position of particle J (B)
-// F    -> pairwise force
-void StressGrid::DistributePairInteraction( array3_int xi, array3_int xj, array3_int F, int batch_id )
-{
-#ifdef CUSTRESS_ENABLE
-    if (this->m_cuda && custress_distribute_pair_interaction(xi,xj,F,batch_id))
-        return;
-#endif
-    if (this->m_griddim == mds_griddim_xyz)
-        DistributePairInteraction3D(xi,xj,F,batch_id);
-    else
-        DistributePairInteraction1D(xi,xj,F,batch_id);
-}
-
-void StressGrid::DistributePairInteraction1D(array3_int xi, array3_int xj, array3_int F, int batch_id )
-{
-    // select grid based on batch index
-    matrix3_int * grid = this->p_current_grid+batch_id*this->m_ncells;
-    
-    //------------------------------------------------------------------------------------
-    // Calculate the stress tensor
-    array3_int diff;
-    diffarray3( xj, xi, diff, this->m_box, this->m_periodic);
-    matrix3_int stress;
-    stress[0][0] = (real_int)(F[0])*diff[0];
-    stress[1][0] = (real_int)(F[1])*diff[0];
-    stress[2][0] = (real_int)(F[2])*diff[0];
-    stress[0][1] = (real_int)(F[0])*diff[1];
-    stress[1][1] = (real_int)(F[1])*diff[1];
-    stress[2][1] = (real_int)(F[2])*diff[1];
-    stress[0][2] = (real_int)(F[0])*diff[2];
-    stress[1][2] = (real_int)(F[1])*diff[2];
-    stress[2][2] = (real_int)(F[2])*diff[2];
-
-    // calculate the grid coordinates (no pbc) for the extreme points
-    int x = this->m_nxyz[this->m_griddim] * xi[this->m_griddim] * this->m_invbox[this->m_griddim][this->m_griddim] - (xi[this->m_griddim] < 0.0);
-    const int i2 = this->m_nxyz[this->m_griddim] * xj[this->m_griddim] * this->m_invbox[this->m_griddim][this->m_griddim] - (xj[this->m_griddim] < 0.0);
-    const int c = (i2>x)-(x>i2);
-    const real_int t_c1 = xi[this->m_griddim] / (xi[this->m_griddim]-xj[this->m_griddim]);
-    const real_int t_c2 = this->m_gridsp[this->m_griddim] / (xi[this->m_griddim]-xj[this->m_griddim]);
-    const real_int C = realval_int(0.5)*this->m_invgridsp*this->m_invgridsp;
-    real_int d_cgrid = xi[this->m_griddim]-(x+realval_int(0.5))*this->m_gridsp[this->m_griddim];
-    int xn = x+(c+1)/2;
-
-    //------------------------------------------------------------------------------------
-    // Distribute the stress
-
-    // track previous time of crossing and check that sum is complete (?)
-    real_int oldt = 0.0; 
-
-    // fix the number of iterations
-    const int iterations = c*(i2-x);
-    for (int count = 0; count <= iterations; ++count)
-    {
-        // there is always iterations+1, where the last iteration deals
-        // with any residual
-        real_int newt = (iterations == count) ? realval_int(1.0) : t_c1-xn*t_c2;
-
-        // work out the parametric time constants
-        const real_int t12 = oldt*oldt;
-        const real_int t22 = newt*newt;
-        const real_int dt1 = newt - oldt;
-        const real_int dt2 = t22 - t12;
-
-        const int p1 = ((x + 1 + this->m_nxyz[this->m_griddim]) % this->m_nxyz[this->m_griddim]);
-        const int m1 = ((x + this->m_nxyz[this->m_griddim]) % this->m_nxyz[this->m_griddim]);
-
-        // the composite constants in terms of i, j, k
-        const real_int D1 = this->m_gridsp[5-this->m_griddim]*(realval_int(2.0)*d_cgrid*dt1+diff[this->m_griddim]*dt2);
-        const real_int D2 = this->m_gridsp[6]*dt1;
-        scalesummatrix3(C*( D1 + D2), stress, grid[p1]);
-        scalesummatrix3(C*(-D1 + D2), stress, grid[m1]);
-        
-        d_cgrid -= c * m_gridsp[this->m_griddim];
-        oldt = newt;
-        
-        x += c;
-        xn += c;
-    }
-}
-
-void StressGrid::DistributePairInteraction3D(array3_int xi, array3_int xj, array3_int F, int batch_id )
-{
-    // this is the 3D case
-    matrix3_int * grid = this->p_current_grid+batch_id*this->m_ncells;
-    
-    //------------------------------------------------------------------------------------
-    // Calculate the stress tensor
-    array3_int diff;
-    diffarray3( xj, xi, diff, this->m_box, this->m_periodic);
-
-    matrix3_int stress;
-    stress[0][0] = F[0]*diff[0];
-    stress[1][0] = F[1]*diff[0];
-    stress[2][0] = F[2]*diff[0];
-    stress[0][1] = F[0]*diff[1];
-    stress[1][1] = F[1]*diff[1];
-    stress[2][1] = F[2]*diff[1];
-    stress[0][2] = F[0]*diff[2];
-    stress[1][2] = F[1]*diff[2];
-    stress[2][2] = F[2]*diff[2];
-
-    // calculate the grid coordinates (no pbc) for the extreme points
-    iarray x, xn, i2, c;
-    array3_int t,t_c1,t_c2,d_cgrid;
-    x[0] = this->m_nxyz[0] * xi[0] * this->m_invbox[0][0] - (xi[0] < 0.0);
-    x[1] = this->m_nxyz[1] * xi[1] * this->m_invbox[1][1] - (xi[1] < 0.0);
-    x[2] = this->m_nxyz[2] * xi[2] * this->m_invbox[2][2] - (xi[2] < 0.0);
-    i2[0] = this->m_nxyz[0] * xj[0] * this->m_invbox[0][0] - (xj[0] < 0.0);
-    i2[1] = this->m_nxyz[1] * xj[1] * this->m_invbox[1][1] - (xj[1] < 0.0);
-    i2[2] = this->m_nxyz[2] * xj[2] * this->m_invbox[2][2] - (xj[2] < 0.0);
-    c[0] = (i2[0]>x[0])-(x[0]>i2[0]);
-    c[1] = (i2[1]>x[1])-(x[1]>i2[1]);
-    c[2] = (i2[2]>x[2])-(x[2]>i2[2]);
-    d_cgrid[0] = xi[0]-(x[0]+0.5)*this->m_gridsp[0];
-    d_cgrid[1] = xi[1]-(x[1]+0.5)*this->m_gridsp[1];
-    d_cgrid[2] = xi[2]-(x[2]+0.5)*this->m_gridsp[2];
-    xn[0] = x[0]+(c[0]+1)/2;
-    xn[1] = x[1]+(c[1]+1)/2;
-    xn[2] = x[2]+(c[2]+1)/2;
-
-    // calculate parametric time in each dimension, and related constants
-    t_c1[0] = xi[0] / (xi[0]-xj[0]);
-    t_c1[1] = xi[1] / (xi[1]-xj[1]);
-    t_c1[2] = xi[2] / (xi[2]-xj[2]);
-    t_c2[0] = this->m_gridsp[0] / (xi[0]-xj[0]);
-    t_c2[1] = this->m_gridsp[1] / (xi[1]-xj[1]);
-    t_c2[2] = this->m_gridsp[2] / (xi[2]-xj[2]);
-    t[0] = (c[0] == 0) ? realval_int(1.1) : t_c1[0]-xn[0]*t_c2[0];
-    t[1] = (c[1] == 0) ? realval_int(1.1) : t_c1[1]-xn[1]*t_c2[1];
-    t[2] = (c[2] == 0) ? realval_int(1.1) : t_c1[2]-xn[2]*t_c2[2];
-
-    //------------------------------------------------------------------------------------
-    // Distribute the stress
-
-    // now the position/spatial constants
-    const real_int C = realval_int(0.125)*this->m_invgridsp*this->m_invgridsp;
-    const real_int axy = diff[0]*diff[1];
-    const real_int axz = diff[0]*diff[2];
-    const real_int ayz = diff[1]*diff[2];
-    const real_int axyz = diff[0]*ayz; 
-    
-    // track previous time of crossing
-    real_int oldt = 0.0; 
-    
-    const int iterations = c[0]*(i2[0]-x[0]) + c[1]*(i2[1]-x[1]) + c[2]*(i2[2]-x[2]);
-    for (int count = 0; count <= iterations; ++count)
-    {
-        // figure out index
-        const int cmp0x = ((t[0]<t[1]+mds_eps) + (t[0]<t[2]+mds_eps))/2;
-        const int cmp1x = ((t[1]<t[0]+mds_eps) + (t[1]<t[2]+mds_eps))/2;
-        const int cmp2x = ((t[2]<t[0]+mds_eps) + (t[2]<t[1]+mds_eps))/2;
-        const int iX = (1-cmp0x)*(cmp1x+2*(1-cmp1x)*cmp2x);
-        const real_int newt = (iterations == count) ? 1.0 : t[iX];
-
-        // work out the parametric time constants
-        const real_int t12 = oldt*oldt;
-        const real_int t22 = newt*newt;
-        const real_int dt1 = newt - oldt;
-        const real_int dt2 = t22 - t12;
-        const real_int dt3 = realval_int(4.0)*(t22*newt - t12*oldt)/realval_int(3.0);
-        const real_int dt4 = t22*t22 - t12*t12;
-
-        // additional constants
-        const real_int bxy = d_cgrid[0]*d_cgrid[1];
-        const real_int bxz = d_cgrid[0]*d_cgrid[2];
-        const real_int byz = d_cgrid[1]*d_cgrid[2];
-        const real_int bxyz = d_cgrid[0]*byz;
-    
-        const int iip1 = ((x[0] + 1 + this->m_nxyz[0]) % this->m_nxyz[0])*this->m_nxyz[1]*this->m_nxyz[2];
-        const int jjp1 = ((x[1] + 1 + this->m_nxyz[1]) % this->m_nxyz[1])*this->m_nxyz[2];
-        const int kkp1 = ((x[2] + 1 + this->m_nxyz[2]) % this->m_nxyz[2]);
-        const int iim1 = ((x[0] + this->m_nxyz[0]) % this->m_nxyz[0])*this->m_nxyz[1]*this->m_nxyz[2];
-        const int jjm1 = ((x[1] + this->m_nxyz[1]) % this->m_nxyz[1])*this->m_nxyz[2];
-        const int kkm1 = ((x[2] + this->m_nxyz[2]) % this->m_nxyz[2]);
-
-        // the composite constants in terms of i, j, k
-        const real_int D[8] = {
-            realval_int(8.0)*bxyz*dt1 + realval_int(4.0)*(diff[0]*byz+diff[1]*bxz+diff[2]*bxy)*dt2
-                + realval_int(2.0)*(d_cgrid[0]*ayz+d_cgrid[1]*axz+d_cgrid[2]*axy)*dt3 + realval_int(2.0)*axyz*dt4,
-            this->m_gridsp[0]*(realval_int(4.0)*byz*dt1 + realval_int(2.0)*(diff[1]*d_cgrid[2]+diff[2]*d_cgrid[1])*dt2 + ayz*dt3),
-            this->m_gridsp[1]*(realval_int(4.0)*bxz*dt1 + realval_int(2.0)*(diff[0]*d_cgrid[2]+diff[2]*d_cgrid[0])*dt2 + axz*dt3),
-            this->m_gridsp[2]*(realval_int(4.0)*bxy*dt1 + realval_int(2.0)*(diff[0]*d_cgrid[1]+diff[1]*d_cgrid[0])*dt2 + axy*dt3),
-            this->m_gridsp[3]*(realval_int(2.0)*d_cgrid[2]*dt1+diff[2]*dt2),
-            this->m_gridsp[4]*(realval_int(2.0)*d_cgrid[1]*dt1+diff[1]*dt2),
-            this->m_gridsp[5]*(realval_int(2.0)*d_cgrid[0]*dt1+diff[0]*dt2),
-            this->m_gridsp[6]*dt1,
-        };
-
-        // perform the sums into the grid
-        scalesummatrix3(C*( D[0] + D[1] + D[2] + D[3] + D[4] + D[5] + D[6] + D[7]), stress, grid[iip1 + jjp1 + kkp1]);
-        scalesummatrix3(C*(-D[0] - D[1] - D[2] + D[3] - D[4] + D[5] + D[6] + D[7]), stress, grid[iip1 + jjp1 + kkm1]);
-        scalesummatrix3(C*(-D[0] - D[1] + D[2] - D[3] + D[4] - D[5] + D[6] + D[7]), stress, grid[iip1 + jjm1 + kkp1]);
-        scalesummatrix3(C*( D[0] + D[1] - D[2] - D[3] - D[4] - D[5] + D[6] + D[7]), stress, grid[iip1 + jjm1 + kkm1]);
-        scalesummatrix3(C*(-D[0] + D[1] - D[2] - D[3] + D[4] + D[5] - D[6] + D[7]), stress, grid[iim1 + jjp1 + kkp1]);
-        scalesummatrix3(C*( D[0] - D[1] + D[2] - D[3] - D[4] + D[5] - D[6] + D[7]), stress, grid[iim1 + jjp1 + kkm1]);
-        scalesummatrix3(C*( D[0] - D[1] - D[2] + D[3] + D[4] - D[5] - D[6] + D[7]), stress, grid[iim1 + jjm1 + kkp1]);
-        scalesummatrix3(C*(-D[0] + D[1] + D[2] + D[3] - D[4] - D[5] - D[6] + D[7]), stress, grid[iim1 + jjm1 + kkm1]);
-
-        d_cgrid[iX] -= c[iX] * m_gridsp[iX];
-        oldt = t[iX];
-        
-        x[iX] += c[iX];
-        xn[iX] += c[iX];
-
-        // Next cross point:
-        t[iX] = t_c1[iX]-xn[iX]*t_c2[iX];
-    }
-}
-
-void StressGrid::DistributeElasticity_internal1D(array3_int xi, array3_int xj, array3_int xk, array3_int xl, real_int phi, real_int kappa)
-{
-    // this is the 1D case
-    int batch_id = this->m_thread_map[std::this_thread::get_id()];
-    matrix6_int * gridElast = this->p_current_grid_elborn+batch_id*this->m_ncells;
-
-    //------------------------------------------------------------------------------------
-    // Calculate the elasticity tensor
-    array3_int diff, diff2;
-    real_int rinv, rinv2, rinv3;
-    diffarray3( xj, xi, diff, this->m_box, this->m_periodic);
-    diffarray3( xl, xk, diff2, this->m_box, this->m_periodic);
-    rinv = realval_int(1.0)/normarray3(diff);
-    rinv2 = (real_int)(kappa)*rinv/normarray3(diff2);
-    rinv3 = (real_int)(phi)*rinv*rinv*rinv;
-
-    // Stiffness matrix in Voigt notation
-    // 0 = xx; 1 = yy; 2 = zz; 3 = yz or zy; 4 = xz or zx; 5 = xy or yx
-    // All indices                         Voigt indices           Stress indices
-    // ( xxxx xxyy xxzz xxyz xxxz xxxy ) = ( 00 01 02 03 04 05 ) = [ 0000 0011 0022 0012 0002 0001 ]
-    // (      yyyy yyzz yyyz yyxz yyxy ) = (    11 12 13 14 15 ) = [      1111 1122 1112 1102 1101 ]
-    // (           zzzz zzyz zzxz zzxy ) = (       22 23 24 25 ) = [           2222 2212 2202 2201 ]
-    // (                yzyz yzxz yzxy ) = (          33 34 35 ) = [                1212 1202 1201 ]
-    // (                     xzxz xzxy ) = (             44 45 ) = [                     0202 0201 ]
-    // (                          xyxy ) = (                55 ) = [                          0101 ]
-
-    matrix6_int elast = {0};
-    elast[0][0] = diff[0]*diff[0]*diff2[0]*diff2[0]*rinv2 - diff[0]*diff[0]*diff[0]*diff[0]*rinv3;
-    elast[0][1] = diff[0]*diff[0]*diff2[1]*diff2[1]*rinv2 - diff[0]*diff[0]*diff[1]*diff[1]*rinv3;
-    elast[0][2] = diff[0]*diff[0]*diff2[2]*diff2[2]*rinv2 - diff[0]*diff[0]*diff[2]*diff[2]*rinv3;
-    elast[0][3] = diff[0]*diff[0]*diff2[1]*diff2[2]*rinv2 - diff[0]*diff[0]*diff[1]*diff[2]*rinv3;
-    elast[0][4] = diff[0]*diff[0]*diff2[0]*diff2[2]*rinv2 - diff[0]*diff[0]*diff[0]*diff[2]*rinv3;
-    elast[0][5] = diff[0]*diff[0]*diff2[0]*diff2[1]*rinv2 - diff[0]*diff[0]*diff[0]*diff[1]*rinv3;
-    elast[1][1] = diff[1]*diff[1]*diff2[1]*diff2[1]*rinv2 - diff[1]*diff[1]*diff[1]*diff[1]*rinv3;
-    elast[1][2] = diff[1]*diff[1]*diff2[2]*diff2[2]*rinv2 - diff[1]*diff[1]*diff[2]*diff[2]*rinv3;
-    elast[1][3] = diff[1]*diff[1]*diff2[1]*diff2[2]*rinv2 - diff[1]*diff[1]*diff[1]*diff[2]*rinv3;
-    elast[1][4] = diff[1]*diff[1]*diff2[0]*diff2[2]*rinv2 - diff[1]*diff[1]*diff[0]*diff[2]*rinv3;
-    elast[1][5] = diff[1]*diff[1]*diff2[0]*diff2[1]*rinv2 - diff[1]*diff[1]*diff[0]*diff[1]*rinv3;
-    elast[2][2] = diff[2]*diff[2]*diff2[2]*diff2[2]*rinv2 - diff[2]*diff[2]*diff[2]*diff[2]*rinv3;
-    elast[2][3] = diff[2]*diff[2]*diff2[1]*diff2[2]*rinv2 - diff[2]*diff[2]*diff[1]*diff[2]*rinv3;
-    elast[2][4] = diff[2]*diff[2]*diff2[0]*diff2[2]*rinv2 - diff[2]*diff[2]*diff[0]*diff[2]*rinv3;
-    elast[2][5] = diff[2]*diff[2]*diff2[0]*diff2[1]*rinv2 - diff[2]*diff[2]*diff[0]*diff[1]*rinv3;
-    elast[3][3] = diff[1]*diff[2]*diff2[1]*diff2[2]*rinv2 - diff[1]*diff[2]*diff[1]*diff[2]*rinv3;
-    elast[3][4] = diff[1]*diff[2]*diff2[0]*diff2[2]*rinv2 - diff[1]*diff[2]*diff[0]*diff[2]*rinv3;
-    elast[3][5] = diff[1]*diff[2]*diff2[0]*diff2[1]*rinv2 - diff[1]*diff[2]*diff[0]*diff[1]*rinv3;
-    elast[4][4] = diff[0]*diff[2]*diff2[0]*diff2[2]*rinv2 - diff[0]*diff[2]*diff[0]*diff[2]*rinv3;
-    elast[4][5] = diff[0]*diff[2]*diff2[0]*diff2[1]*rinv2 - diff[0]*diff[2]*diff[0]*diff[1]*rinv3;
-    elast[5][5] = diff[0]*diff[1]*diff2[0]*diff2[1]*rinv2 - diff[0]*diff[1]*diff[0]*diff[1]*rinv3;
-
-    // calculate the grid coordinates (no pbc) for the extreme points
-    int x = this->m_nxyz[this->m_griddim] * xi[this->m_griddim] * this->m_invbox[this->m_griddim][this->m_griddim] - (xi[this->m_griddim] < 0.0);
-    const int i2 = this->m_nxyz[this->m_griddim] * xj[this->m_griddim] * this->m_invbox[this->m_griddim][this->m_griddim] - (xj[this->m_griddim] < 0.0);
-    const int c = (i2>x)-(x>i2);
-    const real_int t_c1 = xi[this->m_griddim] / (xi[this->m_griddim]-xj[this->m_griddim]);
-    const real_int t_c2 = this->m_gridsp[this->m_griddim] / (xi[this->m_griddim]-xj[this->m_griddim]);
-    const real_int C = realval_int(0.5)*this->m_invgridsp*this->m_invgridsp;
-    real_int d_cgrid = xi[this->m_griddim]-(x+realval_int(0.5))*this->m_gridsp[this->m_griddim];
-    int xn = x+(c+1)/2;
-
-    //------------------------------------------------------------------------------------
-    // Distribute the stress
-
-    // track previous time of crossing and check that sum is complete (?)
-    real_int oldt = realval_int(0.0); 
-
-    // fix the number of iterations
-    const int iterations = c*(i2-x);
-    for (int count = 0; count <= iterations; ++count)
-    {
-        // there is always iterations+1, where the last iteration deals
-        // with any residual
-        const real_int newt = (iterations == count) ? realval_int(1.0) : t_c1-xn*t_c2;
-
-        // work out the parametric time constants
-        const real_int t12 = oldt*oldt;
-        const real_int t22 = newt*newt;
-        const real_int dt1 = newt - oldt;
-        const real_int dt2 = t22 - t12;
-
-        const int p1 = ((x + 1 + this->m_nxyz[this->m_griddim]) % this->m_nxyz[this->m_griddim]);
-        const int m1 = ((x + this->m_nxyz[this->m_griddim]) % this->m_nxyz[this->m_griddim]);
-
-        // the composite constants in terms of i, j, k
-        const real_int D1 = this->m_gridsp[5-this->m_griddim]*(realval_int(2.0)*d_cgrid*dt1+diff[this->m_griddim]*dt2);
-        const real_int D2 = this->m_gridsp[6]*dt1;
-        scalesummatrix6(C*( D1 + D2), elast, gridElast[p1]);
-        scalesummatrix6(C*(-D1 + D2), elast, gridElast[m1]);
-        
-        d_cgrid -= c * m_gridsp[this->m_griddim];
-        oldt = newt;
-        
-        x += c;
-        xn += c;
-    }
-}
-
-void StressGrid::DistributeElasticity_internal3D(array3_int xi, array3_int xj, array3_int xk, array3_int xl, real_int phi, real_int kappa)
-{
-    // this is the 3D case
-    int batch_id = this->m_thread_map[std::this_thread::get_id()];
-    matrix6_int * gridElast = this->p_current_grid_elborn+batch_id*this->m_ncells;
-
-    //------------------------------------------------------------------------------------
-    // Calculate the stress tensor
-    array3_int diff, diff2;
-    real_int rinv, rinv2, rinv3;
-    diffarray3( xj, xi, diff, this->m_box, this->m_periodic);
-    diffarray3( xl, xk, diff2, this->m_box, this->m_periodic);
-    rinv = realval_int(1.0)/normarray3(diff);
-    rinv2 = (real_int)(kappa)*rinv/normarray3(diff2);
-    rinv3 = (real_int)(phi)*rinv*rinv*rinv;
-
-    // Stiffness matrix in Voigt notation
-    // 0 = xx; 1 = yy; 2 = zz; 3 = yz or zy; 4 = xz or zx; 5 = xy or yx
-    // All indices                         Voigt indices           Stress indices
-    // ( xxxx xxyy xxzz xxyz xxxz xxxy ) = ( 00 01 02 03 04 05 ) = [ 0000 0011 0022 0012 0002 0001 ]
-    // (      yyyy yyzz yyyz yyxz yyxy ) = (    11 12 13 14 15 ) = [      1111 1122 1112 1102 1101 ]
-    // (           zzzz zzyz zzxz zzxy ) = (       22 23 24 25 ) = [           2222 2212 2202 2201 ]
-    // (                yzyz yzxz yzxy ) = (          33 34 35 ) = [                1212 1202 1201 ]
-    // (                     xzxz xzxy ) = (             44 45 ) = [                     0202 0201 ]
-    // (                          xyxy ) = (                55 ) = [                          0101 ]
-
-    matrix6_int elast = {0};
-    elast[0][0] = diff[0]*diff[0]*diff2[0]*diff2[0]*rinv2 - diff[0]*diff[0]*diff[0]*diff[0]*rinv3;
-    elast[0][1] = diff[0]*diff[0]*diff2[1]*diff2[1]*rinv2 - diff[0]*diff[0]*diff[1]*diff[1]*rinv3;
-    elast[0][2] = diff[0]*diff[0]*diff2[2]*diff2[2]*rinv2 - diff[0]*diff[0]*diff[2]*diff[2]*rinv3;
-    elast[0][3] = diff[0]*diff[0]*diff2[1]*diff2[2]*rinv2 - diff[0]*diff[0]*diff[1]*diff[2]*rinv3;
-    elast[0][4] = diff[0]*diff[0]*diff2[0]*diff2[2]*rinv2 - diff[0]*diff[0]*diff[0]*diff[2]*rinv3;
-    elast[0][5] = diff[0]*diff[0]*diff2[0]*diff2[1]*rinv2 - diff[0]*diff[0]*diff[0]*diff[1]*rinv3;
-    elast[1][1] = diff[1]*diff[1]*diff2[1]*diff2[1]*rinv2 - diff[1]*diff[1]*diff[1]*diff[1]*rinv3;
-    elast[1][2] = diff[1]*diff[1]*diff2[2]*diff2[2]*rinv2 - diff[1]*diff[1]*diff[2]*diff[2]*rinv3;
-    elast[1][3] = diff[1]*diff[1]*diff2[1]*diff2[2]*rinv2 - diff[1]*diff[1]*diff[1]*diff[2]*rinv3;
-    elast[1][4] = diff[1]*diff[1]*diff2[0]*diff2[2]*rinv2 - diff[1]*diff[1]*diff[0]*diff[2]*rinv3;
-    elast[1][5] = diff[1]*diff[1]*diff2[0]*diff2[1]*rinv2 - diff[1]*diff[1]*diff[0]*diff[1]*rinv3;
-    elast[2][2] = diff[2]*diff[2]*diff2[2]*diff2[2]*rinv2 - diff[2]*diff[2]*diff[2]*diff[2]*rinv3;
-    elast[2][3] = diff[2]*diff[2]*diff2[1]*diff2[2]*rinv2 - diff[2]*diff[2]*diff[1]*diff[2]*rinv3;
-    elast[2][4] = diff[2]*diff[2]*diff2[0]*diff2[2]*rinv2 - diff[2]*diff[2]*diff[0]*diff[2]*rinv3;
-    elast[2][5] = diff[2]*diff[2]*diff2[0]*diff2[1]*rinv2 - diff[2]*diff[2]*diff[0]*diff[1]*rinv3;
-    elast[3][3] = diff[1]*diff[2]*diff2[1]*diff2[2]*rinv2 - diff[1]*diff[2]*diff[1]*diff[2]*rinv3;
-    elast[3][4] = diff[1]*diff[2]*diff2[0]*diff2[2]*rinv2 - diff[1]*diff[2]*diff[0]*diff[2]*rinv3;
-    elast[3][5] = diff[1]*diff[2]*diff2[0]*diff2[1]*rinv2 - diff[1]*diff[2]*diff[0]*diff[1]*rinv3;
-    elast[4][4] = diff[0]*diff[2]*diff2[0]*diff2[2]*rinv2 - diff[0]*diff[2]*diff[0]*diff[2]*rinv3;
-    elast[4][5] = diff[0]*diff[2]*diff2[0]*diff2[1]*rinv2 - diff[0]*diff[2]*diff[0]*diff[1]*rinv3;
-    elast[5][5] = diff[0]*diff[1]*diff2[0]*diff2[1]*rinv2 - diff[0]*diff[1]*diff[0]*diff[1]*rinv3;
-
-    // calculate the grid coordinates (no pbc) for the extreme points
-    iarray x, xn, i2, c;
-    array3_int t,t_c1,t_c2,d_cgrid;
-    x[0] = this->m_nxyz[0] * xi[0] * this->m_invbox[0][0] - (xi[0] < realval_int(0.0) );
-    x[1] = this->m_nxyz[1] * xi[1] * this->m_invbox[1][1] - (xi[1] < realval_int(0.0) );
-    x[2] = this->m_nxyz[2] * xi[2] * this->m_invbox[2][2] - (xi[2] < realval_int(0.0) );
-    i2[0] = this->m_nxyz[0] * xj[0] * this->m_invbox[0][0] - (xj[0] < realval_int(0.0) );
-    i2[1] = this->m_nxyz[1] * xj[1] * this->m_invbox[1][1] - (xj[1] < realval_int(0.0) );
-    i2[2] = this->m_nxyz[2] * xj[2] * this->m_invbox[2][2] - (xj[2] < realval_int(0.0) );
-    c[0] = (i2[0]>x[0])-(x[0]>i2[0]);
-    c[1] = (i2[1]>x[1])-(x[1]>i2[1]);
-    c[2] = (i2[2]>x[2])-(x[2]>i2[2]);
-    d_cgrid[0] = xi[0]-(x[0]+realval_int(0.5))*this->m_gridsp[0];
-    d_cgrid[1] = xi[1]-(x[1]+realval_int(0.5))*this->m_gridsp[1];
-    d_cgrid[2] = xi[2]-(x[2]+realval_int(0.5))*this->m_gridsp[2];
-    xn[0] = x[0]+(c[0]+1)/2;
-    xn[1] = x[1]+(c[1]+1)/2;
-    xn[2] = x[2]+(c[2]+1)/2;
-
-    // calculate parametric time in each dimension, and related constants
-    t_c1[0] = xi[0] / (xi[0]-xj[0]);
-    t_c1[1] = xi[1] / (xi[1]-xj[1]);
-    t_c1[2] = xi[2] / (xi[2]-xj[2]);
-    t_c2[0] = this->m_gridsp[0] / (xi[0]-xj[0]);
-    t_c2[1] = this->m_gridsp[1] / (xi[1]-xj[1]);
-    t_c2[2] = this->m_gridsp[2] / (xi[2]-xj[2]);
-    t[0] = (c[0] == 0) ? realval_int(1.1) : t_c1[0]-xn[0]*t_c2[0];
-    t[1] = (c[1] == 0) ? realval_int(1.1) : t_c1[1]-xn[1]*t_c2[1];
-    t[2] = (c[2] == 0) ? realval_int(1.1) : t_c1[2]-xn[2]*t_c2[2];
-
-    //------------------------------------------------------------------------------------
-    // Distribute the stress
-
-    // now the position/spatial constants
-    const real_int C = realval_int(0.125)*this->m_invgridsp*this->m_invgridsp;
-    const real_int axy = diff[0]*diff[1];
-    const real_int axz = diff[0]*diff[2];
-    const real_int ayz = diff[1]*diff[2];
-    const real_int axyz = diff[0]*ayz; 
-    
-    // track previous time of crossing
-    real_int oldt = realval_int(0.0); 
-    
-    const int iterations = c[0]*(i2[0]-x[0]) + c[1]*(i2[1]-x[1]) + c[2]*(i2[2]-x[2]);
-    for (int count = 0; count <= iterations; ++count)
-    {
-        // figure out index
-        const int cmp0x = ((t[0]<t[1]+mds_eps) + (t[0]<t[2]+mds_eps))/2;
-        const int cmp1x = ((t[1]<t[0]+mds_eps) + (t[1]<t[2]+mds_eps))/2;
-        const int cmp2x = ((t[2]<t[0]+mds_eps) + (t[2]<t[1]+mds_eps))/2;
-        const int iX = (1-cmp0x)*(cmp1x+2*(1-cmp1x)*cmp2x);
-        const real_int newt = (iterations == count) ? realval_int(1.0) : t[iX];
-
-        // work out the parametric time constants
-        const real_int t12 = oldt*oldt;
-        const real_int t22 = newt*newt;
-        const real_int dt1 = newt - oldt;
-        const real_int dt2 = t22 - t12;
-        const real_int dt3 = realval_int(4.0)*(t22*newt - t12*oldt)/realval_int(3.0);
-        const real_int dt4 = t22*t22 - t12*t12;
-
-        // additional constants
-        const real_int bxy = d_cgrid[0]*d_cgrid[1];
-        const real_int bxz = d_cgrid[0]*d_cgrid[2];
-        const real_int byz = d_cgrid[1]*d_cgrid[2];
-        const real_int bxyz = d_cgrid[0]*byz;
-    
-        const int iip1 = ((x[0] + 1 + this->m_nxyz[0]) % this->m_nxyz[0])*this->m_nxyz[1]*this->m_nxyz[2];
-        const int jjp1 = ((x[1] + 1 + this->m_nxyz[1]) % this->m_nxyz[1])*this->m_nxyz[2];
-        const int kkp1 = ((x[2] + 1 + this->m_nxyz[2]) % this->m_nxyz[2]);
-        const int iim1 = ((x[0] + this->m_nxyz[0]) % this->m_nxyz[0])*this->m_nxyz[1]*this->m_nxyz[2];
-        const int jjm1 = ((x[1] + this->m_nxyz[1]) % this->m_nxyz[1])*this->m_nxyz[2];
-        const int kkm1 = ((x[2] + this->m_nxyz[2]) % this->m_nxyz[2]);
-
-        // the composite constants in terms of i, j, k
-        const real_int D[8] = {
-            realval_int(8.0)*bxyz*dt1 + realval_int(4.0)*(diff[0]*byz+diff[1]*bxz+diff[2]*bxy)*dt2
-                + realval_int(2.0)*(d_cgrid[0]*ayz+d_cgrid[1]*axz+d_cgrid[2]*axy)*dt3 + realval_int(2.0)*axyz*dt4,
-            this->m_gridsp[0]*(realval_int(4.0)*byz*dt1 + realval_int(2.0)*(diff[1]*d_cgrid[2]+diff[2]*d_cgrid[1])*dt2 + ayz*dt3),
-            this->m_gridsp[1]*(realval_int(4.0)*bxz*dt1 + realval_int(2.0)*(diff[0]*d_cgrid[2]+diff[2]*d_cgrid[0])*dt2 + axz*dt3),
-            this->m_gridsp[2]*(realval_int(4.0)*bxy*dt1 + realval_int(2.0)*(diff[0]*d_cgrid[1]+diff[1]*d_cgrid[0])*dt2 + axy*dt3),
-            this->m_gridsp[3]*(realval_int(2.0)*d_cgrid[2]*dt1+diff[2]*dt2),
-            this->m_gridsp[4]*(realval_int(2.0)*d_cgrid[1]*dt1+diff[1]*dt2),
-            this->m_gridsp[5]*(realval_int(2.0)*d_cgrid[0]*dt1+diff[0]*dt2),
-            this->m_gridsp[6]*dt1,
-        };
-
-        // perform the sums into the grid
-        scalesummatrix6(C*( D[0] + D[1] + D[2] + D[3] + D[4] + D[5] + D[6] + D[7]), elast, gridElast[iip1 + jjp1 + kkp1]);
-        scalesummatrix6(C*(-D[0] - D[1] - D[2] + D[3] - D[4] + D[5] + D[6] + D[7]), elast, gridElast[iip1 + jjp1 + kkm1]);
-        scalesummatrix6(C*(-D[0] - D[1] + D[2] - D[3] + D[4] - D[5] + D[6] + D[7]), elast, gridElast[iip1 + jjm1 + kkp1]);
-        scalesummatrix6(C*( D[0] + D[1] - D[2] - D[3] - D[4] - D[5] + D[6] + D[7]), elast, gridElast[iip1 + jjm1 + kkm1]);
-        scalesummatrix6(C*(-D[0] + D[1] - D[2] - D[3] + D[4] + D[5] - D[6] + D[7]), elast, gridElast[iim1 + jjp1 + kkp1]);
-        scalesummatrix6(C*( D[0] - D[1] + D[2] - D[3] - D[4] + D[5] - D[6] + D[7]), elast, gridElast[iim1 + jjp1 + kkm1]);
-        scalesummatrix6(C*( D[0] - D[1] - D[2] + D[3] + D[4] - D[5] - D[6] + D[7]), elast, gridElast[iim1 + jjm1 + kkp1]);
-        scalesummatrix6(C*(-D[0] + D[1] + D[2] + D[3] - D[4] - D[5] - D[6] + D[7]), elast, gridElast[iim1 + jjm1 + kkm1]);
-
-        d_cgrid[iX] -= c[iX] * m_gridsp[iX];
-        oldt = t[iX];
-        
-        x[iX] += c[iX];
-        xn[iX] += c[iX];
-
-        // Next cross point:
-        t[iX] = t_c1[iX]-xn[iX]*t_c2[iX];
-    }
-}
-
 void StressGrid::DistributeElasticity(array3_ext xi_ext, array3_ext xj_ext, array3_ext xk_ext, array3_ext xl_ext, real_ext phi_ext, real_ext kappa_ext)
 {
     if (true == this->m_disable)
@@ -2003,9 +1407,625 @@ void StressGrid::DistributeKineticElast(real_ext mass, array3_ext x, array3_ext 
     }
 }
 
-//----------------------------------------------------------------------------------------
-//SPECIFIC DECOMPOSITIONS FOR 3,4 AND 5 AND N PARTICLES
 
+//Auxiliary Methods to Calculate the Phi and Kappa Terms for the Born Term
+// For cosine derivative functions must be called before the theta derivatives. 
+// derivative identifier dertype ab = 0, bg = 1, ag = 3
+
+// ab|bg|ag = 0 | 1 | 2
+
+// second derivative identifier derivative dertype2
+
+//indices are flipped be careful!
+
+/*
+ * abab | bgab | agab    = 00 | 01 | 02
+ * abbg | bgbg | agbg    = 10 | 11 | 12
+ * abag | bgag | agag    = 20 | 21 | 22
+ */
+
+
+
+/**
+ * PRIVATE CLASS FUNCTIONS
+ */
+// Method to delete the preallocated member variables
+void StressGrid::Clear()
+{
+    if (this->p_Amat                 != nullptr ) delete [] this->p_Amat;
+    if (this->p_AmatT                != nullptr ) delete [] this->p_AmatT;
+    if (this->p_bvec                 != nullptr ) delete [] this->p_bvec;
+    if (this->p_Rij                  != nullptr ) delete [] this->p_Rij;
+    if (this->p_Fij                  != nullptr ) delete [] this->p_Fij;
+    if (this->p_Uij                  != nullptr ) delete [] this->p_Uij;
+    if (this->p_current_grid         != nullptr ) delete [] this->p_current_grid;
+    if (this->p_current_gridtot      != nullptr ) delete [] this->p_current_gridtot;
+    if (this->p_current_grid_elborn  != nullptr ) delete [] this->p_current_grid_elborn;
+    if (this->p_current_grid_elkin   != nullptr ) delete [] this->p_current_grid_elkin;
+    if (this->p_sum_grid             != nullptr ) delete [] this->p_sum_grid;
+    if (this->p_avg_grid             != nullptr ) delete [] this->p_avg_grid;
+    if (this->p_avg_gridtot          != nullptr ) delete [] this->p_avg_gridtot;
+    if (this->p_sum_grid_elcovar     != nullptr ) delete [] this->p_sum_grid_elcovar;
+    if (this->p_sum_grid_elkin       != nullptr ) delete [] this->p_sum_grid_elkin;
+    if (this->p_sum_grid_elborn      != nullptr ) delete [] this->p_sum_grid_elborn;
+    if (this->p_sum_grid_volcovar    != nullptr ) delete [] this->p_sum_grid_volcovar;
+    if (this->p_sum_gridtot_volcovar != nullptr ) delete [] this->p_sum_gridtot_volcovar;
+    if (this->p_sum_volume           != nullptr ) delete [] this->p_sum_volume;
+    if (this->p_molecule_id          != nullptr ) delete [] this->p_molecule_id;
+    if (this->p_radii                != nullptr ) delete [] this->p_radii;
+    if (this->p_positions            != nullptr ) delete [] this->p_positions;
+    if (this->h_lapack               != nullptr )
+    {
+        for (int i = 0; i < m_max_threads; ++i)
+            delete this->h_lapack[i];
+        delete [] this->h_lapack;
+    }
+    
+    this->m_avg_boxvol    = 0.0;
+    this->m_var_boxvol    = 0.0;
+    this->m_maxpart       = 0;
+    this->p_Amat          = nullptr;
+    this->p_AmatT         = nullptr;
+    this->p_bvec          = nullptr;
+    this->p_Rij           = nullptr;
+    this->p_Fij           = nullptr;
+    this->p_Uij           = nullptr;
+    this->p_current_grid  = nullptr;
+    this->p_current_gridtot  = nullptr;
+    this->p_current_grid_elborn  = nullptr;
+    this->p_current_grid_elkin  = nullptr;
+    this->p_sum_grid      = nullptr;
+    this->p_avg_grid      = nullptr;
+    this->p_avg_gridtot   = nullptr;
+    this->p_sum_grid_elcovar      = nullptr;
+    this->p_sum_grid_elkin      = nullptr;
+    this->p_sum_grid_elborn      = nullptr;
+    this->p_sum_grid_volcovar      = nullptr;
+    this->p_sum_gridtot_volcovar      = nullptr;
+    this->p_sum_volume    = nullptr;
+    this->p_molecule_id   = nullptr;
+    this->p_radii         = nullptr;
+    this->p_positions     = nullptr;
+    this->h_lapack        = nullptr;
+
+    if (this->m_initialized)
+        this->m_initialized = false;
+
+#ifdef CUSTRESS_ENABLE
+    if (this->m_cuda)
+        custress_clear();
+#endif//CUSTRESS_ENABLE
+}
+
+// This function is provided to identify bad settings
+int StressGrid::CheckSettings()
+{
+    if ( this->m_spatatom != mds_spat && this->m_spatatom != mds_atom )
+    {
+        std::cout << "ERROR::StressGrid: The stress type (SetStressType) should be either spatial (0) or atomic (1)\n";
+        return 1;
+    }
+    if ( this->m_spatatom == mds_spat )
+    {
+        if ( this->m_nxyz[0] < 0 || this->m_nxyz[1] < 0 || this->m_nxyz[2] < 0)
+        {
+            std::cout << "ERROR::StressGrid: The number of grid cells are negative: (nx,ny,nz)=" << " ( " <<this->m_nxyz[0] << ", " << this->m_nxyz[1] << ", " <<this->m_nxyz[2] << " )\n"; 
+            return 2;
+        }
+        
+        if ( this->m_nxyz[0] == 0 && this->m_nxyz[1] == 0 && this->m_nxyz[2] == 0)
+        {
+            if ( this->m_spacing < mds_eps )
+            {
+                std::cout << "ERROR::StressGrid: The local spacing is too small: " << this->m_spacing << "( < " << mds_eps << " )\n"; 
+                return 3;
+            }
+            
+            if ( iszeromatrix3(this->m_box) )
+            {
+                std::cout << "ERROR::StressGrid: The initial MD box haven't been set or it's too small\n"; 
+                return 4;
+            }
+        }
+        
+        if ( this->m_fdecomp < mds_ccfd || this->m_fdecomp > mds_gld )
+        {
+            std::cout << "ERROR::StressGrid: The stress type (SetForceDecomposition) should be: 0 (cCFD), 1 (nCFD), 2 (GLD) or 3 (GMC)\n";
+            return 5;
+        }
+    }
+    else
+    {
+        if ( this->m_nAtoms <= 0 )
+        {
+            std::cout << "ERROR::StressGrid: Number of atoms must > 0\n";
+            return 6;
+        }
+    }
+
+    if ( this->m_filename.size() == 0 )
+    {
+        std::cout << "ERROR::StressGrid: Filename for output is not set (SetFileName)" << mds_sl << " and " << mds_cmp << "\n";
+        return 8;
+    }
+    
+    if ( this->m_maxClust <= 1 )
+    {
+        std::cout << "ERROR:StressGrid: The maximum number of particles in a cluster is not valid:" << this->m_maxClust << "\n";
+    }
+    this->Clear();
+    
+    return 0;
+}
+
+void StressGrid::DistributeElasticity_internal1D(array3_int xi, array3_int xj, array3_int xk, array3_int xl, real_int phi, real_int kappa)
+{
+    // this is the 1D case
+    int batch_id = this->m_thread_map[std::this_thread::get_id()];
+    matrix6_int * gridElast = this->p_current_grid_elborn+batch_id*this->m_ncells;
+
+    //------------------------------------------------------------------------------------
+    // Calculate the elasticity tensor
+    array3_int diff, diff2;
+    real_int rinv, rinv2, rinv3;
+    diffarray3( xj, xi, diff, this->m_box, this->m_periodic);
+    diffarray3( xl, xk, diff2, this->m_box, this->m_periodic);
+    rinv = realval_int(1.0)/normarray3(diff);
+    rinv2 = (real_int)(kappa)*rinv/normarray3(diff2);
+    rinv3 = (real_int)(phi)*rinv*rinv*rinv;
+
+    // Stiffness matrix in Voigt notation
+    // 0 = xx; 1 = yy; 2 = zz; 3 = yz or zy; 4 = xz or zx; 5 = xy or yx
+    // All indices                         Voigt indices           Stress indices
+    // ( xxxx xxyy xxzz xxyz xxxz xxxy ) = ( 00 01 02 03 04 05 ) = [ 0000 0011 0022 0012 0002 0001 ]
+    // (      yyyy yyzz yyyz yyxz yyxy ) = (    11 12 13 14 15 ) = [      1111 1122 1112 1102 1101 ]
+    // (           zzzz zzyz zzxz zzxy ) = (       22 23 24 25 ) = [           2222 2212 2202 2201 ]
+    // (                yzyz yzxz yzxy ) = (          33 34 35 ) = [                1212 1202 1201 ]
+    // (                     xzxz xzxy ) = (             44 45 ) = [                     0202 0201 ]
+    // (                          xyxy ) = (                55 ) = [                          0101 ]
+
+    matrix6_int elast = {0};
+    elast[0][0] = diff[0]*diff[0]*diff2[0]*diff2[0]*rinv2 - diff[0]*diff[0]*diff[0]*diff[0]*rinv3;
+    elast[0][1] = diff[0]*diff[0]*diff2[1]*diff2[1]*rinv2 - diff[0]*diff[0]*diff[1]*diff[1]*rinv3;
+    elast[0][2] = diff[0]*diff[0]*diff2[2]*diff2[2]*rinv2 - diff[0]*diff[0]*diff[2]*diff[2]*rinv3;
+    elast[0][3] = diff[0]*diff[0]*diff2[1]*diff2[2]*rinv2 - diff[0]*diff[0]*diff[1]*diff[2]*rinv3;
+    elast[0][4] = diff[0]*diff[0]*diff2[0]*diff2[2]*rinv2 - diff[0]*diff[0]*diff[0]*diff[2]*rinv3;
+    elast[0][5] = diff[0]*diff[0]*diff2[0]*diff2[1]*rinv2 - diff[0]*diff[0]*diff[0]*diff[1]*rinv3;
+    elast[1][1] = diff[1]*diff[1]*diff2[1]*diff2[1]*rinv2 - diff[1]*diff[1]*diff[1]*diff[1]*rinv3;
+    elast[1][2] = diff[1]*diff[1]*diff2[2]*diff2[2]*rinv2 - diff[1]*diff[1]*diff[2]*diff[2]*rinv3;
+    elast[1][3] = diff[1]*diff[1]*diff2[1]*diff2[2]*rinv2 - diff[1]*diff[1]*diff[1]*diff[2]*rinv3;
+    elast[1][4] = diff[1]*diff[1]*diff2[0]*diff2[2]*rinv2 - diff[1]*diff[1]*diff[0]*diff[2]*rinv3;
+    elast[1][5] = diff[1]*diff[1]*diff2[0]*diff2[1]*rinv2 - diff[1]*diff[1]*diff[0]*diff[1]*rinv3;
+    elast[2][2] = diff[2]*diff[2]*diff2[2]*diff2[2]*rinv2 - diff[2]*diff[2]*diff[2]*diff[2]*rinv3;
+    elast[2][3] = diff[2]*diff[2]*diff2[1]*diff2[2]*rinv2 - diff[2]*diff[2]*diff[1]*diff[2]*rinv3;
+    elast[2][4] = diff[2]*diff[2]*diff2[0]*diff2[2]*rinv2 - diff[2]*diff[2]*diff[0]*diff[2]*rinv3;
+    elast[2][5] = diff[2]*diff[2]*diff2[0]*diff2[1]*rinv2 - diff[2]*diff[2]*diff[0]*diff[1]*rinv3;
+    elast[3][3] = diff[1]*diff[2]*diff2[1]*diff2[2]*rinv2 - diff[1]*diff[2]*diff[1]*diff[2]*rinv3;
+    elast[3][4] = diff[1]*diff[2]*diff2[0]*diff2[2]*rinv2 - diff[1]*diff[2]*diff[0]*diff[2]*rinv3;
+    elast[3][5] = diff[1]*diff[2]*diff2[0]*diff2[1]*rinv2 - diff[1]*diff[2]*diff[0]*diff[1]*rinv3;
+    elast[4][4] = diff[0]*diff[2]*diff2[0]*diff2[2]*rinv2 - diff[0]*diff[2]*diff[0]*diff[2]*rinv3;
+    elast[4][5] = diff[0]*diff[2]*diff2[0]*diff2[1]*rinv2 - diff[0]*diff[2]*diff[0]*diff[1]*rinv3;
+    elast[5][5] = diff[0]*diff[1]*diff2[0]*diff2[1]*rinv2 - diff[0]*diff[1]*diff[0]*diff[1]*rinv3;
+
+    // calculate the grid coordinates (no pbc) for the extreme points
+    int x = this->m_nxyz[this->m_griddim] * xi[this->m_griddim] * this->m_invbox[this->m_griddim][this->m_griddim] - (xi[this->m_griddim] < 0.0);
+    const int i2 = this->m_nxyz[this->m_griddim] * xj[this->m_griddim] * this->m_invbox[this->m_griddim][this->m_griddim] - (xj[this->m_griddim] < 0.0);
+    const int c = (i2>x)-(x>i2);
+    const real_int t_c1 = xi[this->m_griddim] / (xi[this->m_griddim]-xj[this->m_griddim]);
+    const real_int t_c2 = this->m_gridsp[this->m_griddim] / (xi[this->m_griddim]-xj[this->m_griddim]);
+    const real_int C = realval_int(0.5)*this->m_invgridsp*this->m_invgridsp;
+    real_int d_cgrid = xi[this->m_griddim]-(x+realval_int(0.5))*this->m_gridsp[this->m_griddim];
+    int xn = x+(c+1)/2;
+
+    //------------------------------------------------------------------------------------
+    // Distribute the stress
+
+    // track previous time of crossing and check that sum is complete (?)
+    real_int oldt = realval_int(0.0); 
+
+    // fix the number of iterations
+    const int iterations = c*(i2-x);
+    for (int count = 0; count <= iterations; ++count)
+    {
+        // there is always iterations+1, where the last iteration deals
+        // with any residual
+        const real_int newt = (iterations == count) ? realval_int(1.0) : t_c1-xn*t_c2;
+
+        // work out the parametric time constants
+        const real_int t12 = oldt*oldt;
+        const real_int t22 = newt*newt;
+        const real_int dt1 = newt - oldt;
+        const real_int dt2 = t22 - t12;
+
+        const int p1 = ((x + 1 + this->m_nxyz[this->m_griddim]) % this->m_nxyz[this->m_griddim]);
+        const int m1 = ((x + this->m_nxyz[this->m_griddim]) % this->m_nxyz[this->m_griddim]);
+
+        // the composite constants in terms of i, j, k
+        const real_int D1 = this->m_gridsp[5-this->m_griddim]*(realval_int(2.0)*d_cgrid*dt1+diff[this->m_griddim]*dt2);
+        const real_int D2 = this->m_gridsp[6]*dt1;
+        scalesummatrix6(C*( D1 + D2), elast, gridElast[p1]);
+        scalesummatrix6(C*(-D1 + D2), elast, gridElast[m1]);
+        
+        d_cgrid -= c * m_gridsp[this->m_griddim];
+        oldt = newt;
+        
+        x += c;
+        xn += c;
+    }
+}
+
+void StressGrid::DistributeElasticity_internal3D(array3_int xi, array3_int xj, array3_int xk, array3_int xl, real_int phi, real_int kappa)
+{
+    // this is the 3D case
+    int batch_id = this->m_thread_map[std::this_thread::get_id()];
+    matrix6_int * gridElast = this->p_current_grid_elborn+batch_id*this->m_ncells;
+
+    //------------------------------------------------------------------------------------
+    // Calculate the stress tensor
+    array3_int diff, diff2;
+    real_int rinv, rinv2, rinv3;
+    diffarray3( xj, xi, diff, this->m_box, this->m_periodic);
+    diffarray3( xl, xk, diff2, this->m_box, this->m_periodic);
+    rinv = realval_int(1.0)/normarray3(diff);
+    rinv2 = (real_int)(kappa)*rinv/normarray3(diff2);
+    rinv3 = (real_int)(phi)*rinv*rinv*rinv;
+
+    // Stiffness matrix in Voigt notation
+    // 0 = xx; 1 = yy; 2 = zz; 3 = yz or zy; 4 = xz or zx; 5 = xy or yx
+    // All indices                         Voigt indices           Stress indices
+    // ( xxxx xxyy xxzz xxyz xxxz xxxy ) = ( 00 01 02 03 04 05 ) = [ 0000 0011 0022 0012 0002 0001 ]
+    // (      yyyy yyzz yyyz yyxz yyxy ) = (    11 12 13 14 15 ) = [      1111 1122 1112 1102 1101 ]
+    // (           zzzz zzyz zzxz zzxy ) = (       22 23 24 25 ) = [           2222 2212 2202 2201 ]
+    // (                yzyz yzxz yzxy ) = (          33 34 35 ) = [                1212 1202 1201 ]
+    // (                     xzxz xzxy ) = (             44 45 ) = [                     0202 0201 ]
+    // (                          xyxy ) = (                55 ) = [                          0101 ]
+
+    matrix6_int elast = {0};
+    elast[0][0] = diff[0]*diff[0]*diff2[0]*diff2[0]*rinv2 - diff[0]*diff[0]*diff[0]*diff[0]*rinv3;
+    elast[0][1] = diff[0]*diff[0]*diff2[1]*diff2[1]*rinv2 - diff[0]*diff[0]*diff[1]*diff[1]*rinv3;
+    elast[0][2] = diff[0]*diff[0]*diff2[2]*diff2[2]*rinv2 - diff[0]*diff[0]*diff[2]*diff[2]*rinv3;
+    elast[0][3] = diff[0]*diff[0]*diff2[1]*diff2[2]*rinv2 - diff[0]*diff[0]*diff[1]*diff[2]*rinv3;
+    elast[0][4] = diff[0]*diff[0]*diff2[0]*diff2[2]*rinv2 - diff[0]*diff[0]*diff[0]*diff[2]*rinv3;
+    elast[0][5] = diff[0]*diff[0]*diff2[0]*diff2[1]*rinv2 - diff[0]*diff[0]*diff[0]*diff[1]*rinv3;
+    elast[1][1] = diff[1]*diff[1]*diff2[1]*diff2[1]*rinv2 - diff[1]*diff[1]*diff[1]*diff[1]*rinv3;
+    elast[1][2] = diff[1]*diff[1]*diff2[2]*diff2[2]*rinv2 - diff[1]*diff[1]*diff[2]*diff[2]*rinv3;
+    elast[1][3] = diff[1]*diff[1]*diff2[1]*diff2[2]*rinv2 - diff[1]*diff[1]*diff[1]*diff[2]*rinv3;
+    elast[1][4] = diff[1]*diff[1]*diff2[0]*diff2[2]*rinv2 - diff[1]*diff[1]*diff[0]*diff[2]*rinv3;
+    elast[1][5] = diff[1]*diff[1]*diff2[0]*diff2[1]*rinv2 - diff[1]*diff[1]*diff[0]*diff[1]*rinv3;
+    elast[2][2] = diff[2]*diff[2]*diff2[2]*diff2[2]*rinv2 - diff[2]*diff[2]*diff[2]*diff[2]*rinv3;
+    elast[2][3] = diff[2]*diff[2]*diff2[1]*diff2[2]*rinv2 - diff[2]*diff[2]*diff[1]*diff[2]*rinv3;
+    elast[2][4] = diff[2]*diff[2]*diff2[0]*diff2[2]*rinv2 - diff[2]*diff[2]*diff[0]*diff[2]*rinv3;
+    elast[2][5] = diff[2]*diff[2]*diff2[0]*diff2[1]*rinv2 - diff[2]*diff[2]*diff[0]*diff[1]*rinv3;
+    elast[3][3] = diff[1]*diff[2]*diff2[1]*diff2[2]*rinv2 - diff[1]*diff[2]*diff[1]*diff[2]*rinv3;
+    elast[3][4] = diff[1]*diff[2]*diff2[0]*diff2[2]*rinv2 - diff[1]*diff[2]*diff[0]*diff[2]*rinv3;
+    elast[3][5] = diff[1]*diff[2]*diff2[0]*diff2[1]*rinv2 - diff[1]*diff[2]*diff[0]*diff[1]*rinv3;
+    elast[4][4] = diff[0]*diff[2]*diff2[0]*diff2[2]*rinv2 - diff[0]*diff[2]*diff[0]*diff[2]*rinv3;
+    elast[4][5] = diff[0]*diff[2]*diff2[0]*diff2[1]*rinv2 - diff[0]*diff[2]*diff[0]*diff[1]*rinv3;
+    elast[5][5] = diff[0]*diff[1]*diff2[0]*diff2[1]*rinv2 - diff[0]*diff[1]*diff[0]*diff[1]*rinv3;
+
+    // calculate the grid coordinates (no pbc) for the extreme points
+    iarray x, xn, i2, c;
+    array3_int t,t_c1,t_c2,d_cgrid;
+    x[0] = this->m_nxyz[0] * xi[0] * this->m_invbox[0][0] - (xi[0] < realval_int(0.0) );
+    x[1] = this->m_nxyz[1] * xi[1] * this->m_invbox[1][1] - (xi[1] < realval_int(0.0) );
+    x[2] = this->m_nxyz[2] * xi[2] * this->m_invbox[2][2] - (xi[2] < realval_int(0.0) );
+    i2[0] = this->m_nxyz[0] * xj[0] * this->m_invbox[0][0] - (xj[0] < realval_int(0.0) );
+    i2[1] = this->m_nxyz[1] * xj[1] * this->m_invbox[1][1] - (xj[1] < realval_int(0.0) );
+    i2[2] = this->m_nxyz[2] * xj[2] * this->m_invbox[2][2] - (xj[2] < realval_int(0.0) );
+    c[0] = (i2[0]>x[0])-(x[0]>i2[0]);
+    c[1] = (i2[1]>x[1])-(x[1]>i2[1]);
+    c[2] = (i2[2]>x[2])-(x[2]>i2[2]);
+    d_cgrid[0] = xi[0]-(x[0]+realval_int(0.5))*this->m_gridsp[0];
+    d_cgrid[1] = xi[1]-(x[1]+realval_int(0.5))*this->m_gridsp[1];
+    d_cgrid[2] = xi[2]-(x[2]+realval_int(0.5))*this->m_gridsp[2];
+    xn[0] = x[0]+(c[0]+1)/2;
+    xn[1] = x[1]+(c[1]+1)/2;
+    xn[2] = x[2]+(c[2]+1)/2;
+
+    // calculate parametric time in each dimension, and related constants
+    t_c1[0] = xi[0] / (xi[0]-xj[0]);
+    t_c1[1] = xi[1] / (xi[1]-xj[1]);
+    t_c1[2] = xi[2] / (xi[2]-xj[2]);
+    t_c2[0] = this->m_gridsp[0] / (xi[0]-xj[0]);
+    t_c2[1] = this->m_gridsp[1] / (xi[1]-xj[1]);
+    t_c2[2] = this->m_gridsp[2] / (xi[2]-xj[2]);
+    t[0] = (c[0] == 0) ? realval_int(1.1) : t_c1[0]-xn[0]*t_c2[0];
+    t[1] = (c[1] == 0) ? realval_int(1.1) : t_c1[1]-xn[1]*t_c2[1];
+    t[2] = (c[2] == 0) ? realval_int(1.1) : t_c1[2]-xn[2]*t_c2[2];
+
+    //------------------------------------------------------------------------------------
+    // Distribute the stress
+
+    // now the position/spatial constants
+    const real_int C = realval_int(0.125)*this->m_invgridsp*this->m_invgridsp;
+    const real_int axy = diff[0]*diff[1];
+    const real_int axz = diff[0]*diff[2];
+    const real_int ayz = diff[1]*diff[2];
+    const real_int axyz = diff[0]*ayz; 
+    
+    // track previous time of crossing
+    real_int oldt = realval_int(0.0); 
+    
+    const int iterations = c[0]*(i2[0]-x[0]) + c[1]*(i2[1]-x[1]) + c[2]*(i2[2]-x[2]);
+    for (int count = 0; count <= iterations; ++count)
+    {
+        // figure out index
+        const int cmp0x = ((t[0]<t[1]+mds_eps) + (t[0]<t[2]+mds_eps))/2;
+        const int cmp1x = ((t[1]<t[0]+mds_eps) + (t[1]<t[2]+mds_eps))/2;
+        const int cmp2x = ((t[2]<t[0]+mds_eps) + (t[2]<t[1]+mds_eps))/2;
+        const int iX = (1-cmp0x)*(cmp1x+2*(1-cmp1x)*cmp2x);
+        const real_int newt = (iterations == count) ? realval_int(1.0) : t[iX];
+
+        // work out the parametric time constants
+        const real_int t12 = oldt*oldt;
+        const real_int t22 = newt*newt;
+        const real_int dt1 = newt - oldt;
+        const real_int dt2 = t22 - t12;
+        const real_int dt3 = realval_int(4.0)*(t22*newt - t12*oldt)/realval_int(3.0);
+        const real_int dt4 = t22*t22 - t12*t12;
+
+        // additional constants
+        const real_int bxy = d_cgrid[0]*d_cgrid[1];
+        const real_int bxz = d_cgrid[0]*d_cgrid[2];
+        const real_int byz = d_cgrid[1]*d_cgrid[2];
+        const real_int bxyz = d_cgrid[0]*byz;
+    
+        const int iip1 = ((x[0] + 1 + this->m_nxyz[0]) % this->m_nxyz[0])*this->m_nxyz[1]*this->m_nxyz[2];
+        const int jjp1 = ((x[1] + 1 + this->m_nxyz[1]) % this->m_nxyz[1])*this->m_nxyz[2];
+        const int kkp1 = ((x[2] + 1 + this->m_nxyz[2]) % this->m_nxyz[2]);
+        const int iim1 = ((x[0] + this->m_nxyz[0]) % this->m_nxyz[0])*this->m_nxyz[1]*this->m_nxyz[2];
+        const int jjm1 = ((x[1] + this->m_nxyz[1]) % this->m_nxyz[1])*this->m_nxyz[2];
+        const int kkm1 = ((x[2] + this->m_nxyz[2]) % this->m_nxyz[2]);
+
+        // the composite constants in terms of i, j, k
+        const real_int D[8] = {
+            realval_int(8.0)*bxyz*dt1 + realval_int(4.0)*(diff[0]*byz+diff[1]*bxz+diff[2]*bxy)*dt2
+                + realval_int(2.0)*(d_cgrid[0]*ayz+d_cgrid[1]*axz+d_cgrid[2]*axy)*dt3 + realval_int(2.0)*axyz*dt4,
+            this->m_gridsp[0]*(realval_int(4.0)*byz*dt1 + realval_int(2.0)*(diff[1]*d_cgrid[2]+diff[2]*d_cgrid[1])*dt2 + ayz*dt3),
+            this->m_gridsp[1]*(realval_int(4.0)*bxz*dt1 + realval_int(2.0)*(diff[0]*d_cgrid[2]+diff[2]*d_cgrid[0])*dt2 + axz*dt3),
+            this->m_gridsp[2]*(realval_int(4.0)*bxy*dt1 + realval_int(2.0)*(diff[0]*d_cgrid[1]+diff[1]*d_cgrid[0])*dt2 + axy*dt3),
+            this->m_gridsp[3]*(realval_int(2.0)*d_cgrid[2]*dt1+diff[2]*dt2),
+            this->m_gridsp[4]*(realval_int(2.0)*d_cgrid[1]*dt1+diff[1]*dt2),
+            this->m_gridsp[5]*(realval_int(2.0)*d_cgrid[0]*dt1+diff[0]*dt2),
+            this->m_gridsp[6]*dt1,
+        };
+
+        // perform the sums into the grid
+        scalesummatrix6(C*( D[0] + D[1] + D[2] + D[3] + D[4] + D[5] + D[6] + D[7]), elast, gridElast[iip1 + jjp1 + kkp1]);
+        scalesummatrix6(C*(-D[0] - D[1] - D[2] + D[3] - D[4] + D[5] + D[6] + D[7]), elast, gridElast[iip1 + jjp1 + kkm1]);
+        scalesummatrix6(C*(-D[0] - D[1] + D[2] - D[3] + D[4] - D[5] + D[6] + D[7]), elast, gridElast[iip1 + jjm1 + kkp1]);
+        scalesummatrix6(C*( D[0] + D[1] - D[2] - D[3] - D[4] - D[5] + D[6] + D[7]), elast, gridElast[iip1 + jjm1 + kkm1]);
+        scalesummatrix6(C*(-D[0] + D[1] - D[2] - D[3] + D[4] + D[5] - D[6] + D[7]), elast, gridElast[iim1 + jjp1 + kkp1]);
+        scalesummatrix6(C*( D[0] - D[1] + D[2] - D[3] - D[4] + D[5] - D[6] + D[7]), elast, gridElast[iim1 + jjp1 + kkm1]);
+        scalesummatrix6(C*( D[0] - D[1] - D[2] + D[3] + D[4] - D[5] - D[6] + D[7]), elast, gridElast[iim1 + jjm1 + kkp1]);
+        scalesummatrix6(C*(-D[0] + D[1] + D[2] + D[3] - D[4] - D[5] - D[6] + D[7]), elast, gridElast[iim1 + jjm1 + kkm1]);
+
+        d_cgrid[iX] -= c[iX] * m_gridsp[iX];
+        oldt = t[iX];
+        
+        x[iX] += c[iX];
+        xn[iX] += c[iX];
+
+        // Next cross point:
+        t[iX] = t_c1[iX]-xn[iX]*t_c2[iX];
+    }
+}
+
+//----------------------------------------------------------------------------------------
+// DistributePairInteraction
+//
+// Distributes interactions onto locals_grid (from the initial grid point to the last grid point)
+// Requires:
+// xi   -> position of particle I (A)
+// xj   -> position of particle J (B)
+// F    -> pairwise force
+void StressGrid::DistributePairInteraction( array3_int xi, array3_int xj, array3_int F, int batch_id )
+{
+#ifdef CUSTRESS_ENABLE
+    if (this->m_cuda && custress_distribute_pair_interaction(xi,xj,F,batch_id))
+        return;
+#endif
+    if (this->m_griddim == mds_griddim_xyz)
+        DistributePairInteraction3D(xi,xj,F,batch_id);
+    else
+        DistributePairInteraction1D(xi,xj,F,batch_id);
+}
+
+void StressGrid::DistributePairInteraction1D(array3_int xi, array3_int xj, array3_int F, int batch_id )
+{
+    // select grid based on batch index
+    matrix3_int * grid = this->p_current_grid+batch_id*this->m_ncells;
+    
+    //------------------------------------------------------------------------------------
+    // Calculate the stress tensor
+    array3_int diff;
+    diffarray3( xj, xi, diff, this->m_box, this->m_periodic);
+    matrix3_int stress;
+    stress[0][0] = (real_int)(F[0])*diff[0];
+    stress[1][0] = (real_int)(F[1])*diff[0];
+    stress[2][0] = (real_int)(F[2])*diff[0];
+    stress[0][1] = (real_int)(F[0])*diff[1];
+    stress[1][1] = (real_int)(F[1])*diff[1];
+    stress[2][1] = (real_int)(F[2])*diff[1];
+    stress[0][2] = (real_int)(F[0])*diff[2];
+    stress[1][2] = (real_int)(F[1])*diff[2];
+    stress[2][2] = (real_int)(F[2])*diff[2];
+
+    // calculate the grid coordinates (no pbc) for the extreme points
+    int x = this->m_nxyz[this->m_griddim] * xi[this->m_griddim] * this->m_invbox[this->m_griddim][this->m_griddim] - (xi[this->m_griddim] < 0.0);
+    const int i2 = this->m_nxyz[this->m_griddim] * xj[this->m_griddim] * this->m_invbox[this->m_griddim][this->m_griddim] - (xj[this->m_griddim] < 0.0);
+    const int c = (i2>x)-(x>i2);
+    const real_int t_c1 = xi[this->m_griddim] / (xi[this->m_griddim]-xj[this->m_griddim]);
+    const real_int t_c2 = this->m_gridsp[this->m_griddim] / (xi[this->m_griddim]-xj[this->m_griddim]);
+    const real_int C = realval_int(0.5)*this->m_invgridsp*this->m_invgridsp;
+    real_int d_cgrid = xi[this->m_griddim]-(x+realval_int(0.5))*this->m_gridsp[this->m_griddim];
+    int xn = x+(c+1)/2;
+
+    //------------------------------------------------------------------------------------
+    // Distribute the stress
+
+    // track previous time of crossing and check that sum is complete (?)
+    real_int oldt = 0.0; 
+
+    // fix the number of iterations
+    const int iterations = c*(i2-x);
+    for (int count = 0; count <= iterations; ++count)
+    {
+        // there is always iterations+1, where the last iteration deals
+        // with any residual
+        real_int newt = (iterations == count) ? realval_int(1.0) : t_c1-xn*t_c2;
+
+        // work out the parametric time constants
+        const real_int t12 = oldt*oldt;
+        const real_int t22 = newt*newt;
+        const real_int dt1 = newt - oldt;
+        const real_int dt2 = t22 - t12;
+
+        const int p1 = ((x + 1 + this->m_nxyz[this->m_griddim]) % this->m_nxyz[this->m_griddim]);
+        const int m1 = ((x + this->m_nxyz[this->m_griddim]) % this->m_nxyz[this->m_griddim]);
+
+        // the composite constants in terms of i, j, k
+        const real_int D1 = this->m_gridsp[5-this->m_griddim]*(realval_int(2.0)*d_cgrid*dt1+diff[this->m_griddim]*dt2);
+        const real_int D2 = this->m_gridsp[6]*dt1;
+        scalesummatrix3(C*( D1 + D2), stress, grid[p1]);
+        scalesummatrix3(C*(-D1 + D2), stress, grid[m1]);
+        
+        d_cgrid -= c * m_gridsp[this->m_griddim];
+        oldt = newt;
+        
+        x += c;
+        xn += c;
+    }
+}
+
+void StressGrid::DistributePairInteraction3D(array3_int xi, array3_int xj, array3_int F, int batch_id )
+{
+    // this is the 3D case
+    matrix3_int * grid = this->p_current_grid+batch_id*this->m_ncells;
+    
+    //------------------------------------------------------------------------------------
+    // Calculate the stress tensor
+    array3_int diff;
+    diffarray3( xj, xi, diff, this->m_box, this->m_periodic);
+
+    matrix3_int stress;
+    stress[0][0] = F[0]*diff[0];
+    stress[1][0] = F[1]*diff[0];
+    stress[2][0] = F[2]*diff[0];
+    stress[0][1] = F[0]*diff[1];
+    stress[1][1] = F[1]*diff[1];
+    stress[2][1] = F[2]*diff[1];
+    stress[0][2] = F[0]*diff[2];
+    stress[1][2] = F[1]*diff[2];
+    stress[2][2] = F[2]*diff[2];
+
+    // calculate the grid coordinates (no pbc) for the extreme points
+    iarray x, xn, i2, c;
+    array3_int t,t_c1,t_c2,d_cgrid;
+    x[0] = this->m_nxyz[0] * xi[0] * this->m_invbox[0][0] - (xi[0] < 0.0);
+    x[1] = this->m_nxyz[1] * xi[1] * this->m_invbox[1][1] - (xi[1] < 0.0);
+    x[2] = this->m_nxyz[2] * xi[2] * this->m_invbox[2][2] - (xi[2] < 0.0);
+    i2[0] = this->m_nxyz[0] * xj[0] * this->m_invbox[0][0] - (xj[0] < 0.0);
+    i2[1] = this->m_nxyz[1] * xj[1] * this->m_invbox[1][1] - (xj[1] < 0.0);
+    i2[2] = this->m_nxyz[2] * xj[2] * this->m_invbox[2][2] - (xj[2] < 0.0);
+    c[0] = (i2[0]>x[0])-(x[0]>i2[0]);
+    c[1] = (i2[1]>x[1])-(x[1]>i2[1]);
+    c[2] = (i2[2]>x[2])-(x[2]>i2[2]);
+    d_cgrid[0] = xi[0]-(x[0]+0.5)*this->m_gridsp[0];
+    d_cgrid[1] = xi[1]-(x[1]+0.5)*this->m_gridsp[1];
+    d_cgrid[2] = xi[2]-(x[2]+0.5)*this->m_gridsp[2];
+    xn[0] = x[0]+(c[0]+1)/2;
+    xn[1] = x[1]+(c[1]+1)/2;
+    xn[2] = x[2]+(c[2]+1)/2;
+
+    // calculate parametric time in each dimension, and related constants
+    t_c1[0] = xi[0] / (xi[0]-xj[0]);
+    t_c1[1] = xi[1] / (xi[1]-xj[1]);
+    t_c1[2] = xi[2] / (xi[2]-xj[2]);
+    t_c2[0] = this->m_gridsp[0] / (xi[0]-xj[0]);
+    t_c2[1] = this->m_gridsp[1] / (xi[1]-xj[1]);
+    t_c2[2] = this->m_gridsp[2] / (xi[2]-xj[2]);
+    t[0] = (c[0] == 0) ? realval_int(1.1) : t_c1[0]-xn[0]*t_c2[0];
+    t[1] = (c[1] == 0) ? realval_int(1.1) : t_c1[1]-xn[1]*t_c2[1];
+    t[2] = (c[2] == 0) ? realval_int(1.1) : t_c1[2]-xn[2]*t_c2[2];
+
+    //------------------------------------------------------------------------------------
+    // Distribute the stress
+
+    // now the position/spatial constants
+    const real_int C = realval_int(0.125)*this->m_invgridsp*this->m_invgridsp;
+    const real_int axy = diff[0]*diff[1];
+    const real_int axz = diff[0]*diff[2];
+    const real_int ayz = diff[1]*diff[2];
+    const real_int axyz = diff[0]*ayz; 
+    
+    // track previous time of crossing
+    real_int oldt = 0.0; 
+    
+    const int iterations = c[0]*(i2[0]-x[0]) + c[1]*(i2[1]-x[1]) + c[2]*(i2[2]-x[2]);
+    for (int count = 0; count <= iterations; ++count)
+    {
+        // figure out index
+        const int cmp0x = ((t[0]<t[1]+mds_eps) + (t[0]<t[2]+mds_eps))/2;
+        const int cmp1x = ((t[1]<t[0]+mds_eps) + (t[1]<t[2]+mds_eps))/2;
+        const int cmp2x = ((t[2]<t[0]+mds_eps) + (t[2]<t[1]+mds_eps))/2;
+        const int iX = (1-cmp0x)*(cmp1x+2*(1-cmp1x)*cmp2x);
+        const real_int newt = (iterations == count) ? 1.0 : t[iX];
+
+        // work out the parametric time constants
+        const real_int t12 = oldt*oldt;
+        const real_int t22 = newt*newt;
+        const real_int dt1 = newt - oldt;
+        const real_int dt2 = t22 - t12;
+        const real_int dt3 = realval_int(4.0)*(t22*newt - t12*oldt)/realval_int(3.0);
+        const real_int dt4 = t22*t22 - t12*t12;
+
+        // additional constants
+        const real_int bxy = d_cgrid[0]*d_cgrid[1];
+        const real_int bxz = d_cgrid[0]*d_cgrid[2];
+        const real_int byz = d_cgrid[1]*d_cgrid[2];
+        const real_int bxyz = d_cgrid[0]*byz;
+    
+        const int iip1 = ((x[0] + 1 + this->m_nxyz[0]) % this->m_nxyz[0])*this->m_nxyz[1]*this->m_nxyz[2];
+        const int jjp1 = ((x[1] + 1 + this->m_nxyz[1]) % this->m_nxyz[1])*this->m_nxyz[2];
+        const int kkp1 = ((x[2] + 1 + this->m_nxyz[2]) % this->m_nxyz[2]);
+        const int iim1 = ((x[0] + this->m_nxyz[0]) % this->m_nxyz[0])*this->m_nxyz[1]*this->m_nxyz[2];
+        const int jjm1 = ((x[1] + this->m_nxyz[1]) % this->m_nxyz[1])*this->m_nxyz[2];
+        const int kkm1 = ((x[2] + this->m_nxyz[2]) % this->m_nxyz[2]);
+
+        // the composite constants in terms of i, j, k
+        const real_int D[8] = {
+            realval_int(8.0)*bxyz*dt1 + realval_int(4.0)*(diff[0]*byz+diff[1]*bxz+diff[2]*bxy)*dt2
+                + realval_int(2.0)*(d_cgrid[0]*ayz+d_cgrid[1]*axz+d_cgrid[2]*axy)*dt3 + realval_int(2.0)*axyz*dt4,
+            this->m_gridsp[0]*(realval_int(4.0)*byz*dt1 + realval_int(2.0)*(diff[1]*d_cgrid[2]+diff[2]*d_cgrid[1])*dt2 + ayz*dt3),
+            this->m_gridsp[1]*(realval_int(4.0)*bxz*dt1 + realval_int(2.0)*(diff[0]*d_cgrid[2]+diff[2]*d_cgrid[0])*dt2 + axz*dt3),
+            this->m_gridsp[2]*(realval_int(4.0)*bxy*dt1 + realval_int(2.0)*(diff[0]*d_cgrid[1]+diff[1]*d_cgrid[0])*dt2 + axy*dt3),
+            this->m_gridsp[3]*(realval_int(2.0)*d_cgrid[2]*dt1+diff[2]*dt2),
+            this->m_gridsp[4]*(realval_int(2.0)*d_cgrid[1]*dt1+diff[1]*dt2),
+            this->m_gridsp[5]*(realval_int(2.0)*d_cgrid[0]*dt1+diff[0]*dt2),
+            this->m_gridsp[6]*dt1,
+        };
+
+        // perform the sums into the grid
+        scalesummatrix3(C*( D[0] + D[1] + D[2] + D[3] + D[4] + D[5] + D[6] + D[7]), stress, grid[iip1 + jjp1 + kkp1]);
+        scalesummatrix3(C*(-D[0] - D[1] - D[2] + D[3] - D[4] + D[5] + D[6] + D[7]), stress, grid[iip1 + jjp1 + kkm1]);
+        scalesummatrix3(C*(-D[0] - D[1] + D[2] - D[3] + D[4] - D[5] + D[6] + D[7]), stress, grid[iip1 + jjm1 + kkp1]);
+        scalesummatrix3(C*( D[0] + D[1] - D[2] - D[3] - D[4] - D[5] + D[6] + D[7]), stress, grid[iip1 + jjm1 + kkm1]);
+        scalesummatrix3(C*(-D[0] + D[1] - D[2] - D[3] + D[4] + D[5] - D[6] + D[7]), stress, grid[iim1 + jjp1 + kkp1]);
+        scalesummatrix3(C*( D[0] - D[1] + D[2] - D[3] - D[4] + D[5] - D[6] + D[7]), stress, grid[iim1 + jjp1 + kkm1]);
+        scalesummatrix3(C*( D[0] - D[1] - D[2] + D[3] + D[4] - D[5] - D[6] + D[7]), stress, grid[iim1 + jjm1 + kkp1]);
+        scalesummatrix3(C*(-D[0] + D[1] + D[2] + D[3] - D[4] - D[5] - D[6] + D[7]), stress, grid[iim1 + jjm1 + kkm1]);
+
+        d_cgrid[iX] -= c[iX] * m_gridsp[iX];
+        oldt = t[iX];
+        
+        x[iX] += c[iX];
+        xn[iX] += c[iX];
+
+        // Next cross point:
+        t[iX] = t_c1[iX]-xn[iX]*t_c2[iX];
+    }
+}
 
 // Decompose 3-body potentials (angles)
 void StressGrid::DistributeN3( array3_int Ra, array3_int Rb, array3_int Rc, array3_int Fa, array3_int Fb, array3_int Fc, int batch_id )
@@ -2668,523 +2688,5 @@ void StressGrid::DistributeNBody ( int nPart, array3_ext *R, array3_ext *F, bool
     }
 }
 
-//Auxiliary Methods to Calculate the Phi and Kappa Terms for the Born Term
-// For cosine derivative functions must be called before the theta derivatives. 
-// derivative identifier dertype ab = 0, bg = 1, ag = 3
-
-// ab|bg|ag = 0 | 1 | 2
-
-// second derivative identifier derivative dertype2
-
-//indices are flipped be careful!
-
-/*
- * abab | bgab | agab    = 00 | 01 | 02
- * abbg | bgbg | agbg    = 10 | 11 | 12
- * abag | bgag | agag    = 20 | 21 | 22
- */
-
- //Cosine and Theta Calculations (may only be needed sometimes)
-real_int StressGrid::CalcCosine(real_int ab, real_int bg, real_int ag) {
-    real_int costheta, numer, denom;
-
-    numer = (ab * ab) + (bg * bg) - (ag * ag);
-    denom = realval_int(2.0) * ab * bg;
-    costheta = numer / denom;
-    return costheta;
-}
-
-real_int StressGrid::CalcTheta(real_int costheta) {
-    return acos(costheta);
-}
-
-//Derivative of Cosine Function (creates derivative vector)
-void StressGrid::ThreeBodyCosineD(real_int ab, real_int bg, real_int ag, array3_int &d_cos_array) {
-    real_int numer, denom;
-
-
-    //dab of costheta
-    numer = (ab * ab) - (bg * bg) + (ag * ag);
-    denom = realval_int(2.0) * ab * ab * bg;
-
-    d_cos_array[iab] = numer / denom;
-
-    //dbg of costheta
-    numer = -(ab * ab) + (bg * bg) + (ag * ag);
-    denom = realval_int(2.0) * ab * bg * bg;
-
-    d_cos_array[ibg] = numer / denom;
-
-    //dag of costheta
-    numer = -ag;
-    denom = ab * bg;
-
-    d_cos_array[iag] = numer / denom;
-}
-
-//Second Derivative of Cosine Function (Creates derivative matrix)
-void StressGrid::ThreeBodyCosineD2(real_int ab, real_int bg, real_int ag, matrix3_int &d2_cos_array) {
-    real_int numer;
-    real_int denom;
-
-    //d00 of costheta
-    numer = (bg * bg) - (ag * ag);
-    denom = (ab * ab * ab * bg);
-
-    d2_cos_array[iab][iab] = numer / denom;
-
-    // d01 and d10 of costheta
-
-    numer = -((ab * ab) + (bg * bg) + (ag * ag));
-    denom = realval_int(2.0) * (ab * ab) * (bg * bg);
-
-    d2_cos_array[iab][ibg] = numer / denom;
-    d2_cos_array[ibg][iab] = numer / denom;
-
-    // d02 and d20 of costheta
-
-    numer = ag;
-    denom = ab * ab * bg;
-
-    d2_cos_array[iab][iag] = numer / denom;
-    d2_cos_array[iag][iab] = numer / denom;
-
-    // d11 of costheta
-    numer = (ab * ab) - (ag * ag);
-    denom = (ab * bg * bg * bg);
-
-    d2_cos_array[ibg][ibg] = numer / denom;
-
-    // d12 and d21 of costheta
-    numer = ag;
-    denom = ab * bg * bg;
-
-    d2_cos_array[iag][ibg] = numer / denom;
-    d2_cos_array[ibg][iag] = numer / denom;
-
-    // d22 of costheta
-    numer = realval_int(-1.0);
-    denom = ab * bg;
-
-    d2_cos_array[iag][iag] = numer / denom;
-}
-
-//First Derivative of Theta Function (Creates 1st derivative vector)
-//Need Cosine Theta
-//Need Derivative of Cosine Vector
-void StressGrid::ThreeBodyThetaD(real_int costheta, array3_int &d_cos_array, array3_int &d_theta_array) {
-    real_int scalefactor;
-
-    scalefactor = realval_int(-1.0) / sqrt(realval_int(1.0) - (costheta * costheta));
-
-    for (int i = 0; i < 3; i++) {
-        d_theta_array[i] = scalefactor * d_cos_array[i];
-    }
-}
-
-//Second Derivative of Theta Function (Creates 2nd Derivative Matix)
-//Need Cosine Theta
-//Need Derivative of Cosine Vector
-//Need 2nd Derivative of Cosine Matrix
-void StressGrid::ThreeBodyThetaD2(real_int costheta, array3_int d_cos_array, matrix3_int &d2_cos_array, matrix3_int &d2_theta_array) {
-    real_int scalefactor;
-    real_int sinthetasq;
-
-    sinthetasq = realval_int(1.0) - (costheta * costheta);
-
-    scalefactor = realval_int(1.0) / (sinthetasq * sqrt(sinthetasq));
-
-    for (int i = 0; i < 3; i++) {
-        for (int j = 0; j < 3; j++) {
-            d2_theta_array[i][j] = scalefactor * ((-sinthetasq) * d2_cos_array[i][j] - costheta * d_cos_array[i] * d_cos_array[j]);
-        }
-    }
-}
-
-//List of 2-body Potential Auxilery Functions
-//Calculate The Phi and Kappa for Harmonic Potential -> Implimented
-void StressGrid::HarmonicPhiKappa(real_ext deltaR, real_ext k, real_ext &phi, real_ext &kappa)
-{
-    if (true == this->m_disable)
-        return;
-
-    phi = k * deltaR;
-    kappa = k;
-}
-
-//Calculate the Phi and Kappa for Buckingham Potential -> Not Implimented, Nonbonded?
-void StressGrid::BuckinghamPhiKappa(real_ext r, real_ext a, real_ext b, real_ext c, real_ext &phi, real_ext &kappa)
-{
-    if (true == this->m_disable)
-        return;
-
-    double exponent = -b * r;
-    double rinv = 1 / r;
-    double rinvsq = rinv * rinv;
-    double rinvsix = rinvsq * rinvsq * rinvsq;
-
-    phi = -a * b * exp(exponent) + (6 * c) * rinvsix * rinv;
-    kappa = a * b * b * exp(exponent) - (42 * c) * rinvsix * rinvsq;
-}
-
-//Calculate the Phi and Kappa for the Fourth Power Potential -> Implimented g96bond
-void StressGrid::FourthPowerPhiKappa(real_ext k4, real_ext dist, real_ext dist0, real_ext &phi, real_ext &kappa)
-{
-    if (true == this->m_disable)
-        return;
-
-    phi = k4 * dist * (dist * dist - dist0 * dist0);
-    kappa = k4 * (3 * dist * dist - dist0 * dist0);
-}
-
-//Calculate the Phi and  Kappa for the Morse Potential -> Implimented
-void StressGrid::MorsePhiKappa(real_ext expadeltaR, real_ext a, real_ext d, real_ext &phi, real_ext &kappa)
-{
-    if (true == this->m_disable)
-        return;
-
-    //expadeltaR = e^(-a*(r-r0))
-    double coeffexp = 2 * a * d * expadeltaR;
-
-    phi = coeffexp * (1 - expadeltaR);
-    kappa = coeffexp * a * (2 * expadeltaR - 1);
-}
-
-//Calculate the Phi and Kappa for the Cubic Bond Potential -> Implimented
-void StressGrid::CubicBondPhiKappa(real_ext deltaR, real_ext k, real_ext kcubic, real_ext &phi, real_ext &kappa)
-{
-    if (true == this->m_disable)
-        return;
-
-    phi = 2 * k * deltaR + 3 * k * kcubic * deltaR * deltaR;
-    kappa = 2 * k + 6 * k * kcubic * deltaR;
-}
-
-//Calculate the Phi and Kappa for the FENE Potential -> Implimented
-void StressGrid::FENEPhiKappa(real_ext r, real_ext k, real_ext diffratio, real_ext& phi, real_ext& kappa)
-{
-    if (true == this->m_disable)
-        return;
-    //diffratio = 1 - (r/r0)^2
-
-    phi = k * r / diffratio;
-    kappa = k * (2 - diffratio) / diffratio;
-}
-
-//List of 3-body Potential Auxiliary Functions
-//Derivative Vector/Matrix form
-// derivative identifier ab = 0, bg = 1, ag = 3
-
-// ab|bg|ag = 0 | 1 | 2
-/*
- * abab | bgab | agab    = 00 | 01 | 02
- * abbg | bgbg | agbg    = 10 | 11 | 12
- * abag | bgag | agag    = 20 | 21 | 22
- */
-
-//Calculate the Phi and Kappa for the Harmonic Angle Potential -> Implimented
-void StressGrid::HarmonicAnglePhiKappa(real_ext ab_ext, real_ext bg_ext, real_ext ag_ext, real_ext costheta_ext, real_ext deltatheta_ext, real_ext k_ext, array3_ext &phi, matrix3_ext &kappa) 
-{
-    if (true == this->m_disable)
-        return;
-
-    // convert to internal precision
-    real_int ab = (real_int)ab_ext;
-    real_int bg = (real_int)bg_ext;
-    real_int ag = (real_int)ag_ext;
-    real_int costheta = (real_int)costheta_ext;
-    real_int deltatheta = (real_int)deltatheta_ext;
-    real_int k = (real_int)k_ext;
-
-    //double costh = this->CalcCosine(ab, bg, ag);
-    array3_int d_cos_array;
-    zeroarray3(d_cos_array);
-    matrix3_int d2_cos_array;
-    zeromatrix3(d2_cos_array);
-    array3_int d_theta_array;
-    zeroarray3(d_theta_array);
-    matrix3_int d2_theta_array;
-    zeromatrix3(d2_theta_array);
-    this->ThreeBodyCosineD(ab, bg, ag, d_cos_array);
-    this->ThreeBodyCosineD2(ab, bg, ag, d2_cos_array);
-    this->ThreeBodyThetaD(costheta, d_cos_array, d_theta_array);
-    this->ThreeBodyThetaD2(costheta, d_cos_array, d2_cos_array, d2_theta_array);
-
-    //Calculate Phi Vector
-    for (int i = 0; i < 3; i++) {
-        phi[i] = (real_ext)(k * deltatheta * d_theta_array[i]);
-    }
-
-    //Calculate Kappa Matrix
-    for (int i = 0; i < 3; i++) {
-        for (int j = 0; j < 3; j++) {
-            kappa[i][j] = (real_ext)(k * (d_theta_array[i] * d_theta_array[j] + deltatheta * d2_theta_array[i][j]));
-        }
-    }
-}
-
-//Calculate the Phi and Kappa for the Harmonic Cosine Potential -> Implimented Gromos96
-void StressGrid::HarmonicCosPhiKappa(real_ext ab_ext, real_ext bg_ext, real_ext ag_ext, real_ext deltacos_ext, real_ext k_ext, array3_ext &phi, matrix3_ext &kappa)
-{
-    if (true == this->m_disable)
-        return;
-
-    // convert to internal precision
-    real_int ab = (real_int)ab_ext;
-    real_int bg = (real_int)bg_ext;
-    real_int ag = (real_int)ag_ext;
-    real_int deltacos = (real_int)deltacos_ext;
-    real_int k = (real_int)k_ext;
-
-    //double costh = this->CalcCosine(ab, bg, ag);
-    array3_int d_cos_array;
-    zeroarray3(d_cos_array);
-    matrix3_int d2_cos_array;
-    zeromatrix3(d2_cos_array);
-    this->ThreeBodyCosineD(ab, bg, ag, d_cos_array);
-    this->ThreeBodyCosineD2(ab, bg, ag, d2_cos_array);
-
-    //Calculate Phi Vector
-    for (int i = 0; i < 3; i++) {
-        phi[i] = (real_ext)(k * deltacos * d_cos_array[i]);
-    }
-
-    //Calculate Kappa Matrix
-    for (int i = 0; i < 3; i++) {
-        for (int j = 0; j < 3; j++) {
-            kappa[i][j] = (real_ext)(k * (d_cos_array[i] * d_cos_array[j] + deltacos * d2_cos_array[i][j]) );
-        }
-    }
-}
-
-//Calculate the Phi and Kappa for the Urey-Bradley Potential -> Not Implimented needs an overhaul
-void StressGrid::UreyBradleyPhiKappa(real_ext ab_ext, real_ext bg_ext, real_ext ag_ext, real_ext costheta_ext, real_ext deltaRag_ext, real_ext deltatheta_ext, real_ext ktheta_ext, real_ext kUB_ext, array3_ext &phi, matrix3_ext &kappa)
-{
-    if (true == this->m_disable)
-        return;
-
-    // convert to internal precision
-    real_int ab = (real_int)ab_ext;
-    real_int bg = (real_int)bg_ext;
-    real_int ag = (real_int)ag_ext;
-    real_int costheta = (real_int)costheta_ext;
-    real_int deltaRag = (real_int)deltaRag_ext;
-    real_int deltatheta = (real_int)deltatheta_ext;
-    real_int ktheta = (real_int)ktheta_ext;
-    real_int kUB = (real_int)kUB_ext;
-
-    //double costh = this->CalcCosine(ab, bg, ag);
-    array3_int d_cos_array;
-    zeroarray3(d_cos_array);
-
-    matrix3_int d2_cos_array;
-    zeromatrix3(d2_cos_array);
-
-    array3_int d_theta_array;
-    zeroarray3(d_theta_array);
-
-    matrix3_int d2_theta_array;
-    zeromatrix3(d2_theta_array);
-
-    this->ThreeBodyCosineD(ab, bg, ag, d_cos_array);
-    this->ThreeBodyCosineD2(ab, bg, ag, d2_cos_array);
-    this->ThreeBodyThetaD(costheta, d_cos_array, d_theta_array);
-    this->ThreeBodyThetaD2(costheta, d_cos_array, d2_cos_array, d2_theta_array);
-
-    //Calculate Phi ab(0) and bg(1) for phi vector
-    for (int i = 0; i < 3; i++) {
-        phi[i] = (real_ext)(ktheta * deltatheta * d_theta_array[i]);
-    }
-
-    phi[iag] = (real_ext)(phi[iag] + kUB * deltaRag);
-
-    //Calculate Kappa Matrix (will calculate kappa[2][2] separately)
-    for (int i = 0; i < 3; i++) {
-        for (int j = 0; j < 3; j++) {
-            kappa[i][j] = (real_ext)(ktheta * (d_theta_array[i] * d_theta_array[j] + deltatheta * d2_theta_array[i][j]));
-        }
-    }
-    kappa[iag][iag] = (real_ext)(kappa[iag][iag] + kUB);
-}
-
-//Calculate the Phi and Kappa due to the Bond Bond Cross Potential -> Implimented Gromos96
-void StressGrid::BondBondCrossPhiKappa(real_ext k, real_ext deltarab, real_ext deltarbg, array3_ext &phi, matrix3_ext &kappa)
-{
-    if (true == this->m_disable)
-        return;
-
-    //Calculate Phi
-    phi[0] = k * deltarbg;
-    phi[1] = k * deltarab;
-    phi[2] = 0;
-
-    //Calculate Kappa
-    //Zero Terms
-    kappa[0][0] = 0;
-    kappa[1][1] = 0;
-    kappa[2][2] = 0;
-    kappa[0][2] = 0;
-    kappa[2][0] = 0;
-    kappa[1][2] = 0;
-    kappa[2][1] = 0;
-
-    //Constant Terms
-    kappa[0][1] = k;
-    kappa[1][0] = k;
-}
-
-//Calculate the Phi and Kappa for the Bond Angle Cross Potential -> Implimented Gromos96
-void StressGrid::BondAngleCrossPhiKappa(real_ext k, real_ext deltarab, real_ext deltarbg, real_ext deltarag, array3_ext &phi, matrix3_ext &kappa)
-{
-    if (true == this->m_disable)
-        return;
-
-    //Calculate Phi
-    phi[0] = k * deltarag;
-    phi[1] = phi[0];
-    phi[2] = k * (deltarab + deltarbg);
-
-    //Calculate Kappa
-    //Zero Terms
-    kappa[0][0] = 0;
-    kappa[1][1] = 0;
-    kappa[2][2] = 0;
-    kappa[0][1] = 0;
-    kappa[1][0] = 0;
-
-    //Constant Terms
-    kappa[0][2] = k;
-    kappa[2][0] = k;
-    kappa[1][2] = k;
-    kappa[2][1] = k;
-}
-
-//Calculate the Phi and Kappa for Quartic Angle Potential -> Implimented
-void StressGrid::QuarticAnglePhiKappa(real_ext ab_ext, real_ext bg_ext, real_ext ag_ext, real_ext costheta_ext, real_ext deltatheta_ext, real_ext (&coeff)[5], array3_ext &phi, matrix3_ext &kappa)
-{
-    if (true == this->m_disable)
-        return;
-
-    // convert to internal precision
-    real_int ab = (real_int)ab_ext;
-    real_int bg = (real_int)bg_ext;
-    real_int ag = (real_int)ag_ext;
-    real_int costheta = (real_int)costheta_ext;
-    real_int deltatheta = (real_int)deltatheta_ext;
-
-    //double costh = this->CalcCosine(ab, bg, ag);
-    array3_int d_cos_array;
-    zeroarray3(d_cos_array);
-
-    matrix3_int d2_cos_array;
-    zeromatrix3(d2_cos_array);
-
-    array3_int d_theta_array;
-    zeroarray3(d_theta_array);
-
-    matrix3_int d2_theta_array;
-    zeromatrix3(d2_theta_array);
-
-    this->ThreeBodyCosineD(ab, bg, ag, d_cos_array);
-    this->ThreeBodyCosineD2(ab, bg, ag, d2_cos_array);
-    this->ThreeBodyThetaD(costheta, d_cos_array, d_theta_array);
-    this->ThreeBodyThetaD2(costheta, d_cos_array, d2_cos_array, d2_theta_array);
-
-
-    real_int deltathetasq = deltatheta * deltatheta;
-    real_int deltathetacube = deltathetasq * deltatheta;
-
-    //Calculate the Finate Sums
-    real_int phiconst = (real_int)coeff[1] + realval_int(2.0) * (real_int)coeff[2] * deltatheta + realval_int(3.0) * (real_int)coeff[3] * deltathetasq + realval_int(4.0) * (real_int)coeff[4] * deltathetacube;
-    real_int kappaconst = realval_int(2.0) * (real_int)coeff[2] + realval_int(6.0) * (real_int)coeff[3] * deltatheta + realval_int(12.0) * (real_int)coeff[4] * deltathetasq + realval_int(20.0);
-
-    //Calculate Phi Vector
-    for (int i = 0; i < 3; i++) {
-        phi[i] = (real_int)(phiconst * d_theta_array[i]);
-    }
-
-    //Calculate Kappa Matrix
-    for (int i = 0; i < 3; i++) {
-        for (int j = 0; j < 3; j++) {
-            kappa[i][j] = (real_int)(phiconst * d2_theta_array[i][j] + kappaconst * d_theta_array[i] * d_theta_array[j]);
-        }
-    }
-}
-
-/*Tetrahedron Calculations, use tetrahedron vector and tetrahedron matrix
- *Keep in mind all calculations find the dihedral angle between bonds ab and ge.
- *This dihedral angle is called thetabg as it is the twisting between beta and gamma.
- *
- *First Derivative: Define Tetrahedron Derivative Vector
- *
- * ab | ag | ae | bg | be | ge | = 0 | 1 | 2 | 3 | 4 | 5 |
- *
- * Second Derivative: Define Tetrahedron Derivative Matrix
- * abab | agab | aeab | bgab | beab | geab | = 00 | 01 | 02 | 03 | 04 | 05 |
- * abag | agag | aeag | bgag | beag | geag | = 10 | 11 | 12 | 13 | 14 | 15 |
- * abae | agae | aeae | bgae | beae | geae | = 20 | 21 | 22 | 23 | 24 | 25 |
- * abbg | agbg | aebg | bgbg | bebg | gebg | = 30 | 31 | 32 | 33 | 34 | 35 |
- * abbe | agbe | aebe | bgbe | bebe | gebe | = 40 | 41 | 42 | 43 | 44 | 45 |
- * abge | agge | aege | bgge | bege | gege | = 50 | 51 | 52 | 53 | 54 | 55 |
- *
-*/
-real_int StressGrid::CalcCosineDihedral(real_int ab, real_int ag, real_int ae, real_int bg, real_int be, real_int ge) {
-    real_int numer, denom;
-
-    numer = -(bg * bg * bg * bg) + (bg * bg) * ((ab * ab) - realval_int(2.0) * (ae * ae) + (ag * ag) + (be * be) + (ge * ge)) + ((ab * ab) - (ag * ag)) * (-(be * be) + (ge * ge));
-    denom = sqrt((-ab + ag + bg) * (ab - ag + bg) * (ab + ag - bg) * (ab + ag + bg) * (-be + bg + ge) * (be - bg + ge) * (be + bg - ge) * (be + bg + ge));
-
-    return numer / denom;
-}
-
-/*
-*generate computation code in python
-*void four_body_cosine_derivative() {
-*}
-*
-*void four_body_cosine_derivative2() {
-*}
-*/
-
-void StressGrid::FourBodyThetaD(real_int costheta, array6_int &d_cos_di_array, array6_int &d_theta_di_array) {
-    real_int scalefactor;
-
-    scalefactor = realval_int(-1.0) / sqrt(realval_int(1.0) - (costheta * costheta));
-
-    for (int i = 0; i < 6; i++) {
-        d_theta_di_array[i] = scalefactor * d_cos_di_array[i];
-    }
-}
-
-void StressGrid::FourBodyThetaD2(real_int costheta, array6_int &d_cos_di_array, matrix6_int &d2_cos_di_array, matrix6_int &d2_theta_di_array) {
-    real_int scalefactor;
-    real_int sinthetasq;
-
-    sinthetasq = realval_int(1.0) - (costheta * costheta);
-    scalefactor = realval_int(1.0) / (sinthetasq * sqrt(sinthetasq));
-
-    for (int i = 0; i < 6; i++) {
-        for (int j = 0; j < 6; j++) {
-            d2_theta_di_array[i][j] = scalefactor * ((-sinthetasq) * d2_cos_di_array[i][j] - costheta * d_cos_di_array[i] * d_cos_di_array[j]);
-        }
-    }
-}
-
-//List of 4-body Potential Auxilery Functions
-//Unimplimented, Will Be implimented Later
-/*
-*void impdihed_harmonic_phi_kappa(){
-*
-*}
-*
-*void propdihed_periodic_phi_kappa(){
-*
-*}
-*
-*void propdihed_fourier_phi_kappa(){
-*
-*}
-*/
-//----------------------------------------------------------------------------------------
-
-//----------------------------------------------------------------------------------------
+/*=========================================================================
+=========================================================================*/
