@@ -30,6 +30,67 @@
 #include "mds_cmenger.h"
 #include "mds_lapack.h"
 
+// counters and runtime parameters
+namespace mds {
+    typedef struct {
+        int         nAtoms;
+        long        nCells;
+        iarray      gridCells;
+        int         gridDims;
+        real_mds    gridSpacing;
+        int         maxClust;
+        matrix3_mds box;
+        int         spatatom;
+        int         fdecomp;
+        int         contrib;
+        bool        nodispcor;
+        bool        cuda;
+        bool        initialized;
+        bool        disable;
+        barray      periodic;
+        real_mds    mindihangle;
+        int         maxpart;
+        real_mds    temperature;
+        bool        pcoupl;
+        int         ierr;
+        int         nframes;
+        int         nreset;
+        matrix3_mds sumbox;
+        matrix3_mds invbox;
+        real_mds    avg_boxvol;
+        real_mds    var_boxvol;
+        real_mds    gridsp[7];
+        real_mds    invgridsp;
+    } state_t;
+
+    // allocations
+    typedef struct {
+        double      *Amat;
+        double      *AmatT;
+        double      *bvec;
+        array3_mds  *Rij;
+        array3_mds  *Fij;
+        array3_mds  *Uij;
+        matrix3_mds *current_grid;
+        matrix3_mds *current_gridtot;
+        matrix6_mds *current_grid_elborn;
+        matrix6_mds *current_grid_elkin;
+        matrix3_mds *sum_grid;
+        matrix3_mds *avg_grid;
+        matrix3_mds *avg_gridtot;
+        matrix6_mds *sum_grid_elcovar;
+        matrix6_mds *sum_grid_elkin;
+        matrix6_mds *sum_grid_elborn;
+        matrix3_mds *sum_grid_volcovar;
+        matrix3_mds *sum_gridtot_volcovar;
+        real_mds    *sum_volume;
+        int         *molecule_id;
+        real_mds    *radii;
+        real_mds    *positions;
+        Lapack     **lapack;
+    } alloc_t;
+}
+
 class  mds::StressGrid
 {
     public :
@@ -91,7 +152,7 @@ class  mds::StressGrid
                 return;
 
             std::lock_guard<std::mutex> lock(m_mutex_state);
-            this->state.nxyz[0] = nx;
+            this->state.gridCells[0] = nx;
         }
         void SetNumberOfGridCellsY(int ny)
         {
@@ -99,7 +160,7 @@ class  mds::StressGrid
                 return;
 
             std::lock_guard<std::mutex> lock(m_mutex_state);
-            this->state.nxyz[1] = ny;
+            this->state.gridCells[1] = ny;
         }
         void SetNumberOfGridCellsZ(int nz)
         {
@@ -107,14 +168,14 @@ class  mds::StressGrid
                 return;
 
             std::lock_guard<std::mutex> lock(m_mutex_state);
-            this->state.nxyz[2] = nz;
+            this->state.gridCells[2] = nz;
         }
         int  GetNumberOfGridCellsX( )
-        {   return this->state.nxyz[0]; }
+        {   return this->state.gridCells[0]; }
         int  GetNumberOfGridCellsY( )
-        {   return this->state.nxyz[1]; }
+        {   return this->state.gridCells[1]; }
         int  GetNumberOfGridCellsZ( )
-        {   return this->state.nxyz[2]; }
+        {   return this->state.gridCells[2]; }
 
         void SetSpacing(real_ext d)
         {
@@ -122,10 +183,10 @@ class  mds::StressGrid
                 return;
 
             std::lock_guard<std::mutex> lock(m_mutex_state);
-            this->state.spacing = (real_mds)d;
+            this->state.gridSpacing = (real_mds)d;
         }
         real_ext  GetSpacing( )
-        {   return (real_ext)this->state.spacing; }
+        {   return (real_ext)this->state.gridSpacing; }
         real_ext  GetSpacingX( )
         {   return (real_ext)this->state.gridsp[0]; }
         real_ext  GetSpacingY( )
@@ -176,8 +237,6 @@ class  mds::StressGrid
         }
         real_ext GetMinDihAngle ( )
         {   return (real_ext)this->state.mindihangle;   }
-
-        void ComputeNbodyPairForces ( int nAtoms, array3_ext *R, array3_ext *F, int *atomIDs );
 
         array3_mds * GetNbodyDecompPairForces()
         {   return this->alloc.Fij;    }
@@ -249,19 +308,6 @@ class  mds::StressGrid
             this->state.nodispcor = true;
         }
 
-        /** Returns the kind of error produced by the class. Values:
-         * 0: No error
-         * 1: the stress type is not correct
-         * 2: the number of cells at one side is negative
-         * 3: the local spacing is too small
-         * 4: the box is not set
-         * 5: the force decomposition is incorrect
-         * 6: the number of atoms is not set
-         * 7: the contribution is not correct
-         * 8: the filename is not set
-         * 9: DistributeInteraction has been called with an incorrect number of atoms
-         * 10: Lapack failed
-         * 11: Voronoi cell count did not match natoms */
         int GetError ( )
         {   return this->state.ierr;  }
 
@@ -303,75 +349,13 @@ class  mds::StressGrid
                 array3_ext va,
                 array3_ext vb,
                 int atomID);
-        void DistributeKineticElast(
-                real_ext mass,
-                array3_ext x,
-                array3_ext va,
-                array3_ext vb);
 
         StressGrid();
         ~StressGrid();
 
-        // counters and runtime parameters
-        typedef struct {
-            int         nAtoms;
-            iarray      nxyz;
-            int         griddim;
-            long        ncells;
-            int         maxClust;
-            real_mds    spacing;
-            matrix3_mds box;
-            int         spatatom;
-            int         fdecomp;
-            int         contrib;
-            bool        nodispcor;
-            bool        cuda;
-            bool        initialized;
-            bool        disable;
-            barray      periodic;
-            real_mds    mindihangle;
-            int         maxpart;
-            real_mds    temperature;
-            bool        pcoupl;
-            int         ierr;
-            int         nframes;
-            int         nreset;
-            matrix3_mds sumbox;
-            matrix3_mds invbox;
-            real_mds    avg_boxvol;
-            real_mds    var_boxvol;
-            real_mds    gridsp[7];
-            real_mds    invgridsp;
-        } state_t;
     private:
         state_t state;
-
-        // allocations
-        struct MDS_ALLOC_STRUCT {
-            double      *Amat;
-            double      *AmatT;
-            double      *bvec;
-            array3_mds  *Rij;
-            array3_mds  *Fij;
-            array3_mds  *Uij;
-            matrix3_mds *current_grid;
-            matrix3_mds *current_gridtot;
-            matrix6_mds *current_grid_elborn;
-            matrix6_mds *current_grid_elkin;
-            matrix3_mds *sum_grid;
-            matrix3_mds *avg_grid;
-            matrix3_mds *avg_gridtot;
-            matrix6_mds *sum_grid_elcovar;
-            matrix6_mds *sum_grid_elkin;
-            matrix6_mds *sum_grid_elborn;
-            matrix3_mds *sum_grid_volcovar;
-            matrix3_mds *sum_gridtot_volcovar;
-            real_mds    *sum_volume;
-            int         *molecule_id;
-            real_mds    *radii;
-            real_mds    *positions;
-            Lapack     **lapack;
-        } alloc;
+        alloc_t alloc;
 
         // objects
         std::string m_filename;
@@ -381,27 +365,11 @@ class  mds::StressGrid
 
         void Clear();
 
-        void DistributeElasticity_mdsernal3D(
-                const array3_mds & xi,
-                const array3_mds & xj,
-                const array3_mds & xk,
-                const array3_mds & xl,
-                real_mds phi,
-                real_mds kappa);
-
         void DistributePairInteraction(
                 const array3_mds & R1,
                 const array3_mds & R2,
                 const array3_mds & F,
-                int batch_id);
-        void DistributePairInteraction3D(
-                const array3_mds & R1,
-                const array3_mds & R2,
-                const array3_mds & F,
-                int batch_id,
-                const matrix3_mds stress,
-                const array3_mds diff);
-
+                matrix3_mds * grid);
         void DistributeN3(
                 const array3_mds & Ra,
                 const array3_mds & Rb,
@@ -409,7 +377,8 @@ class  mds::StressGrid
                 const array3_mds & Fa,
                 const array3_mds & Fb,
                 const array3_mds & Fc,
-                int batch_id);
+                Lapack * lapack,
+                matrix3_mds * grid);
         void DistributeSettle(
                 const array3_mds & Ra,
                 const array3_mds & Rb,
@@ -417,8 +386,8 @@ class  mds::StressGrid
                 const array3_mds & Fa,
                 const array3_mds & Fb,
                 const array3_mds & Fc,
-                int batch_id);
-
+                Lapack * lapack,
+                matrix3_mds * grid);
         void DistributeN4(
                 const array3_mds & Ra,
                 const array3_mds & Rb,
@@ -428,7 +397,8 @@ class  mds::StressGrid
                 const array3_mds & Fb,
                 const array3_mds & Fc,
                 const array3_mds & Fd,
-                int batch_id);
+                Lapack * lapack,
+                matrix3_mds * grid);
         void DistributeN5(
                 const array3_mds & Ra,
                 const array3_mds & Rb,
@@ -440,13 +410,13 @@ class  mds::StressGrid
                 const array3_mds & Fc,
                 const array3_mds & Fd,
                 const array3_mds & Fe,
-                int batch_id);
-
+                Lapack * lapack,
+                matrix3_mds * grid);
         void DistributeNBody(
-                int nPart,
+                int nAtoms,
                 array3_ext *R,
                 array3_ext *F,
-                bool distritube_stress,
-                int batch_id);
+                Lapack * lapack,
+                matrix3_mds * grid);
 };
 #endif//MDS_STRESSGRID_H

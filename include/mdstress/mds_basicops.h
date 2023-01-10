@@ -55,8 +55,8 @@ namespace mds
         c[2] = a[2]-b[2];
     }
 
-    template<class float_type_ab, class float_type_c, class float_type_box>
-    static inline void diffarray3 ( const float_type_ab a[3], const float_type_ab b[3], float_type_c c[3], const float_type_box box[3][3], barray periodic)
+    template<class array_type_ab, class array_type_c, class matrix_type>
+    static inline void diffarray3 ( const array_type_ab & a, const array_type_ab & b, array_type_c c, const matrix_type & box, const barray & periodic)
     {
         c[0] = a[0]-b[0];
         c[1] = a[1]-b[1];

@@ -27,6 +27,16 @@
 #include "mds_error.h"
 #include "voro++.hh"
 
+#define mds_nrow3    9
+#define mds_ncol3    3
+
+#define mds_nrow4    12
+#define mds_ncol4    6
+
+#define mds_nrow5    15
+#define mds_ncol5    10
+    
+
 //#define CUSTRESS_ENABLE
 //#ifdef CUSTRESS_ENABLE
 //#include "mds_custress.h"
@@ -35,8 +45,8 @@
 using namespace mds;
 
 template<class matrix_type>
-inline void distribute_observable_3d(
-        const StressGrid::state_t & state,
+static inline void distribute_observable_3d(
+        const state_t & state,
         const array3_mds & xi,
         const array3_mds & xj,
         const array3_mds & diff,
@@ -45,16 +55,16 @@ inline void distribute_observable_3d(
 {
     //------------------------------------------------------------------------------------
     // calculate the grid coordinates (no pbc) for the extreme points
-    iarray x = {
-        int(state.nxyz[0] * xi[0] * state.invbox[0][0] - (xi[0] < 0.0) ),
-        int(state.nxyz[1] * xi[1] * state.invbox[1][1] - (xi[1] < 0.0) ),
-        int(state.nxyz[2] * xi[2] * state.invbox[2][2] - (xi[2] < 0.0) )
+    iarray i1 = {
+        int(state.gridCells[0] * xi[0] * state.invbox[0][0] - (xi[0] < 0.0) ),
+        int(state.gridCells[1] * xi[1] * state.invbox[1][1] - (xi[1] < 0.0) ),
+        int(state.gridCells[2] * xi[2] * state.invbox[2][2] - (xi[2] < 0.0) )
     };
 
     const iarray i2 = {
-        int(state.nxyz[0] * xj[0] * state.invbox[0][0] - (xj[0] < 0.0) ),
-        int(state.nxyz[1] * xj[1] * state.invbox[1][1] - (xj[1] < 0.0) ),
-        int(state.nxyz[2] * xj[2] * state.invbox[2][2] - (xj[2] < 0.0) ),
+        int(state.gridCells[0] * xj[0] * state.invbox[0][0] - (xj[0] < 0.0) ),
+        int(state.gridCells[1] * xj[1] * state.invbox[1][1] - (xj[1] < 0.0) ),
+        int(state.gridCells[2] * xj[2] * state.invbox[2][2] - (xj[2] < 0.0) ),
     };
     const array3_mds t_c1 = {
         xi[0] / (xi[0]-xj[0]),
@@ -68,28 +78,28 @@ inline void distribute_observable_3d(
     };
 
     const iarray c = {
-        int((i2[0]>x[0])-(x[0]>i2[0]) ),
-        int((i2[1]>x[1])-(x[1]>i2[1]) ),
-        int((i2[2]>x[2])-(x[2]>i2[2]) )
+        int((i2[0]>i1[0])-(i1[0]>i2[0]) ),
+        int((i2[1]>i1[1])-(i1[1]>i2[1]) ),
+        int((i2[2]>i1[2])-(i1[2]>i2[2]) )
     };
 
-    iarray xn = {
-        int(x[0]+(c[0]+1)/2 ),
-        int(x[1]+(c[1]+1)/2 ),
-        int(x[2]+(c[2]+1)/2 )
+    iarray in = {
+        int(i1[0]+(c[0]+1)/2 ),
+        int(i1[1]+(c[1]+1)/2 ),
+        int(i1[2]+(c[2]+1)/2 )
     };
 
     array3_mds d_cgrid = {
-        xi[0]-(x[0]+0.5)*state.gridsp[0],
-        xi[1]-(x[1]+0.5)*state.gridsp[1],
-        xi[2]-(x[2]+0.5)*state.gridsp[2]
+        xi[0]-(i1[0]+0.5)*state.gridsp[0],
+        xi[1]-(i1[1]+0.5)*state.gridsp[1],
+        xi[2]-(i1[2]+0.5)*state.gridsp[2]
     };
 
     // calculate parametric time in each dimension, and related constants
     array3_mds t = {
-        (c[0] == 0) ? realval_mds(1.1) : t_c1[0]-xn[0]*t_c2[0],
-        (c[1] == 0) ? realval_mds(1.1) : t_c1[1]-xn[1]*t_c2[1],
-        (c[2] == 0) ? realval_mds(1.1) : t_c1[2]-xn[2]*t_c2[2]
+        (c[0] == 0) ? realval_mds(1.1) : t_c1[0]-in[0]*t_c2[0],
+        (c[1] == 0) ? realval_mds(1.1) : t_c1[1]-in[1]*t_c2[1],
+        (c[2] == 0) ? realval_mds(1.1) : t_c1[2]-in[2]*t_c2[2]
     };
 
     //------------------------------------------------------------------------------------
@@ -105,7 +115,7 @@ inline void distribute_observable_3d(
     // track previous time of crossing
     real_mds oldt = 0.0; 
     
-    const int iterations = c[0]*(i2[0]-x[0]) + c[1]*(i2[1]-x[1]) + c[2]*(i2[2]-x[2]);
+    const int iterations = c[0]*(i2[0]-i1[0]) + c[1]*(i2[1]-i1[1]) + c[2]*(i2[2]-i1[2]);
     for (int count = 0; count <= iterations; ++count)
     {
         // figure out index
@@ -129,12 +139,12 @@ inline void distribute_observable_3d(
         const real_mds byz = d_cgrid[1]*d_cgrid[2];
         const real_mds bxyz = d_cgrid[0]*byz;
     
-        const int iip1 = ((x[0] + 1 + state.nxyz[0]) % state.nxyz[0])*state.nxyz[1]*state.nxyz[2];
-        const int jjp1 = ((x[1] + 1 + state.nxyz[1]) % state.nxyz[1])*state.nxyz[2];
-        const int kkp1 = ((x[2] + 1 + state.nxyz[2]) % state.nxyz[2]);
-        const int iim1 = ((x[0] + state.nxyz[0]) % state.nxyz[0])*state.nxyz[1]*state.nxyz[2];
-        const int jjm1 = ((x[1] + state.nxyz[1]) % state.nxyz[1])*state.nxyz[2];
-        const int kkm1 = ((x[2] + state.nxyz[2]) % state.nxyz[2]);
+        const int iip1 = ((i1[0] + 1 + state.gridCells[0]) % state.gridCells[0])*state.gridCells[1]*state.gridCells[2];
+        const int jjp1 = ((i1[1] + 1 + state.gridCells[1]) % state.gridCells[1])*state.gridCells[2];
+        const int kkp1 = ((i1[2] + 1 + state.gridCells[2]) % state.gridCells[2]);
+        const int iim1 = ((i1[0] + state.gridCells[0]) % state.gridCells[0])*state.gridCells[1]*state.gridCells[2];
+        const int jjm1 = ((i1[1] + state.gridCells[1]) % state.gridCells[1])*state.gridCells[2];
+        const int kkm1 = ((i1[2] + state.gridCells[2]) % state.gridCells[2]);
 
         // the composite constants in terms of i, j, k
         const real_mds D[8] = {
@@ -173,17 +183,17 @@ inline void distribute_observable_3d(
         d_cgrid[iX] -= c[iX] * state.gridsp[iX];
         oldt = t[iX];
         
-        x[iX] += c[iX];
-        xn[iX] += c[iX];
+        i1[iX] += c[iX];
+        in[iX] += c[iX];
 
         // Next cross point:
-        t[iX] = t_c1[iX]-xn[iX]*t_c2[iX];
+        t[iX] = t_c1[iX]-in[iX]*t_c2[iX];
     }
 }
 
 template<class matrix_type>
-inline void distribute_observable_1d(
-        const StressGrid::state_t & state,
+static inline void distribute_observable_1d(
+        const state_t & state,
         const array3_mds & xi,
         const array3_mds & xj,
         const array3_mds & diff,
@@ -191,25 +201,25 @@ inline void distribute_observable_1d(
         matrix_type * grid)
 {
     // calculate the grid coordinates (no pbc) for the extreme points
-    int x = state.nxyz[state.griddim] * xi[state.griddim] * state.invbox[state.griddim][state.griddim] - (xi[state.griddim] < 0.0);
-    const int i2 = state.nxyz[state.griddim] * xj[state.griddim] * state.invbox[state.griddim][state.griddim] - (xj[state.griddim] < 0.0);
-    const int c = (i2>x)-(x>i2);
-    const real_mds t_c1 = xi[state.griddim] / (xi[state.griddim]-xj[state.griddim]);
-    const real_mds t_c2 = state.gridsp[state.griddim] / (xi[state.griddim]-xj[state.griddim]);
+    int i1 = state.gridCells[state.gridDims] * xi[state.gridDims] * state.invbox[state.gridDims][state.gridDims] - (xi[state.gridDims] < 0.0);
+    const int i2 = state.gridCells[state.gridDims] * xj[state.gridDims] * state.invbox[state.gridDims][state.gridDims] - (xj[state.gridDims] < 0.0);
+    const int c = (i2>i1)-(i1>i2);
+    const real_mds t_c1 = xi[state.gridDims] / (xi[state.gridDims]-xj[state.gridDims]);
+    const real_mds t_c2 = state.gridsp[state.gridDims] / (xi[state.gridDims]-xj[state.gridDims]);
     const real_mds C = realval_mds(0.5)*state.invgridsp*state.invgridsp;
-    real_mds d_cgrid = xi[state.griddim]-(x+realval_mds(0.5))*state.gridsp[state.griddim];
-    int xn = x+(c+1)/2;
+    real_mds d_cgrid = xi[state.gridDims]-(i1+realval_mds(0.5))*state.gridsp[state.gridDims];
+    int in = i1+(c+1)/2;
 
     // track previous time of crossing and check that sum is complete (?)
     real_mds oldt = 0.0; 
 
     // fix the number of iterations
-    const int iterations = c*(i2-x);
+    const int iterations = c*(i2-i1);
     for (int count = 0; count <= iterations; ++count)
     {
         // there is always iterations+1, where the last iteration deals
         // with any residual
-        real_mds newt = (iterations == count) ? realval_mds(1.0) : t_c1-xn*t_c2;
+        real_mds newt = (iterations == count) ? realval_mds(1.0) : t_c1-in*t_c2;
 
         // work out the parametric time constants
         const real_mds t12 = oldt*oldt;
@@ -217,11 +227,11 @@ inline void distribute_observable_1d(
         const real_mds dt1 = newt - oldt;
         const real_mds dt2 = t22 - t12;
 
-        const int p1 = ((x + 1 + state.nxyz[state.griddim]) % state.nxyz[state.griddim]);
-        const int m1 = ((x + state.nxyz[state.griddim]) % state.nxyz[state.griddim]);
+        const int p1 = ((i1 + 1 + state.gridCells[state.gridDims]) % state.gridCells[state.gridDims]);
+        const int m1 = ((i1 + state.gridCells[state.gridDims]) % state.gridCells[state.gridDims]);
 
         // the composite constants in terms of i, j, k
-        const real_mds D1 = state.gridsp[5-state.griddim]*(realval_mds(2.0)*d_cgrid*dt1+diff[state.griddim]*dt2);
+        const real_mds D1 = state.gridsp[5-state.gridDims]*(realval_mds(2.0)*d_cgrid*dt1+diff[state.gridDims]*dt2);
         const real_mds D2 = state.gridsp[6]*dt1;
         if constexpr (sizeof(matrix_type) == sizeof(matrix3_mds) ) {
             scalesummatrix3(C*( D1 + D2), observable, grid[p1]);
@@ -232,14 +242,13 @@ inline void distribute_observable_1d(
         }
 
         
-        d_cgrid -= c * state.gridsp[state.griddim];
+        d_cgrid -= c * state.gridsp[state.gridDims];
         oldt = newt;
         
-        x += c;
-        xn += c;
+        i1 += c;
+        in += c;
     }
 }
-
 
 //Constructor
 StressGrid::StressGrid() :
@@ -250,7 +259,7 @@ StressGrid::StressGrid() :
     m_thread_map(),
     m_mutex_state()
 {
-    this->state.griddim = mds_griddim_xyz;
+    this->state.gridDims = mds_griddim_xyz;
     this->state.maxClust = mds_maxpart;
 }
 
@@ -272,20 +281,20 @@ void StressGrid::Init()
     if (mds_spat == this->state.spatatom) {
         // grid size must always be greater than or equal to 0
         this->state.ierr |= checkError(
-                this->state.nxyz[0] < 0,
+                this->state.gridCells[0] < 0,
                 "SetNumberOfGridCellsX(int) - int must not be less than 0");
         this->state.ierr |= checkError(
-                this->state.nxyz[1] < 0,
+                this->state.gridCells[1] < 0,
                 "SetNumberOfGridCellsY(int) - int must not be less than 0");
         this->state.ierr |= checkError(
-                this->state.nxyz[2] < 0,
+                this->state.gridCells[2] < 0,
                 "SetNumberOfGridCellsZ(int) - int must not be less than 0");
 
         // if grid size is 0 in all dimensions, we will use spacing to generate grid size
         // and so we check it here
-        if (0 == this->state.nxyz[0] && 0 == this->state.nxyz[1] && 0 == this->state.nxyz[2]) {
+        if (0 == this->state.gridCells[0] && 0 == this->state.gridCells[1] && 0 == this->state.gridCells[2]) {
             this->state.ierr |= checkError(
-                    this->state.spacing < mds_eps,
+                    this->state.gridSpacing < mds_eps,
                     "SetSpacing(float) - float must be greater than mds_eps");
             this->state.ierr |= checkError(
                     iszeromatrix3(this->state.box),
@@ -322,37 +331,37 @@ void StressGrid::Init()
     
         // Set grid sizes before allocation
         if (this->state.spatatom == mds_spat) {
-            if(this->state.nxyz[0] == 0)
-                this->state.nxyz[0] = static_cast<int>(this->state.box[0][0]/this->state.spacing);
-            if(this->state.nxyz[1] == 0)
-                this->state.nxyz[1] = static_cast<int>(this->state.box[1][1]/this->state.spacing);
-            if(this->state.nxyz[2] == 0)
-                this->state.nxyz[2] = static_cast<int>(this->state.box[2][2]/this->state.spacing);
+            if(this->state.gridCells[0] == 0)
+                this->state.gridCells[0] = static_cast<int>(this->state.box[0][0]/this->state.gridSpacing);
+            if(this->state.gridCells[1] == 0)
+                this->state.gridCells[1] = static_cast<int>(this->state.box[1][1]/this->state.gridSpacing);
+            if(this->state.gridCells[2] == 0)
+                this->state.gridCells[2] = static_cast<int>(this->state.box[2][2]/this->state.gridSpacing);
             
-            this->state.ncells = this->state.nxyz[0]*this->state.nxyz[1]*this->state.nxyz[2];
+            this->state.nCells = this->state.gridCells[0]*this->state.gridCells[1]*this->state.gridCells[2];
 
-            if (this->state.ncells == this->state.nxyz[0]) {
-                this->state.griddim = mds_griddim_xxx;
-            } else if (this->state.ncells == this->state.nxyz[1]) {
-                this->state.griddim = mds_griddim_yyy;
-            } else if (this->state.ncells == this->state.nxyz[2]) {
-                this->state.griddim = mds_griddim_zzz;
+            if (this->state.nCells == this->state.gridCells[0]) {
+                this->state.gridDims = mds_griddim_xxx;
+            } else if (this->state.nCells == this->state.gridCells[1]) {
+                this->state.gridDims = mds_griddim_yyy;
+            } else if (this->state.nCells == this->state.gridCells[2]) {
+                this->state.gridDims = mds_griddim_zzz;
             } else {
-                this->state.griddim = mds_griddim_xyz;
+                this->state.gridDims = mds_griddim_xyz;
             }
         } else {
-            this->state.ncells = this->state.nAtoms;
+            this->state.nCells = this->state.nAtoms;
 
             // create the molecule_id array
-            this->alloc.molecule_id = new int[this->state.ncells];
+            this->alloc.molecule_id = new int[this->state.nCells];
             
             // create the radii array
-            this->alloc.radii = new real_mds[this->state.ncells];
-            this->alloc.positions = new real_mds[3*this->state.ncells];
-            this->alloc.sum_volume = new real_mds[this->state.ncells];
+            this->alloc.radii = new real_mds[this->state.nCells];
+            this->alloc.positions = new real_mds[3*this->state.nCells];
+            this->alloc.sum_volume = new real_mds[this->state.nCells];
 
             // set them to defaults
-            for ( int i=0; i < this->state.ncells; ++i ) {
+            for ( int i=0; i < this->state.nCells; ++i ) {
                 this->alloc.molecule_id[i] = 0;
                 this->alloc.radii[i] = realval_mds(0.001);
                 this->alloc.sum_volume[i] = realval_mds(0.0);
@@ -364,17 +373,17 @@ void StressGrid::Init()
         }
 
         // Allocate all space necessary for grids
-        this->alloc.sum_grid             = new matrix3_mds [this->state.ncells];
-        this->alloc.avg_grid             = new matrix3_mds [this->state.ncells];
+        this->alloc.sum_grid             = new matrix3_mds [this->state.nCells];
+        this->alloc.avg_grid             = new matrix3_mds [this->state.nCells];
         this->alloc.avg_gridtot          = new matrix3_mds [1];
-        this->alloc.sum_grid_elcovar     = new matrix6_mds [this->state.ncells];
-        this->alloc.sum_grid_elkin       = new matrix6_mds [this->state.ncells];
-        this->alloc.sum_grid_elborn      = new matrix6_mds [this->state.ncells];
-        this->alloc.sum_grid_volcovar    = new matrix3_mds [this->state.ncells];
+        this->alloc.sum_grid_elcovar     = new matrix6_mds [this->state.nCells];
+        this->alloc.sum_grid_elkin       = new matrix6_mds [this->state.nCells];
+        this->alloc.sum_grid_elborn      = new matrix6_mds [this->state.nCells];
+        this->alloc.sum_grid_volcovar    = new matrix3_mds [this->state.nCells];
         this->alloc.sum_gridtot_volcovar = new matrix3_mds [1];
-        this->alloc.current_grid_elkin   = new matrix6_mds [this->state.ncells*this->m_max_threads];
-        this->alloc.current_grid_elborn  = new matrix6_mds [this->state.ncells*this->m_max_threads];
-        this->alloc.current_grid         = new matrix3_mds [this->state.ncells*this->m_max_threads];
+        this->alloc.current_grid_elkin   = new matrix6_mds [this->state.nCells*this->m_max_threads];
+        this->alloc.current_grid_elborn  = new matrix6_mds [this->state.nCells*this->m_max_threads];
+        this->alloc.current_grid         = new matrix3_mds [this->state.nCells*this->m_max_threads];
         this->alloc.current_gridtot      = new matrix3_mds [1];
 
         // Zero all allocated buffers and counters
@@ -384,7 +393,7 @@ void StressGrid::Init()
         zeromatrix3(this->alloc.current_gridtot[0]);
         zeromatrix3(this->alloc.avg_gridtot[0]);
         zeromatrix3(this->alloc.sum_gridtot_volcovar[0]);
-        for (int i=0; i < this->state.ncells; i++) {
+        for (int i=0; i < this->state.nCells; i++) {
             zeromatrix3(this->alloc.sum_grid[i]);
             zeromatrix3(this->alloc.avg_grid[i]);
             zeromatrix3(this->alloc.sum_grid_volcovar[i]);
@@ -392,7 +401,7 @@ void StressGrid::Init()
             zeromatrix6(this->alloc.sum_grid_elborn[i]);
             zeromatrix6(this->alloc.sum_grid_elkin[i]);
         }
-        for (int i=0; i < this->state.ncells*this->m_max_threads; i++) {
+        for (int i=0; i < this->state.nCells*this->m_max_threads; i++) {
             zeromatrix3(this->alloc.current_grid[i]);
             zeromatrix6(this->alloc.current_grid_elborn[i]);
             zeromatrix6(this->alloc.current_grid_elkin[i]);
@@ -409,10 +418,10 @@ void StressGrid::Init()
         if (this->state.cuda) {
             custress_init(
                     this->m_max_threads,
-                    this->state.ncells,
-                    this->state.nxyz[0],
-                    this->state.nxyz[1],
-                    this->state.nxyz[2]);
+                    this->state.nCells,
+                    this->state.gridCells[0],
+                    this->state.gridCells[1],
+                    this->state.gridCells[2]);
         }
 #endif//CUSTRESS_ENABLE
 
@@ -458,9 +467,9 @@ void StressGrid::UpdateBoxSpacings ( matrix3_ext box )
             copymatrix3( box, this->state.box);
             inversematrix3( this->state.box, this->state.invbox );
 
-            this->state.gridsp[0] = this->state.box[0][0]/static_cast<real_mds>(this->state.nxyz[0]);
-            this->state.gridsp[1] = this->state.box[1][1]/static_cast<real_mds>(this->state.nxyz[1]);
-            this->state.gridsp[2] = this->state.box[2][2]/static_cast<real_mds>(this->state.nxyz[2]);
+            this->state.gridsp[0] = this->state.box[0][0]/static_cast<real_mds>(this->state.gridCells[0]);
+            this->state.gridsp[1] = this->state.box[1][1]/static_cast<real_mds>(this->state.gridCells[1]);
+            this->state.gridsp[2] = this->state.box[2][2]/static_cast<real_mds>(this->state.gridCells[2]);
             this->state.gridsp[3] = this->state.gridsp[0]*this->state.gridsp[1];
             this->state.gridsp[4] = this->state.gridsp[0]*this->state.gridsp[2];
             this->state.gridsp[5] = this->state.gridsp[1]*this->state.gridsp[2];
@@ -493,18 +502,18 @@ void StressGrid::SumGrid ( )
         sumgrid_enter_stress_reduction.count_down_and_wait();
         
         // reduce all stress current grids
-        for (int i = thread_id; i < this->state.ncells; i+=this->m_max_threads)
+        for (int i = thread_id; i < this->state.nCells; i+=this->m_max_threads)
         {
-            if (i < this->state.ncells)
+            if (i < this->state.nCells)
             {
                 for (int j = 1; j < this->m_max_threads; ++j)
                 {
-                    summatrix3(this->alloc.current_grid[i], this->alloc.current_grid[i+j*this->state.ncells], this->alloc.current_grid[i] );
-                    zeromatrix3(this->alloc.current_grid[i+j*this->state.ncells]);
-                    summatrix6(this->alloc.current_grid_elborn[i], this->alloc.current_grid_elborn[i+j*this->state.ncells], this->alloc.current_grid_elborn[i] );
-                    zeromatrix6(this->alloc.current_grid_elborn[i+j*this->state.ncells]);
-                    summatrix6(this->alloc.current_grid_elkin[i], this->alloc.current_grid_elkin[i+j*this->state.ncells], this->alloc.current_grid_elkin[i] );
-                    zeromatrix6(this->alloc.current_grid_elkin[i+j*this->state.ncells]);
+                    summatrix3(this->alloc.current_grid[i], this->alloc.current_grid[i+j*this->state.nCells], this->alloc.current_grid[i] );
+                    zeromatrix3(this->alloc.current_grid[i+j*this->state.nCells]);
+                    summatrix6(this->alloc.current_grid_elborn[i], this->alloc.current_grid_elborn[i+j*this->state.nCells], this->alloc.current_grid_elborn[i] );
+                    zeromatrix6(this->alloc.current_grid_elborn[i+j*this->state.nCells]);
+                    summatrix6(this->alloc.current_grid_elkin[i], this->alloc.current_grid_elkin[i+j*this->state.nCells], this->alloc.current_grid_elkin[i] );
+                    zeromatrix6(this->alloc.current_grid_elkin[i+j*this->state.nCells]);
                 }
             }
         }
@@ -568,17 +577,17 @@ void StressGrid::SumGrid ( )
             this->state.var_boxvol += deltaV*deltaV2;
 
             if (this->state.spatatom == mds_spat) {
-                for (int i = 0; i < this->state.ncells; i++)
-                    summatrix3(this->alloc.current_gridtot[0], this->alloc.current_grid[i], this->alloc.current_gridtot[0]); // compute y = sigma_total_kl = sum(sigma_local_kl)/this->state.ncells
+                for (int i = 0; i < this->state.nCells; i++)
+                    summatrix3(this->alloc.current_gridtot[0], this->alloc.current_grid[i], this->alloc.current_gridtot[0]); // compute y = sigma_total_kl = sum(sigma_local_kl)/this->state.nCells
 
-                scalematrix3(this->alloc.current_gridtot[0], realval_mds(1.0)/this->state.ncells, this->alloc.current_gridtot[0]); // scale by this->state.ncells
+                scalematrix3(this->alloc.current_gridtot[0], realval_mds(1.0)/this->state.nCells, this->alloc.current_gridtot[0]); // scale by this->state.nCells
                 scalesummatrix3(realval_mds(-1.0), this->alloc.avg_gridtot[0], this->alloc.current_gridtot[0]); // subtract meany from y and store back into y (which now becomes dy)
                 scalesummatrix3(realval_mds(1.0)/this->state.nframes, this->alloc.current_gridtot[0], this->alloc.avg_gridtot[0]); //compute meany
                 scalesummatrix3(deltaV, this->alloc.current_gridtot[0], this->alloc.sum_gridtot_volcovar[0]); // accumulate the covar(sigma_total_kl, Vol)
 
                 matrix6_mds tmp_covar[1];
                 matrix3_mds dx[1];
-                for (int i = 0; i < this->state.ncells; i++) {
+                for (int i = 0; i < this->state.nCells; i++) {
                     summatrix3( this->alloc.sum_grid[i], this->alloc.current_grid[i], this->alloc.sum_grid[i] );
                     summatrix6( this->alloc.sum_grid_elborn[i], this->alloc.current_grid_elborn[i], this->alloc.sum_grid_elborn[i] );
                     summatrix6( this->alloc.sum_grid_elkin[i], this->alloc.current_grid_elkin[i], this->alloc.sum_grid_elkin[i] );
@@ -603,23 +612,23 @@ void StressGrid::SumGrid ( )
 
                 // need to count the number of sites without radius 0.0
                 int vcells = 0;
-                for (int i = 0; i < this->state.ncells; ++i) {
+                for (int i = 0; i < this->state.nCells; ++i) {
                     if (this->alloc.radii[i] > 0.0)
                         vcells += 1;
                 }
 
                 int gridn[3];
-                gridn[0] = pow(this->state.ncells/(3*gfxy*gfxz), 1/3.0);
+                gridn[0] = pow(this->state.nCells/(3*gfxy*gfxz), 1/3.0);
                 gridn[1] = gridn[0]*gfxy;
                 gridn[2] = gridn[0]*gfxz;
 
                 // create the voronoi objects
-                voro::particle_order vorpo = voro::particle_order(this->state.ncells);
+                voro::particle_order vorpo = voro::particle_order(this->state.nCells);
                 voro::container_poly vorcon = voro::container_poly(0.0, vor_box[0], 0.0, vor_box[1], 0.0, vor_box[2], gridn[0], gridn[1], gridn[2], this->state.periodic[0], this->state.periodic[1], this->state.periodic[2], 8);
 
                 // fill the container
                 int voro_cells = 0;
-                for (int i = 0; i < this->state.ncells; ++i) {
+                for (int i = 0; i < this->state.nCells; ++i) {
                     if (this->alloc.radii[i] > 0.0) {
                         voro_cells += 1;
                         double px = (double)this->alloc.positions[3*i];
@@ -687,7 +696,7 @@ void StressGrid::SumGrid ( )
             }
 
             zeromatrix3(this->alloc.current_gridtot[0]);
-            for(int i = 0; i < this->state.ncells; ++i) {
+            for(int i = 0; i < this->state.nCells; ++i) {
                 zeromatrix3(this->alloc.current_grid[i]);
                 zeromatrix6(this->alloc.current_grid_elborn[i]);
                 zeromatrix6(this->alloc.current_grid_elkin[i]);
@@ -708,10 +717,10 @@ void StressGrid::DispersionCorrection (real_ext shift)
     if (this->state.nodispcor == false) {
         // select the correct grid
         int batch_id = this->m_thread_map[std::this_thread::get_id()];
-        matrix3_mds * grid = this->alloc.current_grid+batch_id*this->state.ncells;
+        matrix3_mds * grid = this->alloc.current_grid+batch_id*this->state.nCells;
 
         // add shift to grid
-        for(int i = 0; i < this->state.ncells; i++) {
+        for(int i = 0; i < this->state.nCells; i++) {
             for(int m = 0; m < 3; m++)
                 grid[i][m][m] += shift;
         }
@@ -735,7 +744,7 @@ void StressGrid::Reset ( )
         reset_entry.count_down_and_wait();
 
         // every thread zeros its own current grid
-        for( int i=0; i<this->state.ncells; i++ ) {
+        for( int i=0; i<this->state.nCells; i++ ) {
             zeromatrix3(this->alloc.current_grid[i+thread_id*this->m_max_threads]);
             zeromatrix6(this->alloc.current_grid_elborn[i+thread_id*this->m_max_threads]);
             zeromatrix6(this->alloc.current_grid_elkin[i+thread_id*this->m_max_threads]);
@@ -745,7 +754,7 @@ void StressGrid::Reset ( )
             // thread 0 deals with the sum grid
             zeromatrix3(this->alloc.current_gridtot[0]);
             zeromatrix3(this->alloc.avg_gridtot[0]);
-            for( int i=0; i<this->state.ncells; i++ ) {
+            for( int i=0; i<this->state.nCells; i++ ) {
                 zeromatrix3( this->alloc.sum_grid[i] );
                 zeromatrix3( this->alloc.avg_grid[i] );
                 zeromatrix3( this->alloc.sum_grid_volcovar[i] );
@@ -755,7 +764,7 @@ void StressGrid::Reset ( )
             }
 
             if (this->state.spatatom == mds_atom) {
-                for( int i=0; i<this->state.ncells; i++ )
+                for( int i=0; i<this->state.nCells; i++ )
                     this->alloc.sum_volume[i] = 0.0;
             }
 
@@ -845,32 +854,32 @@ void StressGrid::Write ( )
 
         if (this->state.spatatom == mds_spat) {
             // this is the number of grids in all dimensions, also to all files
-            fwrite(&this->state.nxyz[0], sizeof(this->state.nxyz[0]), 1, outfile);
-            fwrite(&this->state.nxyz[1], sizeof(this->state.nxyz[1]), 1, outfile);
-            fwrite(&this->state.nxyz[2], sizeof(this->state.nxyz[2]), 1, outfile);
-            fwrite(&this->state.nxyz[0], sizeof(this->state.nxyz[0]), 1, elcovar_outfile);
-            fwrite(&this->state.nxyz[1], sizeof(this->state.nxyz[1]), 1, elcovar_outfile);
-            fwrite(&this->state.nxyz[2], sizeof(this->state.nxyz[2]), 1, elcovar_outfile);
-            fwrite(&this->state.nxyz[0], sizeof(this->state.nxyz[0]), 1, elborn_outfile);
-            fwrite(&this->state.nxyz[1], sizeof(this->state.nxyz[1]), 1, elborn_outfile);
-            fwrite(&this->state.nxyz[2], sizeof(this->state.nxyz[2]), 1, elborn_outfile);
-            fwrite(&this->state.nxyz[0], sizeof(this->state.nxyz[0]), 1, elkin_outfile);
-            fwrite(&this->state.nxyz[1], sizeof(this->state.nxyz[1]), 1, elkin_outfile);
-            fwrite(&this->state.nxyz[2], sizeof(this->state.nxyz[2]), 1, elkin_outfile);
-            fwrite(&this->state.nxyz[0], sizeof(this->state.nxyz[0]), 1, eltotal_outfile);
-            fwrite(&this->state.nxyz[1], sizeof(this->state.nxyz[1]), 1, eltotal_outfile);
-            fwrite(&this->state.nxyz[2], sizeof(this->state.nxyz[2]), 1, eltotal_outfile);
-            fwrite(&this->state.nxyz[0], sizeof(this->state.nxyz[0]), 1, eltotalhooke_outfile);
-            fwrite(&this->state.nxyz[1], sizeof(this->state.nxyz[1]), 1, eltotalhooke_outfile);
-            fwrite(&this->state.nxyz[2], sizeof(this->state.nxyz[2]), 1, eltotalhooke_outfile);
+            fwrite(&this->state.gridCells[0], sizeof(this->state.gridCells[0]), 1, outfile);
+            fwrite(&this->state.gridCells[1], sizeof(this->state.gridCells[1]), 1, outfile);
+            fwrite(&this->state.gridCells[2], sizeof(this->state.gridCells[2]), 1, outfile);
+            fwrite(&this->state.gridCells[0], sizeof(this->state.gridCells[0]), 1, elcovar_outfile);
+            fwrite(&this->state.gridCells[1], sizeof(this->state.gridCells[1]), 1, elcovar_outfile);
+            fwrite(&this->state.gridCells[2], sizeof(this->state.gridCells[2]), 1, elcovar_outfile);
+            fwrite(&this->state.gridCells[0], sizeof(this->state.gridCells[0]), 1, elborn_outfile);
+            fwrite(&this->state.gridCells[1], sizeof(this->state.gridCells[1]), 1, elborn_outfile);
+            fwrite(&this->state.gridCells[2], sizeof(this->state.gridCells[2]), 1, elborn_outfile);
+            fwrite(&this->state.gridCells[0], sizeof(this->state.gridCells[0]), 1, elkin_outfile);
+            fwrite(&this->state.gridCells[1], sizeof(this->state.gridCells[1]), 1, elkin_outfile);
+            fwrite(&this->state.gridCells[2], sizeof(this->state.gridCells[2]), 1, elkin_outfile);
+            fwrite(&this->state.gridCells[0], sizeof(this->state.gridCells[0]), 1, eltotal_outfile);
+            fwrite(&this->state.gridCells[1], sizeof(this->state.gridCells[1]), 1, eltotal_outfile);
+            fwrite(&this->state.gridCells[2], sizeof(this->state.gridCells[2]), 1, eltotal_outfile);
+            fwrite(&this->state.gridCells[0], sizeof(this->state.gridCells[0]), 1, eltotalhooke_outfile);
+            fwrite(&this->state.gridCells[1], sizeof(this->state.gridCells[1]), 1, eltotalhooke_outfile);
+            fwrite(&this->state.gridCells[2], sizeof(this->state.gridCells[2]), 1, eltotalhooke_outfile);
         } else {
-            // if we are using mds_atom, then there is only ncells == natoms
-            fwrite(&this->state.ncells, sizeof(int), 1, outfile);
-            fwrite(&this->state.ncells, sizeof(int), 1, elcovar_outfile);
-            fwrite(&this->state.ncells, sizeof(int), 1, elborn_outfile);
-            fwrite(&this->state.ncells, sizeof(int), 1, elkin_outfile);
-            fwrite(&this->state.ncells, sizeof(int), 1, eltotal_outfile);
-            fwrite(&this->state.ncells, sizeof(int), 1, eltotalhooke_outfile);
+            // if we are using mds_atom, then there is only nCells == natoms
+            fwrite(&this->state.nCells, sizeof(int), 1, outfile);
+            fwrite(&this->state.nCells, sizeof(int), 1, elcovar_outfile);
+            fwrite(&this->state.nCells, sizeof(int), 1, elborn_outfile);
+            fwrite(&this->state.nCells, sizeof(int), 1, elkin_outfile);
+            fwrite(&this->state.nCells, sizeof(int), 1, eltotal_outfile);
+            fwrite(&this->state.nCells, sizeof(int), 1, eltotalhooke_outfile);
         }
 
         // calculate stress factors
@@ -878,7 +887,7 @@ void StressGrid::Write ( )
         //stressfac = real_mds(mds_units)/this->state.nframes;
         stressfac = real_mds(mds_units);
         covfac = -real_mds(mds_units)*real_mds(mds_units)*this->state.avg_boxvol/(this->state.temperature*real_mds(KBfac)*this->state.nframes);
-        //covfac /= this->state.ncells; // uncomment this for for local-vs-local fluctuations
+        //covfac /= this->state.nCells; // uncomment this for for local-vs-local fluctuations
         covfac2 = realval_mds(0.0);
         if (this->state.pcoupl == true)
             covfac2 = real_mds(mds_units)*real_mds(mds_units)*this->state.avg_boxvol/(this->state.temperature*real_mds(KBfac)*this->state.var_boxvol*this->state.nframes);
@@ -901,7 +910,7 @@ void StressGrid::Write ( )
 
         // need this for corrections below
         matrix6_mds npt_covar_corr[1];
-        for ( int i = 0; i < this->state.ncells; i++ )
+        for ( int i = 0; i < this->state.nCells; i++ )
         {
             //scalematrix3(this->alloc.sum_grid[i], stressfac, this->alloc.sum_grid[i]);
             scalematrix3(this->alloc.avg_grid[i], stressfac, this->alloc.avg_grid[i]); // Use the online average stress instead of the cummulative stress divided by the number of frames
@@ -932,7 +941,7 @@ void StressGrid::Write ( )
         // append the volume data
         if (this->state.spatatom == mds_atom)
         {
-            for ( int i = 0; i < this->state.ncells; i++ )
+            for ( int i = 0; i < this->state.nCells; i++ )
             {
                 real_out sum_volume = (real_out)(this->alloc.sum_volume[i] / this->state.nframes);
                 fwrite(&sum_volume, sizeof(real_out), 1, outfile);
@@ -943,7 +952,7 @@ void StressGrid::Write ( )
         fclose(elcovar_outfile);
         fclose(elborn_outfile);
         fclose(elkin_outfile);
-        for ( int i = 0; i < this->state.ncells; i++ )
+        for ( int i = 0; i < this->state.nCells; i++ )
         {
             summatrix6(this->alloc.sum_grid_elcovar[i], this->alloc.sum_grid_elborn[i], this->alloc.sum_grid_elcovar[i]); // add up all the contributions to the total elasticity tensor
             summatrix6(this->alloc.sum_grid_elcovar[i], this->alloc.sum_grid_elkin[i], this->alloc.sum_grid_elcovar[i]);
@@ -1027,7 +1036,7 @@ void StressGrid::SetVoronoiRadius(real_ext radius, int atomID)
     std::lock_guard<std::mutex> lock(this->m_mutex_state);
 
     // quick check if we have the correct number of atoms
-    this->state.ierr |= checkError(atomID > this->state.ncells,
+    this->state.ierr |= checkError(atomID > this->state.nCells,
             "ERROR:: atomID is greater than number of cells");
 
     if (MDS_OK == this->state.ierr)
@@ -1054,7 +1063,7 @@ void StressGrid::AddVoronoiAtom(real_ext px, real_ext py, real_ext pz, int atomI
     std::lock_guard<std::mutex> lock(this->m_mutex_state);
 
     // quick check if we have the correct number of atoms
-    this->state.ierr |= checkError(atomID > this->state.ncells,
+    this->state.ierr |= checkError(atomID > this->state.nCells,
             "ERROR:: atomID is greater than number of cells");
 
     if (MDS_OK == this->state.ierr)
@@ -1100,12 +1109,16 @@ void StressGrid::DistributeInteraction(int nAtoms, array3_ext *R, array3_ext *F,
         // If spatatom==mds_spat distribute the stress spatially following Noll's procedure
         if (this->state.spatatom == mds_spat)
         {
+            //------------------------------------------------------------------------------------
+            matrix3_mds * grid = this->alloc.current_grid+batch_id*this->state.nCells;
+            Lapack * lapack = this->alloc.lapack[batch_id];
+
             // Depending on the number of atoms, call a different function
             if (2 == nAtoms) {
                 const array3_mds Ra = {(real_mds)R[0][0], (real_mds)R[0][1], (real_mds)R[0][2]};
                 const array3_mds Rb = {(real_mds)R[1][0], (real_mds)R[1][1], (real_mds)R[1][2]};
                 const array3_mds Fa = {(real_mds)F[0][0], (real_mds)F[0][1], (real_mds)F[0][2]};
-                this->DistributePairInteraction(Ra, Rb, Fa, batch_id );
+                this->DistributePairInteraction(Ra, Rb, Fa, grid);
             } else if (3 == nAtoms) {
                 const array3_mds Ra = {(real_mds)R[0][0], (real_mds)R[0][1], (real_mds)R[0][2]};
                 const array3_mds Rb = {(real_mds)R[1][0], (real_mds)R[1][1], (real_mds)R[1][2]};
@@ -1113,7 +1126,7 @@ void StressGrid::DistributeInteraction(int nAtoms, array3_ext *R, array3_ext *F,
                 const array3_mds Fa  = {(real_mds)F[0][0], (real_mds)F[0][1], (real_mds)F[0][2]};
                 const array3_mds Fb  = {(real_mds)F[1][0], (real_mds)F[1][1], (real_mds)F[1][2]};
                 const array3_mds Fc  = {(real_mds)F[2][0], (real_mds)F[2][1], (real_mds)F[2][2]};
-                this->DistributeN3(Ra, Rb, Rc, Fa, Fb, Fc, batch_id);
+                this->DistributeN3(Ra, Rb, Rc, Fa, Fb, Fc, lapack, grid);
             } else if (-3 == nAtoms) {
                 const array3_mds Ra = {(real_mds)R[0][0], (real_mds)R[0][1], (real_mds)R[0][2]};
                 const array3_mds Rb = {(real_mds)R[1][0], (real_mds)R[1][1], (real_mds)R[1][2]};
@@ -1121,7 +1134,7 @@ void StressGrid::DistributeInteraction(int nAtoms, array3_ext *R, array3_ext *F,
                 const array3_mds Fa  = {(real_mds)F[0][0], (real_mds)F[0][1], (real_mds)F[0][2]};
                 const array3_mds Fb  = {(real_mds)F[1][0], (real_mds)F[1][1], (real_mds)F[1][2]};
                 const array3_mds Fc  = {(real_mds)F[2][0], (real_mds)F[2][1], (real_mds)F[2][2]};
-                this->DistributeSettle(Ra, Rb, Rc, Fa, Fb, Fc, batch_id);
+                this->DistributeSettle(Ra, Rb, Rc, Fa, Fb, Fc, lapack, grid);
             } else if (4 == nAtoms) {
                 const array3_mds Ra = {(real_mds)R[0][0], (real_mds)R[0][1], (real_mds)R[0][2]};
                 const array3_mds Rb = {(real_mds)R[1][0], (real_mds)R[1][1], (real_mds)R[1][2]};
@@ -1131,7 +1144,7 @@ void StressGrid::DistributeInteraction(int nAtoms, array3_ext *R, array3_ext *F,
                 const array3_mds Fb  = {(real_mds)F[1][0], (real_mds)F[1][1], (real_mds)F[1][2]};
                 const array3_mds Fc  = {(real_mds)F[2][0], (real_mds)F[2][1], (real_mds)F[2][2]};
                 const array3_mds Fd  = {(real_mds)F[3][0], (real_mds)F[3][1], (real_mds)F[3][2]};
-                this->DistributeN4(Ra, Rb, Rc, Rd, Fa, Fb, Fc, Fd, batch_id);
+                this->DistributeN4(Ra, Rb, Rc, Rd, Fa, Fb, Fc, Fd, lapack, grid);
             } else if (5 == nAtoms) {
                 const array3_mds Ra = {(real_mds)R[0][0], (real_mds)R[0][1], (real_mds)R[0][2]};
                 const array3_mds Rb = {(real_mds)R[1][0], (real_mds)R[1][1], (real_mds)R[1][2]};
@@ -1143,9 +1156,9 @@ void StressGrid::DistributeInteraction(int nAtoms, array3_ext *R, array3_ext *F,
                 const array3_mds Fc  = {(real_mds)F[2][0], (real_mds)F[2][1], (real_mds)F[2][2]};
                 const array3_mds Fd  = {(real_mds)F[3][0], (real_mds)F[3][1], (real_mds)F[3][2]};
                 const array3_mds Ff  = {(real_mds)F[4][0], (real_mds)F[4][1], (real_mds)F[4][2]};
-                this->DistributeN5(Ra, Rb, Rc, Rd, Rf, Fa, Fb, Fc, Fd, Ff, batch_id );
+                this->DistributeN5(Ra, Rb, Rc, Rd, Rf, Fa, Fb, Fc, Fd, Ff, lapack, grid);
             } else {
-                this->DistributeNBody( nAtoms, R, F, true, batch_id );
+                this->DistributeNBody(nAtoms, R, F, lapack, grid);
             }
         } else if (this->state.spatatom == mds_atom) {
             // This is because SETTLE calls the function with nAtoms=-3
@@ -1172,7 +1185,6 @@ void StressGrid::DistributeInteraction(int nAtoms, array3_ext *R, array3_ext *F,
                 }
             }
 
-
             //Calculate the stress
             for(n = 0; n < nAtoms; n++) {
                 for(i = 0; i< mds_ndim; i++) {
@@ -1195,21 +1207,6 @@ void StressGrid::DistributeInteraction(int nAtoms, array3_ext *R, array3_ext *F,
     return;
 }
 
-//----------------------------------------------------------------------------------------
-// ComputeNbodyPairForces
-//
-// This function reads the number of atoms, the atoms' labels and their
-// respective positions and forces, and computes the N-body pairwise forces and vectors
-// without distributing the stress
-// nAtoms  -> number of atoms of the contribution
-// R       -> positions of the atoms
-// F       -> forces on the atoms
-void StressGrid::ComputeNbodyPairForces(int nAtoms, array3_ext *R, array3_ext *F, int *atomIDs = nullptr)
-{
-    if (true == this->state.disable) return;
-    this->DistributeNBody( nAtoms, R, F, false, 0);
-}
-
 void StressGrid::DistributeElasticity(
         const array3_ext & xi_ext,
         const array3_ext & xj_ext,
@@ -1222,7 +1219,7 @@ void StressGrid::DistributeElasticity(
         return;
     
     int batch_id = this->m_thread_map[std::this_thread::get_id()];
-    matrix6_mds * grid = this->alloc.current_grid_elborn+batch_id*this->state.ncells;
+    matrix6_mds * grid = this->alloc.current_grid_elborn+batch_id*this->state.nCells;
 
     const array3_mds xi = {(real_mds)xi_ext[0], (real_mds)xi_ext[1], (real_mds)xi_ext[2]};
     const array3_mds xj = {(real_mds)xj_ext[0], (real_mds)xj_ext[1], (real_mds)xj_ext[2]};
@@ -1271,7 +1268,7 @@ void StressGrid::DistributeElasticity(
         {                                              0.0,                                              0.0,                                              0.0,                                              0.0,                                              0.0, /*55*/diff01*diff201*rinv2 - diff01*diff01*rinv3 }
     };
     
-    if (this->state.griddim == mds_griddim_xyz) {
+    if (this->state.gridDims == mds_griddim_xyz) {
         distribute_observable_3d(this->state, xi, xj, diff, elast, grid);
     } else {
         distribute_observable_1d(this->state, xi, xj, diff, elast, grid);
@@ -1295,17 +1292,27 @@ void StressGrid::DistributeElasticity(
 // Warning! this is not the same as simply taking the average of the half-step velocities, which would be incorrect.
 //
 // For velocity-verlet integrators we know v at the same time step, t, as the positions so the contribution is -m*va(t)*va(t)
-void StressGrid::DistributeKinetic(real_ext mass, array3_ext x, array3_ext va, array3_ext vb = nullptr, int atomID = -1)
+void StressGrid::DistributeKinetic(
+        real_ext mass,
+        array3_ext x,
+        array3_ext va,
+        array3_ext vb = nullptr,
+        int atomID = -1)
 {
     if (true == this->state.disable)
         return;
 
     matrix3_mds stress = {0};
+    matrix6_mds elast = {0};
 
     if (MDS_OK == this->state.ierr)
     {
         // get the batch id
         int batch_id = this->m_thread_map[std::this_thread::get_id()];
+        
+        // select grid based on batch index
+        matrix6_mds * elast_grid = this->alloc.current_grid_elkin+batch_id*this->state.nCells;
+        matrix3_mds * stress_grid = this->alloc.current_grid+batch_id*this->state.nCells;
             
         if (vb == nullptr)
         {
@@ -1318,122 +1325,7 @@ void StressGrid::DistributeKinetic(real_ext mass, array3_ext x, array3_ext va, a
             stress[2][0] = (real_mds)(-mass)*(real_mds)(va[2])*(real_mds)(va[0]);
             stress[2][1] = (real_mds)(-mass)*(real_mds)(va[2])*(real_mds)(va[1]);
             stress[2][2] = (real_mds)(-mass)*(real_mds)(va[2])*(real_mds)(va[2]);
-        }
-        else
-        {
-            stress[0][0] = (real_mds)(-mass)*((real_mds)(va[0])*(real_mds)(va[0]) + (real_mds)(vb[0])*(real_mds)(vb[0]))/realval_mds(2.0);
-            stress[0][1] = (real_mds)(-mass)*((real_mds)(va[0])*(real_mds)(va[1]) + (real_mds)(vb[0])*(real_mds)(vb[1]))/realval_mds(2.0);
-            stress[0][2] = (real_mds)(-mass)*((real_mds)(va[0])*(real_mds)(va[2]) + (real_mds)(vb[0])*(real_mds)(vb[2]))/realval_mds(2.0);
-            stress[1][0] = (real_mds)(-mass)*((real_mds)(va[1])*(real_mds)(va[0]) + (real_mds)(vb[1])*(real_mds)(vb[0]))/realval_mds(2.0);
-            stress[1][1] = (real_mds)(-mass)*((real_mds)(va[1])*(real_mds)(va[1]) + (real_mds)(vb[1])*(real_mds)(vb[1]))/realval_mds(2.0);
-            stress[1][2] = (real_mds)(-mass)*((real_mds)(va[1])*(real_mds)(va[2]) + (real_mds)(vb[1])*(real_mds)(vb[2]))/realval_mds(2.0);
-            stress[2][0] = (real_mds)(-mass)*((real_mds)(va[2])*(real_mds)(va[0]) + (real_mds)(vb[2])*(real_mds)(vb[0]))/realval_mds(2.0);
-            stress[2][1] = (real_mds)(-mass)*((real_mds)(va[2])*(real_mds)(va[1]) + (real_mds)(vb[2])*(real_mds)(vb[1]))/realval_mds(2.0);
-            stress[2][2] = (real_mds)(-mass)*((real_mds)(va[2])*(real_mds)(va[2]) + (real_mds)(vb[2])*(real_mds)(vb[2]))/realval_mds(2.0);
-        }
-
-        // If spatatom==mds_spat distribute the stress spatially following Noll's procedure
-        if (this->state.spatatom == mds_spat)
-        {
-            // select grid based on batch index
-            matrix3_mds * grid = this->alloc.current_grid+batch_id*this->state.ncells;
-
-            // Get the coordinates of the point in the grid
-            iarray i1 = {
-                int(this->state.nxyz[0] * x[0] * this->state.invbox[0][0] - (x[0] < 0.0) ),
-                int(this->state.nxyz[1] * x[1] * this->state.invbox[1][1] - (x[1] < 0.0) ),
-                int(this->state.nxyz[2] * x[2] * this->state.invbox[2][2] - (x[2] < 0.0) )
-            };
             
-            // and the index constants
-            const int iip1 = ((i1[0] + 1 + this->state.nxyz[0]) % this->state.nxyz[0])*this->state.nxyz[1]*this->state.nxyz[2];
-            const int jjp1 = ((i1[1] + 1 + this->state.nxyz[1]) % this->state.nxyz[1])*this->state.nxyz[2];
-            const int kkp1 = ((i1[2] + 1 + this->state.nxyz[2]) % this->state.nxyz[2]);
-            const int iim1 = ((i1[0] + this->state.nxyz[0]) % this->state.nxyz[0])*this->state.nxyz[1]*this->state.nxyz[2];
-            const int jjm1 = ((i1[1] + this->state.nxyz[1]) % this->state.nxyz[1])*this->state.nxyz[2];
-            const int kkm1 = ((i1[2] + this->state.nxyz[2]) % this->state.nxyz[2]);
-            
-            // xc = vector from the corner of the point to the corner of the cell
-            const array3_mds xc = {
-                (real_mds)(x[0])-this->state.gridsp[0]*i1[0],
-                (real_mds)(x[1])-this->state.gridsp[1]*i1[1],
-                (real_mds)(x[2])-this->state.gridsp[2]*i1[2]
-            };
-            const array3_mds xd = {
-                xc[0]-this->state.gridsp[0],
-                xc[1]-this->state.gridsp[1],
-                xc[2]-this->state.gridsp[2]
-            };
-            
-            // Spread it
-            const real_mds C = this->state.invgridsp * this->state.invgridsp;
-            scalesummatrix3( C*xc[0]*xc[1]*xc[2],stress,grid[iip1+jjp1+kkp1]);
-            scalesummatrix3(-C*xc[0]*xc[1]*xd[2],stress,grid[iip1+jjp1+kkm1]);
-            scalesummatrix3(-C*xc[0]*xd[1]*xc[2],stress,grid[iip1+jjm1+kkp1]);
-            scalesummatrix3( C*xc[0]*xd[1]*xd[2],stress,grid[iip1+jjm1+kkm1]);
-            scalesummatrix3(-C*xd[0]*xc[1]*xc[2],stress,grid[iim1+jjp1+kkp1]);
-            scalesummatrix3( C*xd[0]*xc[1]*xd[2],stress,grid[iim1+jjp1+kkm1]);
-            scalesummatrix3( C*xd[0]*xd[1]*xc[2],stress,grid[iim1+jjm1+kkp1]);
-            scalesummatrix3(-C*xd[0]*xd[1]*xd[2],stress,grid[iim1+jjm1+kkm1]);
-        }
-        else if (this->state.spatatom == mds_atom)
-        {
-            if (atomID == -1)
-            {
-                std::cout << "ERROR:: Unknown atomID for kinetic contribution. Cannot calculate the stress/atom.";
-                return;
-            }
-            else
-            {
-                summatrix3(this->alloc.current_grid[atomID],stress,this->alloc.current_grid[atomID]);
-            }
-        }
-    }
-}
-
-//----------------------------------------------------------------------------------------
-// DistributeKineticElast
-//
-// Distributes kinetic contributions onto the elasticity tensor grid
-// Requires:
-// mass       -> mass of the particle
-// x          -> position of the atom
-// va         -> velocity of the particle at time t for Vel-verlet, or t-dt/2 for leapfrog integrators
-// vb         -> velocity of the particle at t+dt/2 (for leapfrog integrators only)
-//
-// For leapfrog integrators we know va(t-dt/2) and vb(t+dt/2), but we want the contribution at v(t) which we don't know.
-// So we take the average kinetic contribution from the velocities at each half step -m*(va(t-dt/2)^2 + vb(t+dt/2)^2)/2
-// Warning! this is not the same as simply taking the average of the half-step velocities, which would be incorrect.
-//
-// For velocity-verlet integrators we know v at the same time step, t, as the positions so the contribution is -m*va(t)*va(t)
-void StressGrid::DistributeKineticElast(real_ext mass, array3_ext x, array3_ext va, array3_ext vb = nullptr)
-{
-    if (true == this->state.disable)
-        return;
-
-    matrix6_mds elast = {0};
-
-    // Spreads the velocity in one point
-    if (MDS_OK == this->state.ierr) {
-        // get the batch id
-        int batch_id = this->m_thread_map[std::this_thread::get_id()];
-        // select grid based on batch index
-        matrix6_mds * grid = this->alloc.current_grid_elkin+batch_id*this->state.ncells;
-
-        // Stiffness matrix in Voigt notation
-        // 0 = xx; 1 = yy; 2 = zz; 3 = yz or zy; 4 = xz or zx; 5 = xy or yx
-        // All indices                         Voigt indices           Stress indices
-        // ( xxxx xxyy xxzz xxyz xxxz xxxy ) = ( 00 01 02 03 04 05 ) = [ 0000 0011 0022 0012 0002 0001 ]
-        // (      yyyy yyzz yyyz yyxz yyxy ) = (    11 12 13 14 15 ) = [      1111 1122 1112 1102 1101 ]
-        // (           zzzz zzyz zzxz zzxy ) = (       22 23 24 25 ) = [           2222 2212 2202 2201 ]
-        // (                yzyz yzxz yzxy ) = (          33 34 35 ) = [                1212 1202 1201 ]
-        // (                     xzxz xzxy ) = (             44 45 ) = [                     0202 0201 ]
-        // (                          xyxy ) = (                55 ) = [                          0101 ]
-        //
-        // kd = kronecker delta, p is the particle's momenta
-        // ijkl   -> kd(i,l)*pj*pk + kd(j,k)*pi*pl + kd(j,l)*pi*pk + kd(i,k)*pj*pl
-        if (vb == nullptr)
-        {
             elast[0][0] = (real_mds)(mass)*realval_mds(4.0)*(real_mds)(va[0])*(real_mds)(va[0]); //c_xxxx = c_0000
             elast[1][1] = (real_mds)(mass)*realval_mds(4.0)*(real_mds)(va[1])*(real_mds)(va[1]); //c_yyyy = c_1111
             elast[2][2] = (real_mds)(mass)*realval_mds(4.0)*(real_mds)(va[2])*(real_mds)(va[2]); //c_zzzz = c_2222
@@ -1454,6 +1346,16 @@ void StressGrid::DistributeKineticElast(real_ext mass, array3_ext x, array3_ext 
         }
         else
         {
+            stress[0][0] = (real_mds)(-mass)*((real_mds)(va[0])*(real_mds)(va[0]) + (real_mds)(vb[0])*(real_mds)(vb[0]))/realval_mds(2.0);
+            stress[0][1] = (real_mds)(-mass)*((real_mds)(va[0])*(real_mds)(va[1]) + (real_mds)(vb[0])*(real_mds)(vb[1]))/realval_mds(2.0);
+            stress[0][2] = (real_mds)(-mass)*((real_mds)(va[0])*(real_mds)(va[2]) + (real_mds)(vb[0])*(real_mds)(vb[2]))/realval_mds(2.0);
+            stress[1][0] = (real_mds)(-mass)*((real_mds)(va[1])*(real_mds)(va[0]) + (real_mds)(vb[1])*(real_mds)(vb[0]))/realval_mds(2.0);
+            stress[1][1] = (real_mds)(-mass)*((real_mds)(va[1])*(real_mds)(va[1]) + (real_mds)(vb[1])*(real_mds)(vb[1]))/realval_mds(2.0);
+            stress[1][2] = (real_mds)(-mass)*((real_mds)(va[1])*(real_mds)(va[2]) + (real_mds)(vb[1])*(real_mds)(vb[2]))/realval_mds(2.0);
+            stress[2][0] = (real_mds)(-mass)*((real_mds)(va[2])*(real_mds)(va[0]) + (real_mds)(vb[2])*(real_mds)(vb[0]))/realval_mds(2.0);
+            stress[2][1] = (real_mds)(-mass)*((real_mds)(va[2])*(real_mds)(va[1]) + (real_mds)(vb[2])*(real_mds)(vb[1]))/realval_mds(2.0);
+            stress[2][2] = (real_mds)(-mass)*((real_mds)(va[2])*(real_mds)(va[2]) + (real_mds)(vb[2])*(real_mds)(vb[2]))/realval_mds(2.0);
+            
             elast[0][0] = (real_mds)(mass)*realval_mds(4.0)*((real_mds)(va[0])*(real_mds)(va[0]) + (real_mds)(vb[0])*(real_mds)(vb[0]))/realval_mds(2.0); //c_xxxx = c_0000
             elast[1][1] = (real_mds)(mass)*realval_mds(4.0)*((real_mds)(va[1])*(real_mds)(va[1]) + (real_mds)(vb[1])*(real_mds)(vb[1]))/realval_mds(2.0); //c_yyyy = c_1111
             elast[2][2] = (real_mds)(mass)*realval_mds(4.0)*((real_mds)(va[2])*(real_mds)(va[2]) + (real_mds)(vb[2])*(real_mds)(vb[2]))/realval_mds(2.0); //c_zzzz = c_2222
@@ -1473,43 +1375,69 @@ void StressGrid::DistributeKineticElast(real_ext mass, array3_ext x, array3_ext 
             elast[4][5] = (real_mds)(mass)*((real_mds)(va[2])*(real_mds)(va[1]) + (real_mds)(vb[2])*(real_mds)(vb[1]))/realval_mds(2.0); //c_xzxy = c_0201
         }
 
-        // Get the coordinates of the point in the grid
-        const iarray i1 = {
-            int(this->state.nxyz[0] * x[0] * this->state.invbox[0][0] - (x[0] < realval_mds(0.0)) ),
-            int(this->state.nxyz[1] * x[1] * this->state.invbox[1][1] - (x[1] < realval_mds(0.0)) ),
-            int(this->state.nxyz[2] * x[2] * this->state.invbox[2][2] - (x[2] < realval_mds(0.0)) )
-        };
-
-        // and the index constants
-        const int iip1 = ((i1[0] + 1 + this->state.nxyz[0]) % this->state.nxyz[0])*this->state.nxyz[1]*this->state.nxyz[2];
-        const int jjp1 = ((i1[1] + 1 + this->state.nxyz[1]) % this->state.nxyz[1])*this->state.nxyz[2];
-        const int kkp1 = ((i1[2] + 1 + this->state.nxyz[2]) % this->state.nxyz[2]);
-        const int iim1 = ((i1[0] + this->state.nxyz[0]) % this->state.nxyz[0])*this->state.nxyz[1]*this->state.nxyz[2];
-        const int jjm1 = ((i1[1] + this->state.nxyz[1]) % this->state.nxyz[1])*this->state.nxyz[2];
-        const int kkm1 = ((i1[2] + this->state.nxyz[2]) % this->state.nxyz[2]);
-
-        // xc = vector from the corner of the point to the corner of the cell
-        const real_mds C = this->state.invgridsp * this->state.invgridsp;
-        const array3_mds xc = {
-            x[0]-this->state.gridsp[0]*i1[0],
-            x[1]-this->state.gridsp[1]*i1[1],
-            x[2]-this->state.gridsp[2]*i1[2]
-        };
-        const array3_mds xd = {
-            xc[0]-this->state.gridsp[0],
-            xc[1]-this->state.gridsp[1],
-            xc[2]-this->state.gridsp[2]
-        };
-
-        // Spread it
-        scalesummatrix6( C*xc[0]*xc[1]*xc[2],elast,grid[iip1+jjp1+kkp1]);
-        scalesummatrix6(-C*xc[0]*xc[1]*xd[2],elast,grid[iip1+jjp1+kkm1]);
-        scalesummatrix6(-C*xc[0]*xd[1]*xc[2],elast,grid[iip1+jjm1+kkp1]);
-        scalesummatrix6( C*xc[0]*xd[1]*xd[2],elast,grid[iip1+jjm1+kkm1]);
-        scalesummatrix6(-C*xd[0]*xc[1]*xc[2],elast,grid[iim1+jjp1+kkp1]);
-        scalesummatrix6( C*xd[0]*xc[1]*xd[2],elast,grid[iim1+jjp1+kkm1]);
-        scalesummatrix6( C*xd[0]*xd[1]*xc[2],elast,grid[iim1+jjm1+kkp1]);
-        scalesummatrix6(-C*xd[0]*xd[1]*xd[2],elast,grid[iim1+jjm1+kkm1]);
+        // If spatatom==mds_spat distribute the stress spatially following Noll's procedure
+        if (this->state.spatatom == mds_spat)
+        {
+            // Get the coordinates of the point in the grid
+            iarray i1 = {
+                int(this->state.gridCells[0] * x[0] * this->state.invbox[0][0] - (x[0] < 0.0) ),
+                int(this->state.gridCells[1] * x[1] * this->state.invbox[1][1] - (x[1] < 0.0) ),
+                int(this->state.gridCells[2] * x[2] * this->state.invbox[2][2] - (x[2] < 0.0) )
+            };
+            
+            // and the index constants
+            const int iip1 = ((i1[0] + 1 + this->state.gridCells[0]) % this->state.gridCells[0])*this->state.gridCells[1]*this->state.gridCells[2];
+            const int jjp1 = ((i1[1] + 1 + this->state.gridCells[1]) % this->state.gridCells[1])*this->state.gridCells[2];
+            const int kkp1 = ((i1[2] + 1 + this->state.gridCells[2]) % this->state.gridCells[2]);
+            const int iim1 = ((i1[0] + this->state.gridCells[0]) % this->state.gridCells[0])*this->state.gridCells[1]*this->state.gridCells[2];
+            const int jjm1 = ((i1[1] + this->state.gridCells[1]) % this->state.gridCells[1])*this->state.gridCells[2];
+            const int kkm1 = ((i1[2] + this->state.gridCells[2]) % this->state.gridCells[2]);
+            
+            // xc = vector from the corner of the point to the corner of the cell
+            const array3_mds xc = {
+                (real_mds)(x[0])-this->state.gridsp[0]*i1[0],
+                (real_mds)(x[1])-this->state.gridsp[1]*i1[1],
+                (real_mds)(x[2])-this->state.gridsp[2]*i1[2]
+            };
+            const array3_mds xd = {
+                xc[0]-this->state.gridsp[0],
+                xc[1]-this->state.gridsp[1],
+                xc[2]-this->state.gridsp[2]
+            };
+            
+            // Spread it
+            const real_mds C = this->state.invgridsp * this->state.invgridsp;
+            scalesummatrix3( C*xc[0]*xc[1]*xc[2],stress,stress_grid[iip1+jjp1+kkp1]);
+            scalesummatrix3(-C*xc[0]*xc[1]*xd[2],stress,stress_grid[iip1+jjp1+kkm1]);
+            scalesummatrix3(-C*xc[0]*xd[1]*xc[2],stress,stress_grid[iip1+jjm1+kkp1]);
+            scalesummatrix3( C*xc[0]*xd[1]*xd[2],stress,stress_grid[iip1+jjm1+kkm1]);
+            scalesummatrix3(-C*xd[0]*xc[1]*xc[2],stress,stress_grid[iim1+jjp1+kkp1]);
+            scalesummatrix3( C*xd[0]*xc[1]*xd[2],stress,stress_grid[iim1+jjp1+kkm1]);
+            scalesummatrix3( C*xd[0]*xd[1]*xc[2],stress,stress_grid[iim1+jjm1+kkp1]);
+            scalesummatrix3(-C*xd[0]*xd[1]*xd[2],stress,stress_grid[iim1+jjm1+kkm1]);
+            
+            scalesummatrix6( C*xc[0]*xc[1]*xc[2],elast,elast_grid[iip1+jjp1+kkp1]);
+            scalesummatrix6(-C*xc[0]*xc[1]*xd[2],elast,elast_grid[iip1+jjp1+kkm1]);
+            scalesummatrix6(-C*xc[0]*xd[1]*xc[2],elast,elast_grid[iip1+jjm1+kkp1]);
+            scalesummatrix6( C*xc[0]*xd[1]*xd[2],elast,elast_grid[iip1+jjm1+kkm1]);
+            scalesummatrix6(-C*xd[0]*xc[1]*xc[2],elast,elast_grid[iim1+jjp1+kkp1]);
+            scalesummatrix6( C*xd[0]*xc[1]*xd[2],elast,elast_grid[iim1+jjp1+kkm1]);
+            scalesummatrix6( C*xd[0]*xd[1]*xc[2],elast,elast_grid[iim1+jjm1+kkp1]);
+            scalesummatrix6(-C*xd[0]*xd[1]*xd[2],elast,elast_grid[iim1+jjm1+kkm1]);
+        }
+        else if (this->state.spatatom == mds_atom)
+        {
+            if (atomID == -1)
+            {
+                std::cout << "ERROR:: Unknown atomID for kinetic contribution. Cannot calculate the stress/atom.";
+                return;
+            }
+            else
+            {
+                summatrix3(this->alloc.current_grid[atomID],stress,this->alloc.current_grid[atomID]);
+                summatrix6(this->alloc.current_grid_elkin[atomID],elast,this->alloc.current_grid_elkin[atomID]);
+            }
+        }
     }
 }
 
@@ -1550,7 +1478,7 @@ void StressGrid::Clear()
     }
 
     // clear the  pointers
-    memset(&this->alloc, 0, sizeof(MDS_ALLOC_STRUCT) );
+    memset(&this->alloc, 0, sizeof(alloc_t) );
 
     // clear portions of the state
     this->state.avg_boxvol = real_mds(0.0);
@@ -1574,11 +1502,8 @@ void StressGrid::Clear()
 // xi   -> position of particle I (A)
 // xj   -> position of particle J (B)
 // F    -> pairwise force
-void StressGrid::DistributePairInteraction( const array3_mds & xi, const array3_mds & xj, const array3_mds & F, int batch_id )
+void StressGrid::DistributePairInteraction( const array3_mds & xi, const array3_mds & xj, const array3_mds & F, matrix3_mds * grid)
 {
-    //------------------------------------------------------------------------------------
-    matrix3_mds * grid = this->alloc.current_grid+batch_id*this->state.ncells;
-
     // Calculate the stress tensor
     array3_mds diff;
     diffarray3( xj, xi, diff, this->state.box, this->state.periodic);
@@ -1592,147 +1517,23 @@ void StressGrid::DistributePairInteraction( const array3_mds & xi, const array3_
     if (this->state.cuda && custress_distribute_pair_mdseraction(xi,xj,F,batch_id))
         return;
 #endif
-    if (this->state.griddim == mds_griddim_xyz) {
+    if (this->state.gridDims == mds_griddim_xyz) {
         distribute_observable_3d(this->state, xi, xj, diff, stress, grid);
     } else {
         distribute_observable_1d(this->state, xi, xj, diff, stress, grid);
     }
 }
 
-void StressGrid::DistributePairInteraction3D(const array3_mds & xi, const array3_mds & xj, const array3_mds & F, int batch_id, const matrix3_mds stress, const array3_mds diff)
-{
-    // this is the 3D case
-    matrix3_mds * grid = this->alloc.current_grid+batch_id*this->state.ncells;
-    
-    //------------------------------------------------------------------------------------
-    // calculate the grid coordinates (no pbc) for the extreme points
-    iarray x = {
-        int(this->state.nxyz[0] * xi[0] * this->state.invbox[0][0] - (xi[0] < 0.0) ),
-        int(this->state.nxyz[1] * xi[1] * this->state.invbox[1][1] - (xi[1] < 0.0) ),
-        int(this->state.nxyz[2] * xi[2] * this->state.invbox[2][2] - (xi[2] < 0.0) )
-    };
-
-    const iarray i2 = {
-        int(this->state.nxyz[0] * xj[0] * this->state.invbox[0][0] - (xj[0] < 0.0) ),
-        int(this->state.nxyz[1] * xj[1] * this->state.invbox[1][1] - (xj[1] < 0.0) ),
-        int(this->state.nxyz[2] * xj[2] * this->state.invbox[2][2] - (xj[2] < 0.0) ),
-    };
-    const array3_mds t_c1 = {
-        xi[0] / (xi[0]-xj[0]),
-        xi[1] / (xi[1]-xj[1]),
-        xi[2] / (xi[2]-xj[2])
-    };
-    const array3_mds t_c2 = {
-        this->state.gridsp[0] / (xi[0]-xj[0]),
-        this->state.gridsp[1] / (xi[1]-xj[1]),
-        this->state.gridsp[2] / (xi[2]-xj[2])
-    };
-
-    const iarray c = {
-        int((i2[0]>x[0])-(x[0]>i2[0]) ),
-        int((i2[1]>x[1])-(x[1]>i2[1]) ),
-        int((i2[2]>x[2])-(x[2]>i2[2]) )
-    };
-
-    iarray xn = {
-        int(x[0]+(c[0]+1)/2 ),
-        int(x[1]+(c[1]+1)/2 ),
-        int(x[2]+(c[2]+1)/2 )
-    };
-
-    array3_mds d_cgrid = {
-        xi[0]-(x[0]+0.5)*this->state.gridsp[0],
-        xi[1]-(x[1]+0.5)*this->state.gridsp[1],
-        xi[2]-(x[2]+0.5)*this->state.gridsp[2]
-    };
-
-    // calculate parametric time in each dimension, and related constants
-    array3_mds t = {
-        (c[0] == 0) ? realval_mds(1.1) : t_c1[0]-xn[0]*t_c2[0],
-        (c[1] == 0) ? realval_mds(1.1) : t_c1[1]-xn[1]*t_c2[1],
-        (c[2] == 0) ? realval_mds(1.1) : t_c1[2]-xn[2]*t_c2[2]
-    };
-
-    //------------------------------------------------------------------------------------
-    // Distribute the stress
-
-    // now the position/spatial constants
-    const real_mds C = realval_mds(0.125)*this->state.invgridsp*this->state.invgridsp;
-    const real_mds axy = diff[0]*diff[1];
-    const real_mds axz = diff[0]*diff[2];
-    const real_mds ayz = diff[1]*diff[2];
-    const real_mds axyz = diff[0]*ayz; 
-    
-    // track previous time of crossing
-    real_mds oldt = 0.0; 
-    
-    const int iterations = c[0]*(i2[0]-x[0]) + c[1]*(i2[1]-x[1]) + c[2]*(i2[2]-x[2]);
-    for (int count = 0; count <= iterations; ++count)
-    {
-        // figure out index
-        const int cmp0x = ((t[0]<t[1]+mds_eps) + (t[0]<t[2]+mds_eps))/2;
-        const int cmp1x = ((t[1]<t[0]+mds_eps) + (t[1]<t[2]+mds_eps))/2;
-        const int cmp2x = ((t[2]<t[0]+mds_eps) + (t[2]<t[1]+mds_eps))/2;
-        const int iX = (1-cmp0x)*(cmp1x+2*(1-cmp1x)*cmp2x);
-        const real_mds newt = (iterations == count) ? 1.0 : t[iX];
-
-        // work out the parametric time constants
-        const real_mds t12 = oldt*oldt;
-        const real_mds t22 = newt*newt;
-        const real_mds dt1 = newt - oldt;
-        const real_mds dt2 = t22 - t12;
-        const real_mds dt3 = realval_mds(4.0)*(t22*newt - t12*oldt)/realval_mds(3.0);
-        const real_mds dt4 = t22*t22 - t12*t12;
-
-        // additional constants
-        const real_mds bxy = d_cgrid[0]*d_cgrid[1];
-        const real_mds bxz = d_cgrid[0]*d_cgrid[2];
-        const real_mds byz = d_cgrid[1]*d_cgrid[2];
-        const real_mds bxyz = d_cgrid[0]*byz;
-    
-        const int iip1 = ((x[0] + 1 + this->state.nxyz[0]) % this->state.nxyz[0])*this->state.nxyz[1]*this->state.nxyz[2];
-        const int jjp1 = ((x[1] + 1 + this->state.nxyz[1]) % this->state.nxyz[1])*this->state.nxyz[2];
-        const int kkp1 = ((x[2] + 1 + this->state.nxyz[2]) % this->state.nxyz[2]);
-        const int iim1 = ((x[0] + this->state.nxyz[0]) % this->state.nxyz[0])*this->state.nxyz[1]*this->state.nxyz[2];
-        const int jjm1 = ((x[1] + this->state.nxyz[1]) % this->state.nxyz[1])*this->state.nxyz[2];
-        const int kkm1 = ((x[2] + this->state.nxyz[2]) % this->state.nxyz[2]);
-
-        // the composite constants in terms of i, j, k
-        const real_mds D[8] = {
-            realval_mds(8.0)*bxyz*dt1 + realval_mds(4.0)*(diff[0]*byz+diff[1]*bxz+diff[2]*bxy)*dt2
-                + realval_mds(2.0)*(d_cgrid[0]*ayz+d_cgrid[1]*axz+d_cgrid[2]*axy)*dt3 + realval_mds(2.0)*axyz*dt4,
-            this->state.gridsp[0]*(realval_mds(4.0)*byz*dt1 + realval_mds(2.0)*(diff[1]*d_cgrid[2]+diff[2]*d_cgrid[1])*dt2 + ayz*dt3),
-            this->state.gridsp[1]*(realval_mds(4.0)*bxz*dt1 + realval_mds(2.0)*(diff[0]*d_cgrid[2]+diff[2]*d_cgrid[0])*dt2 + axz*dt3),
-            this->state.gridsp[2]*(realval_mds(4.0)*bxy*dt1 + realval_mds(2.0)*(diff[0]*d_cgrid[1]+diff[1]*d_cgrid[0])*dt2 + axy*dt3),
-            this->state.gridsp[3]*(realval_mds(2.0)*d_cgrid[2]*dt1+diff[2]*dt2),
-            this->state.gridsp[4]*(realval_mds(2.0)*d_cgrid[1]*dt1+diff[1]*dt2),
-            this->state.gridsp[5]*(realval_mds(2.0)*d_cgrid[0]*dt1+diff[0]*dt2),
-            this->state.gridsp[6]*dt1,
-        };
-
-        // perform the sums into the grid
-        scalesummatrix3(C*( D[0] + D[1] + D[2] + D[3] + D[4] + D[5] + D[6] + D[7]), stress, grid[iip1 + jjp1 + kkp1]);
-        scalesummatrix3(C*(-D[0] - D[1] - D[2] + D[3] - D[4] + D[5] + D[6] + D[7]), stress, grid[iip1 + jjp1 + kkm1]);
-        scalesummatrix3(C*(-D[0] - D[1] + D[2] - D[3] + D[4] - D[5] + D[6] + D[7]), stress, grid[iip1 + jjm1 + kkp1]);
-        scalesummatrix3(C*( D[0] + D[1] - D[2] - D[3] - D[4] - D[5] + D[6] + D[7]), stress, grid[iip1 + jjm1 + kkm1]);
-        scalesummatrix3(C*(-D[0] + D[1] - D[2] - D[3] + D[4] + D[5] - D[6] + D[7]), stress, grid[iim1 + jjp1 + kkp1]);
-        scalesummatrix3(C*( D[0] - D[1] + D[2] - D[3] - D[4] + D[5] - D[6] + D[7]), stress, grid[iim1 + jjp1 + kkm1]);
-        scalesummatrix3(C*( D[0] - D[1] - D[2] + D[3] + D[4] - D[5] - D[6] + D[7]), stress, grid[iim1 + jjm1 + kkp1]);
-        scalesummatrix3(C*(-D[0] + D[1] + D[2] + D[3] - D[4] - D[5] - D[6] + D[7]), stress, grid[iim1 + jjm1 + kkm1]);
-
-        d_cgrid[iX] -= c[iX] * this->state.gridsp[iX];
-        oldt = t[iX];
-        
-        x[iX] += c[iX];
-        xn[iX] += c[iX];
-
-        // Next cross point:
-        t[iX] = t_c1[iX]-xn[iX]*t_c2[iX];
-    }
-}
-
 // Decompose 3-body potentials (angles)
-void StressGrid::DistributeN3(const array3_mds & Ra, const array3_mds & Rb, const array3_mds & Rc, const array3_mds & Fa, const array3_mds & Fb, const array3_mds & Fc, int batch_id )
+void StressGrid::DistributeN3(
+        const array3_mds & Ra,
+        const array3_mds & Rb,
+        const array3_mds & Rc,
+        const array3_mds & Fa,
+        const array3_mds & Fb,
+        const array3_mds & Fc,
+        Lapack * lapack,
+        matrix3_mds * grid)
 {
     // If the force decomposition is cCFD or CFD
     if (this->state.fdecomp == mds_ccfd || this->state.fdecomp == mds_ncfd) {
@@ -1764,7 +1565,7 @@ void StressGrid::DistributeN3(const array3_mds & Ra, const array3_mds & Rb, cons
         };
        
         this->state.ierr |= checkError(
-                this->alloc.lapack[batch_id]->SolveMinNorm(mds_nrow3, mds_ncol3, M, b),
+                lapack->SolveMinNorm(mds_nrow3, mds_ncol3, M, b),
                 "LAPACK solver failed");
 
         // (Covariant) Central Force decomposition
@@ -1773,31 +1574,39 @@ void StressGrid::DistributeN3(const array3_mds & Ra, const array3_mds & Rb, cons
         real_mds lbc = (real_mds)b[2];
 
         array3_mds Fij1 = {lab * AB[0], lab * AB[1], lab * AB[2]};
-        this->DistributePairInteraction(Ra, Rb, Fij1, batch_id);
+        this->DistributePairInteraction(Ra, Rb, Fij1, grid);
 
         array3_mds Fij2 = {lac * AC[0], lac * AC[1], lac * AC[2]};
-        this->DistributePairInteraction(Ra, Rc, Fij2, batch_id);
+        this->DistributePairInteraction(Ra, Rc, Fij2, grid);
 
         array3_mds Fij3 = {lbc * BC[0], lbc * BC[1], lbc * BC[2]};
-        this->DistributePairInteraction(Rb, Rc, Fij3, batch_id);
+        this->DistributePairInteraction(Rb, Rc, Fij3, grid);
 
     } else if (this->state.fdecomp == mds_gld) {
         array3_mds Fij1 = {
             (Fa[0]-Fb[0])/realval_mds(3.0), (Fa[1]-Fb[1])/realval_mds(3.0), (Fa[2]-Fb[2])/realval_mds(3.0)};
-        this->DistributePairInteraction(Ra, Rb, Fij1, batch_id);
+        this->DistributePairInteraction(Ra, Rb, Fij1, grid);
 
         array3_mds Fij2 = {
             (Fa[0]-Fc[0])/realval_mds(3.0), (Fa[1]-Fc[1])/realval_mds(3.0), (Fa[2]-Fc[2])/realval_mds(3.0)};
-        this->DistributePairInteraction(Ra, Rc, Fij2, batch_id);
+        this->DistributePairInteraction(Ra, Rc, Fij2, grid);
 
         array3_mds Fij3 = {
             (Fb[0]-Fc[0])/realval_mds(3.0), (Fb[1]-Fc[1])/realval_mds(3.0), (Fb[2]-Fc[2])/realval_mds(3.0)};
-        this->DistributePairInteraction(Rb, Rc, Fij3, batch_id);
+        this->DistributePairInteraction(Rb, Rc, Fij3, grid);
     }
 }
 
 // Decompose Settle
-void StressGrid::DistributeSettle( const array3_mds & Ra, const array3_mds & Rb, const array3_mds & Rc, const array3_mds & Fa, const array3_mds & Fb, const array3_mds & Fc, int batch_id )
+void StressGrid::DistributeSettle(
+        const array3_mds & Ra,
+        const array3_mds & Rb,
+        const array3_mds & Rc,
+        const array3_mds & Fa,
+        const array3_mds & Fb,
+        const array3_mds & Fc,
+        Lapack * lapack,
+        matrix3_mds * grid)
 {
     if (this->state.fdecomp == mds_ccfd || this->state.fdecomp == mds_ncfd || this->state.fdecomp == mds_gld ) {
         array3_mds AB, AC, BC;
@@ -1836,7 +1645,7 @@ void StressGrid::DistributeSettle( const array3_mds & Ra, const array3_mds & Rb,
         };
 
         this->state.ierr |= checkError(
-                this->alloc.lapack[batch_id]->SolveMinNorm(mds_nrow3, mds_ncol3, M, b),
+                lapack->SolveMinNorm(mds_nrow3, mds_ncol3, M, b),
                 "LAPACK solver failed");
 
         // (Covariant) Central Force decomposition
@@ -1845,13 +1654,13 @@ void StressGrid::DistributeSettle( const array3_mds & Ra, const array3_mds & Rb,
         real_mds lbc = (real_mds)b[2];        
 
         array3_mds Fij1 = {lab * AB[0], lab * AB[1], lab * AB[2]};
-        this->DistributePairInteraction( Ra, Rb, Fij1, batch_id);
+        this->DistributePairInteraction( Ra, Rb, Fij1, grid);
         
         array3_mds Fij2 = {lac * AC[0], lac * AC[1], lac * AC[2]};
-        this->DistributePairInteraction( Ra, Rc, Fij2, batch_id );
+        this->DistributePairInteraction( Ra, Rc, Fij2, grid);
 
         array3_mds Fij3 = {lbc * BC[0], lbc * BC[1], lbc * BC[2]};
-        this->DistributePairInteraction( Rb, Rc, Fij3, batch_id );
+        this->DistributePairInteraction( Rb, Rc, Fij3, grid);
         
         // Calculate scalar force and bond stiffness
         real_mds phi_ab = lab*normAB;
@@ -1875,7 +1684,17 @@ void StressGrid::DistributeSettle( const array3_mds & Ra, const array3_mds & Rb,
 }
 
 // Decompose 4-body potentials (dihedrals)
-void StressGrid::DistributeN4( const array3_mds & Ra, const array3_mds & Rb, const array3_mds & Rc, const array3_mds & Rd, const array3_mds & Fa, const array3_mds & Fb, const array3_mds & Fc, const array3_mds & Fd, int batch_id )
+void StressGrid::DistributeN4(
+        const array3_mds & Ra,
+        const array3_mds & Rb,
+        const array3_mds & Rc,
+        const array3_mds & Rd,
+        const array3_mds & Fa,
+        const array3_mds & Fb,
+        const array3_mds & Fc,
+        const array3_mds & Fd,
+        Lapack * lapack,
+        matrix3_mds * grid)
 {
     if(this->state.fdecomp == mds_ccfd || this->state.fdecomp == mds_ncfd) {
         array3_mds AB, AC, AD, BC, BD, CD;
@@ -1916,7 +1735,7 @@ void StressGrid::DistributeN4( const array3_mds & Ra, const array3_mds & Rb, con
         };
         
         this->state.ierr |= checkError(
-                this->alloc.lapack[batch_id]->SolveMinNorm(mds_nrow4, mds_ncol4, M, b),
+                lapack->SolveMinNorm(mds_nrow4, mds_ncol4, M, b),
                 "LAPACK solver failed");
 
         // Sum the 6 contributions to the stress
@@ -1928,46 +1747,46 @@ void StressGrid::DistributeN4( const array3_mds & Ra, const array3_mds & Rb, con
         real_mds lcd = (real_mds)b[5];
 
         array3_mds Fij1 = {lab * AB[0], lab * AB[1], lab * AB[2]};
-        this->DistributePairInteraction(Ra, Rb, Fij1, batch_id);
+        this->DistributePairInteraction(Ra, Rb, Fij1, grid);
 
         array3_mds Fij2 = {lac * AC[0], lac * AC[1], lac * AC[2]};
-        this->DistributePairInteraction(Ra, Rc, Fij2, batch_id);
+        this->DistributePairInteraction(Ra, Rc, Fij2, grid);
 
         array3_mds Fij3 = {lad * AD[0], lad * AD[1], lad * AD[2]};
-        this->DistributePairInteraction(Ra, Rd, Fij3, batch_id);
+        this->DistributePairInteraction(Ra, Rd, Fij3, grid);
 
         array3_mds Fij4 = {lbc * BC[0], lbc * BC[1], lbc * BC[2]};
-        this->DistributePairInteraction(Rb, Rc, Fij4, batch_id);
+        this->DistributePairInteraction(Rb, Rc, Fij4, grid);
 
         array3_mds Fij5 = {lbd * BD[0], lbd * BD[1], lbd * BD[2]};
-        this->DistributePairInteraction(Rb, Rd, Fij5, batch_id);
+        this->DistributePairInteraction(Rb, Rd, Fij5, grid);
 
         array3_mds Fij6 = {lcd * CD[0], lcd * CD[1], lcd * CD[2]};
-        this->DistributePairInteraction(Rc, Rd, Fij6, batch_id);
+        this->DistributePairInteraction(Rc, Rd, Fij6, grid);
     } else if (this->state.fdecomp == mds_gld) {
         array3_mds Fij1 = {
             (Fa[0]-Fb[0])/realval_mds(4.0), (Fa[1]-Fb[1])/realval_mds(4.0), (Fa[2]-Fb[2])/realval_mds(4.0)};
-        this->DistributePairInteraction(Ra, Rb, Fij1, batch_id);
+        this->DistributePairInteraction(Ra, Rb, Fij1, grid);
 
         array3_mds Fij2 = {
             (Fa[0]-Fc[0])/realval_mds(4.0), (Fa[1]-Fc[1])/realval_mds(4.0), (Fa[2]-Fc[2])/realval_mds(4.0)};
-        this->DistributePairInteraction(Ra, Rc, Fij2, batch_id);
+        this->DistributePairInteraction(Ra, Rc, Fij2, grid);
 
         array3_mds Fij3 = {
             (Fa[0]-Fd[0])/realval_mds(4.0), (Fa[1]-Fd[1])/realval_mds(4.0), (Fa[2]-Fd[2])/realval_mds(4.0)};
-        this->DistributePairInteraction(Ra, Rd, Fij3, batch_id);
+        this->DistributePairInteraction(Ra, Rd, Fij3, grid);
 
         array3_mds Fij4 = {
             (Fb[0]-Fc[0])/realval_mds(4.0), (Fb[1]-Fc[1])/realval_mds(4.0), (Fb[2]-Fc[2])/realval_mds(4.0)};
-        this->DistributePairInteraction(Rb, Rc, Fij4, batch_id);
+        this->DistributePairInteraction(Rb, Rc, Fij4, grid);
 
         array3_mds Fij5 = {
             (Fb[0]-Fd[0])/realval_mds(4.0), (Fb[1]-Fd[1])/realval_mds(4.0), (Fb[2]-Fd[2])/realval_mds(4.0)};
-        this->DistributePairInteraction(Rb, Rd, Fij5, batch_id);
+        this->DistributePairInteraction(Rb, Rd, Fij5, grid);
 
         array3_mds Fij6 = {
             (Fc[0]-Fd[0])/realval_mds(4.0), (Fc[1]-Fd[1])/realval_mds(4.0), (Fc[2]-Fd[2])/realval_mds(4.0)};
-        this->DistributePairInteraction(Rc, Rd, Fij6, batch_id);
+        this->DistributePairInteraction(Rc, Rd, Fij6, grid);
     }
 }
 
@@ -1984,7 +1803,8 @@ void StressGrid::DistributeN5(
         const array3_mds & Fc,
         const array3_mds & Fd,
         const array3_mds & Fe,
-        int batch_id)
+        Lapack * lapack,
+        matrix3_mds * grid)
 {
     //************************************************************************************
 
@@ -2063,7 +1883,7 @@ void StressGrid::DistributeN5(
         };
 
         this->state.ierr |= checkError(
-                this->alloc.lapack[batch_id]->SolveMinNorm(mds_nrow5, mds_ncol5, M, b),
+                lapack->SolveMinNorm(mds_nrow5, mds_ncol5, M, b),
                "LAPACK solver failed");
 
         // If cCFD project the least squares CFD to the shape space
@@ -2095,79 +1915,84 @@ void StressGrid::DistributeN5(
         real_mds lde = (real_mds)b[9];
 
         array3_mds Fij1 = {lab * AB[0], lab * AB[1], lab * AB[2]};
-        this->DistributePairInteraction(Ra, Rb, Fij1, batch_id);
+        this->DistributePairInteraction(Ra, Rb, Fij1, grid);
 
         array3_mds Fij2 = {lac * AC[0], lac * AC[1], lac * AC[2]};
-        this->DistributePairInteraction(Ra, Rc, Fij2, batch_id);
+        this->DistributePairInteraction(Ra, Rc, Fij2, grid);
 
         array3_mds Fij3 = {lad * AD[0], lad * AD[1], lad * AD[2]};
-        this->DistributePairInteraction(Ra, Rd, Fij3, batch_id);
+        this->DistributePairInteraction(Ra, Rd, Fij3, grid);
 
         array3_mds Fij4 = {lae * AE[0], lae * AE[1], lae * AE[2]};
-        this->DistributePairInteraction(Ra, Re, Fij4, batch_id);
+        this->DistributePairInteraction(Ra, Re, Fij4, grid);
 
         array3_mds Fij5 = {lbc * BC[0], lbc * BC[1], lbc * BC[2]};
-        this->DistributePairInteraction(Rb, Rc, Fij5, batch_id);
+        this->DistributePairInteraction(Rb, Rc, Fij5, grid);
 
         array3_mds Fij6 = {lbd * BD[0], lbd * BD[1], lbd * BD[2]};
-        this->DistributePairInteraction(Rb, Rd, Fij6, batch_id);
+        this->DistributePairInteraction(Rb, Rd, Fij6, grid);
 
         array3_mds Fij7 = {lbe * BE[0], lbe * BE[1], lbe * BE[2]};
-        this->DistributePairInteraction(Rb, Re, Fij7, batch_id);
+        this->DistributePairInteraction(Rb, Re, Fij7, grid);
 
         array3_mds Fij8 = {lcd * CD[0], lcd * CD[1], lcd * CD[2]};
-        this->DistributePairInteraction(Rc, Rd, Fij8, batch_id);
+        this->DistributePairInteraction(Rc, Rd, Fij8, grid);
 
         array3_mds Fij9 = {lce * CE[0], lce * CE[1], lce * CE[2]};
-        this->DistributePairInteraction(Rc, Re, Fij9, batch_id);
+        this->DistributePairInteraction(Rc, Re, Fij9, grid);
 
         array3_mds Fij10= {lde * DE[0], lde * DE[1], lde * DE[2]};
-        this->DistributePairInteraction(Rd, Re, Fij10, batch_id);
+        this->DistributePairInteraction(Rd, Re, Fij10, grid);
     } else if (this->state.fdecomp == mds_gld) {
         array3_mds Fij1 = {
             (Fa[0]-Fb[0])/realval_mds(5.0), (Fa[1]-Fb[1])/realval_mds(5.0), (Fa[2]-Fb[2])/realval_mds(5.0)};
-        this->DistributePairInteraction(Ra, Rb, Fij1, batch_id);
+        this->DistributePairInteraction(Ra, Rb, Fij1, grid);
 
         array3_mds Fij2 = {
             (Fa[0]-Fc[0])/realval_mds(5.0), (Fa[1]-Fc[1])/realval_mds(5.0), (Fa[2]-Fc[2])/realval_mds(5.0)};
-        this->DistributePairInteraction(Ra, Rc, Fij2, batch_id);
+        this->DistributePairInteraction(Ra, Rc, Fij2, grid);
 
         array3_mds Fij3 = {
             (Fa[0]-Fd[0])/realval_mds(5.0), (Fa[1]-Fd[1])/realval_mds(5.0), (Fa[2]-Fd[2])/realval_mds(5.0)};
-        this->DistributePairInteraction(Ra, Rd, Fij3, batch_id);
+        this->DistributePairInteraction(Ra, Rd, Fij3, grid);
 
         array3_mds Fij4 = {
             (Fa[0]-Fe[0])/realval_mds(5.0), (Fa[1]-Fe[1])/realval_mds(5.0), (Fa[2]-Fe[2])/realval_mds(5.0)};
-        this->DistributePairInteraction(Ra, Re, Fij4, batch_id);
+        this->DistributePairInteraction(Ra, Re, Fij4, grid);
 
         array3_mds Fij5 = {
             (Fb[0]-Fc[0])/realval_mds(5.0), (Fb[1]-Fc[1])/realval_mds(5.0), (Fb[2]-Fc[2])/realval_mds(5.0)};
-        this->DistributePairInteraction(Rb, Rc, Fij5, batch_id);
+        this->DistributePairInteraction(Rb, Rc, Fij5, grid);
 
         array3_mds Fij6 = {
             (Fb[0]-Fd[0])/realval_mds(5.0), (Fb[1]-Fd[1])/realval_mds(5.0), (Fb[2]-Fd[2])/realval_mds(5.0)};
-        this->DistributePairInteraction(Rb, Rd, Fij6, batch_id);
+        this->DistributePairInteraction(Rb, Rd, Fij6, grid);
 
         array3_mds Fij7 = {
             (Fb[0]-Fe[0])/realval_mds(5.0), (Fb[1]-Fe[1])/realval_mds(5.0), (Fb[2]-Fe[2])/realval_mds(5.0)};
-        this->DistributePairInteraction(Rb, Re, Fij7, batch_id);
+        this->DistributePairInteraction(Rb, Re, Fij7, grid);
 
         array3_mds Fij8 = {
             (Fc[0]-Fd[0])/realval_mds(5.0), (Fc[1]-Fd[1])/realval_mds(5.0), (Fc[2]-Fd[2])/realval_mds(5.0)};
-        this->DistributePairInteraction(Rc, Rd, Fij8, batch_id);
+        this->DistributePairInteraction(Rc, Rd, Fij8, grid);
 
         array3_mds Fij9 = {
             (Fc[0]-Fe[0])/realval_mds(5.0), (Fc[1]-Fe[1])/realval_mds(5.0), (Fc[2]-Fe[2])/realval_mds(5.0)};
-        this->DistributePairInteraction(Rc, Re, Fij9, batch_id);
+        this->DistributePairInteraction(Rc, Re, Fij9, grid);
 
         array3_mds Fij10 = {
             (Fd[0]-Fe[0])/realval_mds(5.0), (Fd[1]-Fe[1])/realval_mds(5.0), (Fd[2]-Fe[2])/realval_mds(5.0)};
-        this->DistributePairInteraction(Rd, Re, Fij10, batch_id);
+        this->DistributePairInteraction(Rd, Re, Fij10, grid);
     }
 }
 
 // General function to decompose N-body potentials (it can be used to compute higher order terms coming from EAM for instance)
-void StressGrid::DistributeNBody ( int nPart, array3_ext *R, array3_ext *F, bool distribute_stress, int batch_id)
+void StressGrid::DistributeNBody(
+        int nAtoms,
+        array3_ext *R,
+        array3_ext *F,
+        Lapack * lapack,
+        matrix3_mds * grid)
 {
     // this forces NBody to be a single threaded call
     std::lock_guard<std::mutex> lock(this->m_mutex_state);
@@ -2176,8 +2001,7 @@ void StressGrid::DistributeNBody ( int nPart, array3_ext *R, array3_ext *F, bool
     array3_mds F_ij_temp, Ri_temp, Rj_temp;
 
     // grow the temp state as needed (only allocating for a single thread here!)
-    if (nPart > this->state.maxpart) {
-        printf("batch_id(%i) is deleting p_bvec\n", batch_id);
+    if (nAtoms > this->state.maxpart) {
         if (this->alloc.Amat  != nullptr) delete [] this->alloc.Amat;
         if (this->alloc.AmatT != nullptr) delete [] this->alloc.AmatT;
         if (this->alloc.bvec  != nullptr) delete [] this->alloc.bvec;
@@ -2185,67 +2009,53 @@ void StressGrid::DistributeNBody ( int nPart, array3_ext *R, array3_ext *F, bool
         if (this->alloc.Uij   != nullptr) delete [] this->alloc.Uij;
         if (this->alloc.Fij   != nullptr) delete [] this->alloc.Fij;
     
-        int maxrows = mds_ndim*nPart;
-        int maxcols = (nPart*(nPart-1))/2;
+        int maxrows = mds_ndim*nAtoms;
+        int maxcols = (nAtoms*(nAtoms-1))/2;
 
         this->alloc.Amat  = new double [maxrows*maxcols];
         this->alloc.AmatT = new double [maxrows*maxcols];
         this->alloc.bvec  = new double [maxrows];
-        this->alloc.Rij  = new array3_mds [nPart*nPart];
-        this->alloc.Fij  = new array3_mds [nPart*nPart];
+        this->alloc.Rij  = new array3_mds [nAtoms*nAtoms];
+        this->alloc.Fij  = new array3_mds [nAtoms*nAtoms];
         this->alloc.Uij  = new array3_mds [maxcols];
         
-        int maxcols_prev = (this->state.maxpart*(this->state.maxpart-1))/2;
-        printf("batch_id(%i) grew p_bvec from %i to %i \n", batch_id, maxcols_prev, maxcols);
-        
-        this->state.maxpart = nPart;
+        this->state.maxpart = nAtoms;
     }
 
     // zero the pairwise force and pairwise position arrays
-    for ( i = 0; i < nPart*nPart; ++i)
-    {
+    for ( i = 0; i < nAtoms*nAtoms; ++i) {
         this->alloc.Rij[i][0] = this->alloc.Rij[i][1] = this->alloc.Rij[i][2] = realval_mds(0.0);
         this->alloc.Fij[i][0] = this->alloc.Fij[i][1] = this->alloc.Fij[i][2] = realval_mds(0.0);
     }
 
     n = 0;
-    for ( i = 0; i < nPart; i++ )
-    {
-        for ( j = i+1; j < nPart; j++ )
-        {
+    for ( i = 0; i < nAtoms; i++ ) {
+        for ( j = i+1; j < nAtoms; j++ ) {
             diffarray3(R[j], R[i], this->alloc.Uij[n], this->state.box, this->state.periodic);
-            copyarray3(this->alloc.Uij[n], this->alloc.Rij[i*nPart+j]);
-            scalearray3(this->alloc.Uij[n], realval_mds(-1.0), this->alloc.Rij[j*nPart+i]);
+            copyarray3(this->alloc.Uij[n], this->alloc.Rij[i*nAtoms+j]);
+            scalearray3(this->alloc.Uij[n], realval_mds(-1.0), this->alloc.Rij[j*nAtoms+i]);
             scalearray3(this->alloc.Uij[n], realval_mds(1.0)/normarray3(this->alloc.Uij[n]),this->alloc.Uij[n]);
             n++;
         }
     }
 
     // If the force decomposition is cCFD or CFD
-    if(this->state.fdecomp == mds_ccfd || this->state.fdecomp == mds_ncfd)
-    {
+    if(this->state.fdecomp == mds_ccfd || this->state.fdecomp == mds_ncfd) {
         //Number of rows and columns
-        int nRow;
-        int nCol;
+        int nRow = mds_ndim * nAtoms;
+        int nCol =  (nAtoms* (nAtoms- 1)) / 2;
 
-        nRow = mds_ndim * nPart;
-        nCol = (nPart * (nPart - 1)) / 2;
-
-        for ( i = 0; i < nCol*nRow; i++ )
-        {
+        for ( i = 0; i < nCol*nRow; i++ ) {
             this->alloc.Amat [i] = 0.0;
             this->alloc.AmatT[i] = 0.0;
         }
 
         n = 0;
-        for ( i = 0; i < nPart; i++ )
-        {
+        for ( i = 0; i < nAtoms; i++ ) {
             iD = mds_ndim * i;
-            for ( j = i+1; j < nPart; j++ )
-            {
+            for ( j = i+1; j < nAtoms; j++ ) {
                 jD = mds_ndim * j;
-                for ( k = 0; k < mds_ndim; k++ )
-                {
+                for ( k = 0; k < mds_ndim; k++ ) {
                     this->alloc.Amat [nRow*n+(iD+k)] =  this->alloc.Uij[n][k];
                     this->alloc.Amat [nRow*n+(jD+k)] = -this->alloc.Uij[n][k];
                     this->alloc.AmatT[(iD+k)*nCol+n] =  this->alloc.Uij[n][k];
@@ -2258,50 +2068,38 @@ void StressGrid::DistributeNBody ( int nPart, array3_ext *R, array3_ext *F, bool
         }
 
         this->state.ierr |= checkError(
-                this->alloc.lapack[batch_id]->SolveMinNorm(nRow, nCol, this->alloc.Amat, this->alloc.bvec),
+                lapack->SolveMinNorm(nRow, nCol, this->alloc.Amat, this->alloc.bvec),
                 "LAPACK solver failed");
 
         if(this->state.fdecomp == mds_ccfd)
-            this->alloc.lapack[batch_id]->QQTb( nCol, nRow, nCol, nRow-6, this->alloc.AmatT, this->alloc.bvec );
+            lapack->QQTb( nCol, nRow, nCol, nRow-6, this->alloc.AmatT, this->alloc.bvec );
 
         n = 0;
-        for ( i = 0; i < nPart; i++ )
-        {
-            for ( j = i+1; j < nPart; j++ )
-            {
+        for ( i = 0; i < nAtoms; i++ ) {
+            for ( j = i+1; j < nAtoms; j++ ) {
                 scalearray3(this->alloc.Uij[n], (real_mds)this->alloc.bvec[n], F_ij_temp);
-                copyarray3(F_ij_temp, this->alloc.Fij[i*nPart+j]);
-                scalearray3(F_ij_temp, realval_mds(-1.0), this->alloc.Fij[j*nPart+i]);
+                copyarray3(F_ij_temp, this->alloc.Fij[i*nAtoms+j]);
+                scalearray3(F_ij_temp, realval_mds(-1.0), this->alloc.Fij[j*nAtoms+i]);
 
-                if (distribute_stress)
-                {
-                    copyarray3(R[i], Ri_temp);
-                    copyarray3(R[j], Rj_temp);
-                    this->DistributePairInteraction(Ri_temp, Rj_temp, F_ij_temp, batch_id);
-                }
-
+                copyarray3(R[i], Ri_temp);
+                copyarray3(R[j], Rj_temp);
+                this->DistributePairInteraction(Ri_temp, Rj_temp, F_ij_temp, grid);
                 n++;
             }
         }
     }
-    else if(this->state.fdecomp == mds_gld)
-    {
+    else if(this->state.fdecomp == mds_gld) {
         n = 0;
-        for ( i = 0; i < nPart; i++ )
-        {
-            for ( j = i+1; j < nPart; j++ )
-            {
+        for ( i = 0; i < nAtoms; i++ ) {
+            for ( j = i+1; j < nAtoms; j++ ) {
                 diffarray3(F[i], F[j], F_ij_temp );
-                scalearray3(F_ij_temp, realval_mds(1.0)/static_cast<real_mds>(nPart), F_ij_temp);
-                copyarray3(F_ij_temp, this->alloc.Fij[i*nPart+j]);
-                scalearray3(F_ij_temp, realval_mds(-1.0), this->alloc.Fij[j*nPart+i]);
+                scalearray3(F_ij_temp, realval_mds(1.0)/static_cast<real_mds>(nAtoms), F_ij_temp);
+                copyarray3(F_ij_temp, this->alloc.Fij[i*nAtoms+j]);
+                scalearray3(F_ij_temp, realval_mds(-1.0), this->alloc.Fij[j*nAtoms+i]);
 
-                if (distribute_stress)
-                {
-                    copyarray3(R[i], Ri_temp);
-                    copyarray3(R[j], Rj_temp);
-                    this->DistributePairInteraction(Ri_temp, Rj_temp, F_ij_temp, batch_id);
-                }
+                copyarray3(R[i], Ri_temp);
+                copyarray3(R[j], Rj_temp);
+                this->DistributePairInteraction(Ri_temp, Rj_temp, F_ij_temp, grid);
                 n++;
             }
         }
