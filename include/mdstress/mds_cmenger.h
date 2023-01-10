@@ -28,8 +28,8 @@
 
 namespace mds
 {
-    real_int CaleyMenger5Der(real_int d12,real_int d13,real_int d14,real_int d15,real_int d23,real_int d24,real_int d25,real_int d34,real_int d35,real_int d45);
-    void   ShapeSpace5Normal(real_int d12,real_int d13,real_int d14,real_int d15,real_int d23,real_int d24,real_int d25,real_int d34,real_int d35,real_int d45, real_int *normal);
+    real_mds CaleyMenger5Der(real_mds d12,real_mds d13,real_mds d14,real_mds d15,real_mds d23,real_mds d24,real_mds d25,real_mds d34,real_mds d35,real_mds d45);
+    void   ShapeSpace5Normal(real_mds d12,real_mds d13,real_mds d14,real_mds d15,real_mds d23,real_mds d24,real_mds d25,real_mds d34,real_mds d35,real_mds d45, real_mds *normal);
 }
 
 #endif // mds_cmenger_h

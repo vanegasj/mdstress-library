@@ -25,7 +25,7 @@
 
 // controls internal and external precision using CMake options
 #define @EXT_PRECISION@
-#define @INT_PRECISION@
+#define @MDS_PRECISION@
 
 namespace mds
 {   
@@ -96,6 +96,19 @@ namespace mds
     #define mds_griddim_zzz 2
     #define mds_griddim_xyz 3
     
+    #define mds_success              0x000u
+    #define mds_invalid_stress_type  0x001u
+    #define mds_invalid_grid_cells_x 0x002u
+    #define mds_invalid_grid_cells_y 0x004u
+    #define mds_invalid_grid_cells_z 0x008u
+    #define mds_invalid_grid_spacing 0x010u
+    #define mds_invalid_md_box_size  0x020u
+    #define mds_invalid_force_decomp 0x040u
+    #define mds_invalid_num_atoms    0x080u
+    #define mds_invalid_filename     0x100u
+    #define mds_invalid_max_cluster  0x200u
+    #define mds_invalid_error_max    0x400u
+
     typedef bool    barray[4];
     typedef int     iarray[3];
     
@@ -121,20 +134,20 @@ namespace mds
     typedef real_ext matrix6_ext[6][6];
     
     // used for internal calculations
-#if defined(INT_FLOAT)
-    #define realval_int(x) (x ## f)
-    typedef float       real_int;
-#elif defined(INT_DOUBLE)
-    #define realval_int(x) (x)
-    typedef double      real_int;
-#elif defined(INT_LONG_DOUBLE)
-    #define realval_int(x) (x ## l)
-    typedef long double real_int;
+#if defined(MDS_FLOAT)
+    #define realval_mds(x) (x ## f)
+    typedef float       real_mds;
+#elif defined(MDS_DOUBLE)
+    #define realval_mds(x) (x)
+    typedef double      real_mds;
+#elif defined(MDS_LONG_DOUBLE)
+    #define realval_mds(x) (x ## l)
+    typedef long double real_mds;
 #endif
-    typedef real_int  array3_int[3];
-    typedef real_int  array6_int[6];
-    typedef real_int matrix3_int[3][3];
-    typedef real_int matrix6_int[6][6];
+    typedef real_mds  array3_mds[3];
+    typedef real_mds  array6_mds[6];
+    typedef real_mds matrix3_mds[3][3];
+    typedef real_mds matrix6_mds[6][6];
 
     class  StressGrid;
     class  StressGridPython;

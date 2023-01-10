@@ -4,7 +4,7 @@ project(mdstress_test LANGUAGES CXX )
 #project(mdstress_test LANGUAGES CXX CUDA)
 
 # set the C++11 standard
-set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD 17)
 
 # set fast math etc
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG -ffast-math -march=native" CACHE STRING
@@ -23,8 +23,8 @@ option(MDS_BOOSTPYTHON "Enable Boost Python bindings" OFF)
 
 set(EXT_PRECISION "EXT_DOUBLE" CACHE STRING "Precision used by exposed function calls")
 set_property(CACHE EXT_PRECISION PROPERTY STRINGS EXT_DOUBLE EXT_FLOAT)
-set(INT_PRECISION "INT_DOUBLE" CACHE STRING "Precision used internally")
-set_property(CACHE INT_PRECISION PROPERTY STRINGS INT_FLOAT INT_DOUBLE INT_LONG_DOUBLE)
+set(MDS_PRECISION "MDS_DOUBLE" CACHE STRING "Precision used by mdstresslib internally")
+set_property(CACHE MDS_PRECISION PROPERTY STRINGS MDS_FLOAT MDS_DOUBLE MDS_LONG_DOUBLE)
 
 # find lapack library
 find_library(LAPACK_LIBRARY_SYS NAMES lapack liblapack HINTS /usr/lib REQUIRED)

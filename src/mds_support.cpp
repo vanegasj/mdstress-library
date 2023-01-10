@@ -8,19 +8,19 @@
 using namespace mds;
 
 //Derivative of Cosine Function (creates derivative vector)
-void ThreeBodyCosineD(real_int ab, real_int bg, real_int ag, mds::array3_int &d_cos_array)
+void ThreeBodyCosineD(real_mds ab, real_mds bg, real_mds ag, mds::array3_mds &d_cos_array)
 {
-    real_int numer, denom;
+    real_mds numer, denom;
 
     //dab of costheta
     numer = (ab * ab) - (bg * bg) + (ag * ag);
-    denom = realval_int(2.0) * ab * ab * bg;
+    denom = realval_mds(2.0) * ab * ab * bg;
 
     d_cos_array[iab] = numer / denom;
 
     //dbg of costheta
     numer = -(ab * ab) + (bg * bg) + (ag * ag);
-    denom = realval_int(2.0) * ab * bg * bg;
+    denom = realval_mds(2.0) * ab * bg * bg;
 
     d_cos_array[ibg] = numer / denom;
 
@@ -32,9 +32,9 @@ void ThreeBodyCosineD(real_int ab, real_int bg, real_int ag, mds::array3_int &d_
 }
 
 //Second Derivative of Cosine Function (Creates derivative matrix)
-void ThreeBodyCosineD2(real_int ab, real_int bg, real_int ag, matrix3_int &d2_cos_array) {
-    real_int numer;
-    real_int denom;
+void ThreeBodyCosineD2(real_mds ab, real_mds bg, real_mds ag, matrix3_mds &d2_cos_array) {
+    real_mds numer;
+    real_mds denom;
 
     //d00 of costheta
     numer = (bg * bg) - (ag * ag);
@@ -45,7 +45,7 @@ void ThreeBodyCosineD2(real_int ab, real_int bg, real_int ag, matrix3_int &d2_co
     // d01 and d10 of costheta
 
     numer = -((ab * ab) + (bg * bg) + (ag * ag));
-    denom = realval_int(2.0) * (ab * ab) * (bg * bg);
+    denom = realval_mds(2.0) * (ab * ab) * (bg * bg);
 
     d2_cos_array[iab][ibg] = numer / denom;
     d2_cos_array[ibg][iab] = numer / denom;
@@ -72,7 +72,7 @@ void ThreeBodyCosineD2(real_int ab, real_int bg, real_int ag, matrix3_int &d2_co
     d2_cos_array[ibg][iag] = numer / denom;
 
     // d22 of costheta
-    numer = realval_int(-1.0);
+    numer = realval_mds(-1.0);
     denom = ab * bg;
 
     d2_cos_array[iag][iag] = numer / denom;
@@ -81,10 +81,10 @@ void ThreeBodyCosineD2(real_int ab, real_int bg, real_int ag, matrix3_int &d2_co
 //First Derivative of Theta Function (Creates 1st derivative vector)
 //Need Cosine Theta
 //Need Derivative of Cosine Vector
-void ThreeBodyThetaD(real_int costheta, array3_int &d_cos_array, array3_int &d_theta_array) {
-    real_int scalefactor;
+void ThreeBodyThetaD(real_mds costheta, array3_mds &d_cos_array, array3_mds &d_theta_array) {
+    real_mds scalefactor;
 
-    scalefactor = realval_int(-1.0) / sqrt(realval_int(1.0) - (costheta * costheta));
+    scalefactor = realval_mds(-1.0) / sqrt(realval_mds(1.0) - (costheta * costheta));
 
     for (int i = 0; i < 3; i++) {
         d_theta_array[i] = scalefactor * d_cos_array[i];
@@ -95,13 +95,13 @@ void ThreeBodyThetaD(real_int costheta, array3_int &d_cos_array, array3_int &d_t
 //Need Cosine Theta
 //Need Derivative of Cosine Vector
 //Need 2nd Derivative of Cosine Matrix
-void ThreeBodyThetaD2(real_int costheta, array3_int d_cos_array, matrix3_int &d2_cos_array, matrix3_int &d2_theta_array) {
-    real_int scalefactor;
-    real_int sinthetasq;
+void ThreeBodyThetaD2(real_mds costheta, array3_mds d_cos_array, matrix3_mds &d2_cos_array, matrix3_mds &d2_theta_array) {
+    real_mds scalefactor;
+    real_mds sinthetasq;
 
-    sinthetasq = realval_int(1.0) - (costheta * costheta);
+    sinthetasq = realval_mds(1.0) - (costheta * costheta);
 
-    scalefactor = realval_int(1.0) / (sinthetasq * sqrt(sinthetasq));
+    scalefactor = realval_mds(1.0) / (sinthetasq * sqrt(sinthetasq));
 
     for (int i = 0; i < 3; i++) {
         for (int j = 0; j < 3; j++) {
@@ -110,22 +110,22 @@ void ThreeBodyThetaD2(real_int costheta, array3_int d_cos_array, matrix3_int &d2
     }
 }
 
-void FourBodyThetaD(real_int costheta, array6_int &d_cos_di_array, array6_int &d_theta_di_array) {
-    real_int scalefactor;
+void FourBodyThetaD(real_mds costheta, array6_mds &d_cos_di_array, array6_mds &d_theta_di_array) {
+    real_mds scalefactor;
 
-    scalefactor = realval_int(-1.0) / sqrt(realval_int(1.0) - (costheta * costheta));
+    scalefactor = realval_mds(-1.0) / sqrt(realval_mds(1.0) - (costheta * costheta));
 
     for (int i = 0; i < 6; i++) {
         d_theta_di_array[i] = scalefactor * d_cos_di_array[i];
     }
 }
 
-void FourBodyThetaD2(real_int costheta, array6_int &d_cos_di_array, matrix6_int &d2_cos_di_array, matrix6_int &d2_theta_di_array) {
-    real_int scalefactor;
-    real_int sinthetasq;
+void FourBodyThetaD2(real_mds costheta, array6_mds &d_cos_di_array, matrix6_mds &d2_cos_di_array, matrix6_mds &d2_theta_di_array) {
+    real_mds scalefactor;
+    real_mds sinthetasq;
 
-    sinthetasq = realval_int(1.0) - (costheta * costheta);
-    scalefactor = realval_int(1.0) / (sinthetasq * sqrt(sinthetasq));
+    sinthetasq = realval_mds(1.0) - (costheta * costheta);
+    scalefactor = realval_mds(1.0) / (sinthetasq * sqrt(sinthetasq));
 
     for (int i = 0; i < 6; i++) {
         for (int j = 0; j < 6; j++) {
@@ -133,6 +133,22 @@ void FourBodyThetaD2(real_int costheta, array6_int &d_cos_di_array, matrix6_int 
         }
     }
 }
+
+//Auxiliary Methods to Calculate the Phi and Kappa Terms for the Born Term
+// For cosine derivative functions must be called before the theta derivatives. 
+// derivative identifier dertype ab = 0, bg = 1, ag = 3
+
+// ab|bg|ag = 0 | 1 | 2
+
+// second derivative identifier derivative dertype2
+
+//indices are flipped be careful!
+
+/*
+ * abab | bgab | agab    = 00 | 01 | 02
+ * abbg | bgbg | agbg    = 10 | 11 | 12
+ * abag | bgag | agag    = 20 | 21 | 22
+ */
 
 //List of 2-body Potential Auxilery Functions
 //Calculate The Phi and Kappa for Harmonic Potential -> Implimented
@@ -202,20 +218,20 @@ void mds::FENEPhiKappa(real_ext r, real_ext k, real_ext diffratio, real_ext& phi
 void mds::HarmonicAnglePhiKappa(real_ext ab_ext, real_ext bg_ext, real_ext ag_ext, real_ext costheta_ext, real_ext deltatheta_ext, real_ext k_ext, array3_ext &phi, matrix3_ext &kappa) 
 {
     // convert to internal precision
-    real_int ab = (real_int)ab_ext;
-    real_int bg = (real_int)bg_ext;
-    real_int ag = (real_int)ag_ext;
-    real_int costheta = (real_int)costheta_ext;
-    real_int deltatheta = (real_int)deltatheta_ext;
-    real_int k = (real_int)k_ext;
+    real_mds ab = (real_mds)ab_ext;
+    real_mds bg = (real_mds)bg_ext;
+    real_mds ag = (real_mds)ag_ext;
+    real_mds costheta = (real_mds)costheta_ext;
+    real_mds deltatheta = (real_mds)deltatheta_ext;
+    real_mds k = (real_mds)k_ext;
 
-    array3_int d_cos_array;
+    array3_mds d_cos_array;
     zeroarray3(d_cos_array);
-    matrix3_int d2_cos_array;
+    matrix3_mds d2_cos_array;
     zeromatrix3(d2_cos_array);
-    array3_int d_theta_array;
+    array3_mds d_theta_array;
     zeroarray3(d_theta_array);
-    matrix3_int d2_theta_array;
+    matrix3_mds d2_theta_array;
     zeromatrix3(d2_theta_array);
     ThreeBodyCosineD(ab, bg, ag, d_cos_array);
     ThreeBodyCosineD2(ab, bg, ag, d2_cos_array);
@@ -239,15 +255,15 @@ void mds::HarmonicAnglePhiKappa(real_ext ab_ext, real_ext bg_ext, real_ext ag_ex
 void mds::HarmonicCosPhiKappa(real_ext ab_ext, real_ext bg_ext, real_ext ag_ext, real_ext deltacos_ext, real_ext k_ext, array3_ext &phi, matrix3_ext &kappa)
 {
     // convert to internal precision
-    real_int ab = (real_int)ab_ext;
-    real_int bg = (real_int)bg_ext;
-    real_int ag = (real_int)ag_ext;
-    real_int deltacos = (real_int)deltacos_ext;
-    real_int k = (real_int)k_ext;
+    real_mds ab = (real_mds)ab_ext;
+    real_mds bg = (real_mds)bg_ext;
+    real_mds ag = (real_mds)ag_ext;
+    real_mds deltacos = (real_mds)deltacos_ext;
+    real_mds k = (real_mds)k_ext;
 
-    array3_int d_cos_array;
+    array3_mds d_cos_array;
     zeroarray3(d_cos_array);
-    matrix3_int d2_cos_array;
+    matrix3_mds d2_cos_array;
     zeromatrix3(d2_cos_array);
     ThreeBodyCosineD(ab, bg, ag, d_cos_array);
     ThreeBodyCosineD2(ab, bg, ag, d2_cos_array);
@@ -269,25 +285,25 @@ void mds::HarmonicCosPhiKappa(real_ext ab_ext, real_ext bg_ext, real_ext ag_ext,
 void mds::UreyBradleyPhiKappa(real_ext ab_ext, real_ext bg_ext, real_ext ag_ext, real_ext costheta_ext, real_ext deltaRag_ext, real_ext deltatheta_ext, real_ext ktheta_ext, real_ext kUB_ext, array3_ext &phi, matrix3_ext &kappa)
 {
     // convert to internal precision
-    real_int ab = (real_int)ab_ext;
-    real_int bg = (real_int)bg_ext;
-    real_int ag = (real_int)ag_ext;
-    real_int costheta = (real_int)costheta_ext;
-    real_int deltaRag = (real_int)deltaRag_ext;
-    real_int deltatheta = (real_int)deltatheta_ext;
-    real_int ktheta = (real_int)ktheta_ext;
-    real_int kUB = (real_int)kUB_ext;
+    real_mds ab = (real_mds)ab_ext;
+    real_mds bg = (real_mds)bg_ext;
+    real_mds ag = (real_mds)ag_ext;
+    real_mds costheta = (real_mds)costheta_ext;
+    real_mds deltaRag = (real_mds)deltaRag_ext;
+    real_mds deltatheta = (real_mds)deltatheta_ext;
+    real_mds ktheta = (real_mds)ktheta_ext;
+    real_mds kUB = (real_mds)kUB_ext;
 
-    array3_int d_cos_array;
+    array3_mds d_cos_array;
     zeroarray3(d_cos_array);
 
-    matrix3_int d2_cos_array;
+    matrix3_mds d2_cos_array;
     zeromatrix3(d2_cos_array);
 
-    array3_int d_theta_array;
+    array3_mds d_theta_array;
     zeroarray3(d_theta_array);
 
-    matrix3_int d2_theta_array;
+    matrix3_mds d2_theta_array;
     zeromatrix3(d2_theta_array);
 
     ThreeBodyCosineD(ab, bg, ag, d_cos_array);
@@ -361,22 +377,22 @@ void mds::BondAngleCrossPhiKappa(real_ext k, real_ext deltarab, real_ext deltarb
 void mds::QuarticAnglePhiKappa(real_ext ab_ext, real_ext bg_ext, real_ext ag_ext, real_ext costheta_ext, real_ext deltatheta_ext, real_ext (&coeff)[5], array3_ext &phi, matrix3_ext &kappa)
 {
     // convert to internal precision
-    real_int ab = (real_int)ab_ext;
-    real_int bg = (real_int)bg_ext;
-    real_int ag = (real_int)ag_ext;
-    real_int costheta = (real_int)costheta_ext;
-    real_int deltatheta = (real_int)deltatheta_ext;
+    real_mds ab = (real_mds)ab_ext;
+    real_mds bg = (real_mds)bg_ext;
+    real_mds ag = (real_mds)ag_ext;
+    real_mds costheta = (real_mds)costheta_ext;
+    real_mds deltatheta = (real_mds)deltatheta_ext;
 
-    array3_int d_cos_array;
+    array3_mds d_cos_array;
     zeroarray3(d_cos_array);
 
-    matrix3_int d2_cos_array;
+    matrix3_mds d2_cos_array;
     zeromatrix3(d2_cos_array);
 
-    array3_int d_theta_array;
+    array3_mds d_theta_array;
     zeroarray3(d_theta_array);
 
-    matrix3_int d2_theta_array;
+    matrix3_mds d2_theta_array;
     zeromatrix3(d2_theta_array);
 
     ThreeBodyCosineD(ab, bg, ag, d_cos_array);
@@ -385,22 +401,22 @@ void mds::QuarticAnglePhiKappa(real_ext ab_ext, real_ext bg_ext, real_ext ag_ext
     ThreeBodyThetaD2(costheta, d_cos_array, d2_cos_array, d2_theta_array);
 
 
-    real_int deltathetasq = deltatheta * deltatheta;
-    real_int deltathetacube = deltathetasq * deltatheta;
+    real_mds deltathetasq = deltatheta * deltatheta;
+    real_mds deltathetacube = deltathetasq * deltatheta;
 
     //Calculate the Finate Sums
-    real_int phiconst = (real_int)coeff[1] + realval_int(2.0) * (real_int)coeff[2] * deltatheta + realval_int(3.0) * (real_int)coeff[3] * deltathetasq + realval_int(4.0) * (real_int)coeff[4] * deltathetacube;
-    real_int kappaconst = realval_int(2.0) * (real_int)coeff[2] + realval_int(6.0) * (real_int)coeff[3] * deltatheta + realval_int(12.0) * (real_int)coeff[4] * deltathetasq + realval_int(20.0);
+    real_mds phiconst = (real_mds)coeff[1] + realval_mds(2.0) * (real_mds)coeff[2] * deltatheta + realval_mds(3.0) * (real_mds)coeff[3] * deltathetasq + realval_mds(4.0) * (real_mds)coeff[4] * deltathetacube;
+    real_mds kappaconst = realval_mds(2.0) * (real_mds)coeff[2] + realval_mds(6.0) * (real_mds)coeff[3] * deltatheta + realval_mds(12.0) * (real_mds)coeff[4] * deltathetasq + realval_mds(20.0);
 
     //Calculate Phi Vector
     for (int i = 0; i < 3; i++) {
-        phi[i] = (real_int)(phiconst * d_theta_array[i]);
+        phi[i] = (real_mds)(phiconst * d_theta_array[i]);
     }
 
     //Calculate Kappa Matrix
     for (int i = 0; i < 3; i++) {
         for (int j = 0; j < 3; j++) {
-            kappa[i][j] = (real_int)(phiconst * d2_theta_array[i][j] + kappaconst * d_theta_array[i] * d_theta_array[j]);
+            kappa[i][j] = (real_mds)(phiconst * d2_theta_array[i][j] + kappaconst * d_theta_array[i] * d_theta_array[j]);
         }
     }
 }

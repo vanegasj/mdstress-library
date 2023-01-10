@@ -29,7 +29,7 @@
 namespace mds
 {
     template<class float_type>
-    static inline void sumarray3 ( float_type a[3], float_type b[3], float_type c[3])
+    static inline void sumarray3 ( const float_type a[3], const float_type b[3], float_type c[3])
     {
         c[0] = a[0]+b[0];
         c[1] = a[1]+b[1];
@@ -37,7 +37,7 @@ namespace mds
     }
 
     template<class float_type>
-    static inline void sumarray6 ( float_type a[6], float_type b[6], float_type c[6])
+    static inline void sumarray6 ( const float_type a[6], const float_type b[6], float_type c[6])
     {
         c[0] = a[0]+b[0];
         c[1] = a[1]+b[1];
@@ -48,7 +48,7 @@ namespace mds
     }
 
     template<class float_type_ab, class float_type_c>
-    static inline void diffarray3 ( float_type_ab a[3], float_type_ab b[3], float_type_c c[3])
+    static inline void diffarray3 ( const float_type_ab a[3], const float_type_ab b[3], float_type_c c[3])
     {
         c[0] = a[0]-b[0];
         c[1] = a[1]-b[1];
@@ -56,7 +56,7 @@ namespace mds
     }
 
     template<class float_type_ab, class float_type_c, class float_type_box>
-    static inline void diffarray3 ( float_type_ab a[3], float_type_ab b[3], float_type_c c[3], float_type_box box[3][3], barray periodic)
+    static inline void diffarray3 ( const float_type_ab a[3], const float_type_ab b[3], float_type_c c[3], const float_type_box box[3][3], barray periodic)
     {
         c[0] = a[0]-b[0];
         c[1] = a[1]-b[1];
@@ -68,9 +68,9 @@ namespace mds
             {
                 if (periodic[i] == true)
                 {
-                    while (c[i] > (real_int)(0.5)*box[i][i])
+                    while (c[i] > (real_mds)(0.5)*box[i][i])
                         c[i] -= box[i][i];
-                    while (c[i] <= (real_int)(-0.5)*box[i][i])
+                    while (c[i] <= (real_mds)(-0.5)*box[i][i])
                         c[i] += box[i][i];
                 }
             }
@@ -78,7 +78,7 @@ namespace mds
     }
 
     template<class float_type>
-    static inline void scalearray3 ( float_type b[3], float_type a, float_type c[3])
+    static inline void scalearray3 ( const float_type b[3], float_type a, float_type c[3])
     {
         c[0] = a * b[0];
         c[1] = a * b[1];
@@ -86,13 +86,13 @@ namespace mds
     }
 
     template<class float_type>
-    static inline float_type normarray3 ( float_type a[3] )
+    static inline float_type normarray3 ( const float_type a[3] )
     {
         return sqrt(a[0]*a[0] + a[1]*a[1] + a[2]*a[2]);
     }
 
     template<class float_type_a, class float_type_b>
-    static inline void copyarray3 ( float_type_a a[3], float_type_b b[3])
+    static inline void copyarray3 ( const float_type_a a[3], float_type_b b[3])
     {
         b[0] = (float_type_b)(a[0]);
         b[1] = (float_type_b)(a[1]);
@@ -100,7 +100,7 @@ namespace mds
     }
 
     template<class float_type>
-    static inline void summatrix3 ( float_type a[3][3], float_type b[3][3], float_type c[3][3])
+    static inline void summatrix3 ( const float_type a[3][3], const float_type b[3][3], float_type c[3][3])
     {
         c[0][0] = a[0][0] + b[0][0];
         c[0][1] = a[0][1] + b[0][1];
@@ -114,7 +114,7 @@ namespace mds
     }
 
     template<class float_type>
-    static inline void summatrix6(float_type a[6][6], float_type b[6][6], float_type c[6][6])
+    static inline void summatrix6(const float_type a[6][6], const float_type b[6][6], float_type c[6][6])
     {
         for (int i = 0; i < 6; ++i)
         {
@@ -138,7 +138,7 @@ namespace mds
     // ( xyxx xyyy xyzz xyyz xyxz xyxy ) = ( 50 51 52 53 54 55 ) = [ 0100 0111 0122 0112 0102 0101 ]
     //
     template<class float_type>
-    static inline void summatrix6matrixsq(float_type a[6][6], float_type b[3][3] , float_type c[6][6])
+    static inline void summatrix6matrixsq(const float_type a[6][6], const float_type b[3][3] , float_type c[6][6])
     {
         for (int i = 0; i < 3; ++i)
         {
@@ -173,7 +173,7 @@ namespace mds
     }
 
     template<class float_type>
-    static inline void matrixouterprod6(float_type a[3][3], float_type b[3][3], float_type c[6][6])
+    static inline void matrixouterprod6(const float_type a[3][3], const float_type b[3][3], float_type c[6][6])
     {
         c[0][0] = a[0][0]*b[0][0]; c[0][1] = a[0][0]*b[1][1]; c[0][2] = a[0][0]*b[2][2]; c[0][3] = a[0][0]*b[1][2]; c[0][4] = a[0][0]*b[0][2]; c[0][5] = a[0][0]*b[0][1];
         c[1][0] = a[1][1]*b[0][0]; c[1][1] = a[1][1]*b[1][1]; c[1][2] = a[1][1]*b[2][2]; c[1][3] = a[1][1]*b[1][2]; c[1][4] = a[1][1]*b[0][2]; c[1][5] = a[1][1]*b[0][1];
@@ -206,7 +206,7 @@ namespace mds
 */
 
     template<class float_type_a, class float_type_b>
-    static inline void copymatrix3 ( float_type_a a[3][3], float_type_b b[3][3])
+    static inline void copymatrix3 ( const float_type_a a[3][3], float_type_b b[3][3])
     {
         b[0][0] = (float_type_b)(a[0][0]);
         b[0][1] = (float_type_b)(a[0][1]);
@@ -220,7 +220,7 @@ namespace mds
     }
 
     template<class float_type_a, class float_type_b>
-    static inline void copymatrix6 ( float_type_a a[6][6], float_type_b b[6][6])
+    static inline void copymatrix6 ( const float_type_a a[6][6], float_type_b b[6][6])
     {
         for (int i = 0; i < 6; ++i)
         {
@@ -234,7 +234,7 @@ namespace mds
     }
 
     template<class float_type>
-    static inline void scalematrix3 ( float_type b[3][3], float_type a, float_type c[3][3])
+    static inline void scalematrix3 ( const float_type b[3][3], float_type a, float_type c[3][3])
     {
         c[0][0] = a * b[0][0];
         c[0][1] = a * b[0][1];
@@ -248,7 +248,7 @@ namespace mds
     }
 
     template<class float_type>
-    static inline void scalematrix6 ( float_type b[6][6], float_type a, float_type c[6][6])
+    static inline void scalematrix6 ( const float_type b[6][6], float_type a, float_type c[6][6])
     {
         for (int i = 0; i < 6; i++)
         {
@@ -262,7 +262,7 @@ namespace mds
     }
 
     template<class float_type>
-    static inline void scalesummatrix6(float_type a, float_type b[6][6], float_type c[6][6])
+    static inline void scalesummatrix6(float_type a, const float_type b[6][6], float_type c[6][6])
     {
         for (int i = 0; i < 6; ++i)
         {
@@ -276,7 +276,7 @@ namespace mds
     }
 
     template<class float_type>
-    static inline void scalesummatrix6matrixsq(float_type a, float_type b[6][6], float_type c[6][6])
+    static inline void scalesummatrix6matrixsq(float_type a, const float_type b[6][6], float_type c[6][6])
     {
         for (int i = 0; i < 3; ++i)
         {
@@ -311,7 +311,7 @@ namespace mds
     }
 
     template<class float_type>
-    static inline void scalesummatrix3(float_type a, float_type b[3][3], float_type c[3][3])
+    static inline void scalesummatrix3(float_type a, const float_type b[3][3], float_type c[3][3])
     {
         c[0][0] += a * b[0][0];
         c[0][1] += a * b[0][1];
@@ -325,7 +325,7 @@ namespace mds
     }
 
     template<class float_type>
-    static inline void inversematrix3( float_type A[3][3], float_type iA[3][3])
+    static inline void inversematrix3( const float_type A[3][3], float_type iA[3][3])
     {
         float_type det = (float_type)0.0;
         float_type iDet = (float_type)0.0;
@@ -385,7 +385,7 @@ namespace mds
     }
 
     template<class float_type>
-    static inline bool iszeromatrix3 ( float_type A[3][3] )
+    static inline bool iszeromatrix3 ( const float_type A[3][3] )
     {   
         for ( int i = 0; i < mds_ndim; i++ )
             for ( int j = 0; j < mds_ndim; j++ )
