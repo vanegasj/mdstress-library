@@ -250,6 +250,71 @@ static inline void distribute_observable_1d(
     }
 }
 
+static inline void calculate_elasticity(
+        const array3_mds & xij,
+        const array3_mds & xkl,
+        real_mds phi,
+        real_mds kappa,
+        matrix6_mds & elast)
+{
+    //------------------------------------------------------------------------------------
+    // Calculate the elasticity tensor
+    const real_mds diff_norm = normarray3(xij);
+    const real_mds diff2_norm = normarray3(xkl);
+
+    // remove possible nan values (should be careful enough to not need this!)
+    //if (realval_mds(0.0) == diff_norm || realval_mds(0.0) == diff2_norm)
+    //    return;
+
+    const real_mds rinv = realval_mds(1.0)/diff_norm;
+    const real_mds rinv2 = kappa*rinv/diff2_norm;
+    const real_mds rinv3 = phi*rinv*rinv*rinv;
+    
+    const real_mds xij00 = xij[0]*xij[0];
+    const real_mds xij11 = xij[1]*xij[1];
+    const real_mds xij22 = xij[2]*xij[2];
+    const real_mds xij01 = xij[0]*xij[1];
+    const real_mds xij02 = xij[0]*xij[2];
+    const real_mds xij12 = xij[1]*xij[2];
+    const real_mds xkl00 = xkl[0]*xkl[0];
+    const real_mds xkl11 = xkl[1]*xkl[1];
+    const real_mds xkl22 = xkl[2]*xkl[2];
+    const real_mds xkl01 = xkl[0]*xkl[1];
+    const real_mds xkl02 = xkl[0]*xkl[2];
+    const real_mds xkl12 = xkl[1]*xkl[2];
+
+    // Stiffness matrix in Voigt notation
+    // 0 = xx; 1 = yy; 2 = zz; 3 = yz or zy; 4 = xz or zx; 5 = xy or yx
+    // All indices                         Voigt indices           Stress indices
+    // ( xxxx xxyy xxzz xxyz xxxz xxxy ) = ( 00 01 02 03 04 05 ) = [ 0000 0011 0022 0012 0002 0001 ]
+    // (      yyyy yyzz yyyz yyxz yyxy ) = (    11 12 13 14 15 ) = [      1111 1122 1112 1102 1101 ]
+    // (           zzzz zzyz zzxz zzxy ) = (       22 23 24 25 ) = [           2222 2212 2202 2201 ]
+    // (                yzyz yzxz yzxy ) = (          33 34 35 ) = [                1212 1202 1201 ]
+    // (                     xzxz xzxy ) = (             44 45 ) = [                     0202 0201 ]
+    // (                          xyxy ) = (                55 ) = [                          0101 ]
+    elast[0][0] += xij00*xkl00*rinv2 - xij00*xij00*rinv3;
+    elast[0][1] += xij00*xkl11*rinv2 - xij00*xij11*rinv3;
+    elast[0][2] += xij00*xkl22*rinv2 - xij00*xij22*rinv3;
+    elast[0][3] += xij00*xkl12*rinv2 - xij00*xij12*rinv3;
+    elast[0][4] += xij00*xkl02*rinv2 - xij00*xij02*rinv3;
+    elast[0][5] += xij00*xkl01*rinv2 - xij00*xij01*rinv3;
+    elast[1][1] += xij11*xkl11*rinv2 - xij11*xij11*rinv3;
+    elast[1][2] += xij11*xkl22*rinv2 - xij11*xij22*rinv3;
+    elast[1][3] += xij11*xkl12*rinv2 - xij11*xij12*rinv3;
+    elast[1][4] += xij11*xkl02*rinv2 - xij11*xij02*rinv3;
+    elast[1][5] += xij11*xkl01*rinv2 - xij11*xij01*rinv3;
+    elast[2][2] += xij22*xkl22*rinv2 - xij22*xij22*rinv3;
+    elast[2][3] += xij22*xkl12*rinv2 - xij22*xij12*rinv3;
+    elast[2][4] += xij22*xkl02*rinv2 - xij22*xij02*rinv3;
+    elast[2][5] += xij22*xkl01*rinv2 - xij22*xij01*rinv3;
+    elast[3][3] += xij12*xkl12*rinv2 - xij12*xij12*rinv3;
+    elast[3][4] += xij12*xkl02*rinv2 - xij12*xij02*rinv3;
+    elast[3][5] += xij12*xkl01*rinv2 - xij12*xij01*rinv3;
+    elast[4][4] += xij02*xkl02*rinv2 - xij02*xij02*rinv3;
+    elast[4][5] += xij02*xkl01*rinv2 - xij02*xij01*rinv3;
+    elast[5][5] += xij01*xkl01*rinv2 - xij01*xij01*rinv3;
+}
+
 //Constructor
 StressGrid::StressGrid() :
     state({0}),
@@ -273,7 +338,6 @@ StressGrid::~StressGrid()
 //it throws an error
 void StressGrid::Init()
 {
-    if (true == this->state.disable) return;
     std::lock_guard<std::mutex> lock(this->m_mutex_state);
     
     // Check some common settings before attempting initialization
@@ -437,7 +501,6 @@ void StressGrid::Init()
 
 void StressGrid::SetPeriodicBoundaries(bool x, bool y, bool z, bool enforce)
 { 
-    if (true == this->state.disable) return;
     std::lock_guard<std::mutex> lock(m_mutex_state);
 
 #ifdef CUSTRESS_ENABLE
@@ -454,9 +517,6 @@ void StressGrid::SetPeriodicBoundaries(bool x, bool y, bool z, bool enforce)
 // This function updates the box, invbox and computes the new spacings.
 void StressGrid::UpdateBoxSpacings ( matrix3_ext box )
 {
-    if (true == this->state.disable)
-        return;
-
     if (MDS_OK == this->state.ierr) {
         // every thread must process this latch before proceeding
         //static barrier ubs_entry(this->m_max_threads);
@@ -489,14 +549,11 @@ void StressGrid::UpdateBoxSpacings ( matrix3_ext box )
 // to zero.
 void StressGrid::SumGrid ( )
 {
-    if (true == this->state.disable)
-        return;
-
     if (MDS_OK == this->state.ierr)
     {
         // get the thread id
         int thread_id = this->m_thread_map[std::this_thread::get_id()];
-
+        
         // every thread must process this latch before proceeding
         static barrier sumgrid_enter_stress_reduction(this->m_max_threads);
         sumgrid_enter_stress_reduction.count_down_and_wait();
@@ -711,9 +768,6 @@ void StressGrid::SumGrid ( )
 
 void StressGrid::DispersionCorrection (real_ext shift)
 {
-    if (true == this->state.disable)
-        return;
-
     if (this->state.nodispcor == false) {
         // select the correct grid
         int batch_id = this->m_thread_map[std::this_thread::get_id()];
@@ -731,9 +785,6 @@ void StressGrid::DispersionCorrection (real_ext shift)
 //printing files) and set the number of frames to zero
 void StressGrid::Reset ( )
 {
-    if (true == this->state.disable)
-        return;
-
     if (MDS_OK == this->state.ierr)
     {
         // get the thread id
@@ -784,9 +835,6 @@ void StressGrid::Reset ( )
 //Writes file with average stress to grid using the filename set by the user
 void StressGrid::Write ( )
 {
-    if (true == this->state.disable)
-        return;
-
     if (MDS_OK == this->state.ierr) {
         int         Dtype=1;
         std::string outname, elborn_outname, elcovar_outname, elkin_outname, eltotal_outname, eltotalhooke_outname;
@@ -884,29 +932,20 @@ void StressGrid::Write ( )
 
         // calculate stress factors
         real_mds stressfac, covfac, covfac2;
-        //stressfac = real_mds(mds_units)/this->state.nframes;
-        stressfac = real_mds(mds_units);
-        covfac = -real_mds(mds_units)*real_mds(mds_units)*this->state.avg_boxvol/(this->state.temperature*real_mds(KBfac)*this->state.nframes);
+        stressfac = realval_mds(mds_units);
+        covfac = -realval_mds(mds_units)*realval_mds(mds_units)*this->state.avg_boxvol/(this->state.temperature*realval_mds(KBfac)*this->state.nframes);
         //covfac /= this->state.nCells; // uncomment this for for local-vs-local fluctuations
         covfac2 = realval_mds(0.0);
         if (this->state.pcoupl == true)
-            covfac2 = real_mds(mds_units)*real_mds(mds_units)*this->state.avg_boxvol/(this->state.temperature*real_mds(KBfac)*this->state.var_boxvol*this->state.nframes);
+            covfac2 = realval_mds(mds_units)*realval_mds(mds_units)*this->state.avg_boxvol/(this->state.temperature*realval_mds(KBfac)*this->state.var_boxvol*this->state.nframes);
 
         // need to store matrices in double precision
-        matrix3_out sum_grid;
-        matrix6_out sum_grid_elcovar;
-        matrix6_out sum_grid_elborn;
-        matrix6_out sum_grid_elkin;
-        matrix3_out s;
-        matrix6_out elast;
-
-        // zero them
-        zeromatrix3(sum_grid);
-        zeromatrix3(s);
-        zeromatrix6(sum_grid_elcovar);
-        zeromatrix6(sum_grid_elborn);
-        zeromatrix6(sum_grid_elkin);
-        zeromatrix6(elast);
+        matrix3_out sum_grid = {0};
+        matrix6_out sum_grid_elcovar = {0};
+        matrix6_out sum_grid_elborn = {0};
+        matrix6_out sum_grid_elkin = {0};
+        matrix3_out s = {0};
+        matrix6_out elast = {0};
 
         // need this for corrections below
         matrix6_mds npt_covar_corr[1];
@@ -931,7 +970,6 @@ void StressGrid::Write ( )
             copymatrix6(this->alloc.sum_grid_elcovar[i], sum_grid_elcovar);
             copymatrix6(this->alloc.sum_grid_elborn[i], sum_grid_elborn);
             copymatrix6(this->alloc.sum_grid_elkin[i], sum_grid_elkin);
-
             fwrite(&sum_grid[0], sizeof(matrix3_out), 1, outfile);
             fwrite(&sum_grid_elcovar[0], sizeof(matrix6_out), 1, elcovar_outfile);
             fwrite(&sum_grid_elborn[0], sizeof(matrix6_out), 1, elborn_outfile);
@@ -1032,7 +1070,6 @@ void StressGrid::Write ( )
 // atomID  -> label of the atom
 void StressGrid::SetVoronoiRadius(real_ext radius, int atomID)
 {
-    if (true == this->state.disable) return;
     std::lock_guard<std::mutex> lock(this->m_mutex_state);
 
     // quick check if we have the correct number of atoms
@@ -1059,7 +1096,6 @@ void StressGrid::SetVoronoiRadius(real_ext radius, int atomID)
 // moleID  -> label of the molecule this atom belongs to
 void StressGrid::AddVoronoiAtom(real_ext px, real_ext py, real_ext pz, int atomID, int moleID)
 {
-    if (true == this->state.disable) return;
     std::lock_guard<std::mutex> lock(this->m_mutex_state);
 
     // quick check if we have the correct number of atoms
@@ -1078,23 +1114,15 @@ void StressGrid::AddVoronoiAtom(real_ext px, real_ext py, real_ext pz, int atomI
     }
 }
 
-//----------------------------------------------------------------------------------------
-// DistributeInteraction
-//
-// ROOT OF ALL EVIL
-// This function reads the number of atoms, their
-// respective positions and forces, and the atom IDs, and calls the functions in charge of distributing the stress
-// on the grid depending on the local stress flags and the kind of interaction
-// Requires:
-// nAtoms  -> number of atoms of the contribution
-// R       -> positions of the atoms
-// F       -> forces on the atoms
-// atomIDs -> labels of the atoms
-void StressGrid::DistributeInteraction(int nAtoms, array3_ext *R, array3_ext *F, int *atomIDs = nullptr)
-{
-    if (true == this->state.disable)
-        return;
 
+void StressGrid::DistributeInteraction(
+        int nAtoms,
+        const array3_ext *R,
+        const array3_ext *F,
+        const real_ext *phi,
+        const real_ext *kappa,
+        const int *atomIDs = nullptr)
+{
     int    n;
     int    i,j;
     real_mds temp;
@@ -1110,7 +1138,8 @@ void StressGrid::DistributeInteraction(int nAtoms, array3_ext *R, array3_ext *F,
         if (this->state.spatatom == mds_spat)
         {
             //------------------------------------------------------------------------------------
-            matrix3_mds * grid = this->alloc.current_grid+batch_id*this->state.nCells;
+            matrix3_mds * stress_grid = this->alloc.current_grid+batch_id*this->state.nCells;
+            matrix6_mds * elast_grid = this->alloc.current_grid_elborn+batch_id*this->state.nCells;
             Lapack * lapack = this->alloc.lapack[batch_id];
 
             // Depending on the number of atoms, call a different function
@@ -1118,7 +1147,8 @@ void StressGrid::DistributeInteraction(int nAtoms, array3_ext *R, array3_ext *F,
                 const array3_mds Ra = {(real_mds)R[0][0], (real_mds)R[0][1], (real_mds)R[0][2]};
                 const array3_mds Rb = {(real_mds)R[1][0], (real_mds)R[1][1], (real_mds)R[1][2]};
                 const array3_mds Fa = {(real_mds)F[0][0], (real_mds)F[0][1], (real_mds)F[0][2]};
-                this->DistributePairInteraction(Ra, Rb, Fa, grid);
+                this->DistributePairInteraction(Ra, Rb, Fa, stress_grid);
+                this->DistributeElasticity(Ra, Rb, Ra, Rb, (real_mds)(*phi), (real_mds)(*kappa), elast_grid);
             } else if (3 == nAtoms) {
                 const array3_mds Ra = {(real_mds)R[0][0], (real_mds)R[0][1], (real_mds)R[0][2]};
                 const array3_mds Rb = {(real_mds)R[1][0], (real_mds)R[1][1], (real_mds)R[1][2]};
@@ -1126,7 +1156,19 @@ void StressGrid::DistributeInteraction(int nAtoms, array3_ext *R, array3_ext *F,
                 const array3_mds Fa  = {(real_mds)F[0][0], (real_mds)F[0][1], (real_mds)F[0][2]};
                 const array3_mds Fb  = {(real_mds)F[1][0], (real_mds)F[1][1], (real_mds)F[1][2]};
                 const array3_mds Fc  = {(real_mds)F[2][0], (real_mds)F[2][1], (real_mds)F[2][2]};
-                this->DistributeN3(Ra, Rb, Rc, Fa, Fb, Fc, lapack, grid);
+                this->DistributeN3(Ra, Rb, Rc, Fa, Fb, Fc, lapack, stress_grid);
+
+                this->DistributeElasticity(Ra, Rb, Ra, Rb, (real_mds)(phi[0]), (real_mds)(kappa[0]), elast_grid);
+                this->DistributeElasticity(Ra, Rb, Ra, Rc,   realval_mds(0.0), (real_mds)(kappa[1]), elast_grid);
+                this->DistributeElasticity(Ra, Rb, Rb, Rc,   realval_mds(0.0), (real_mds)(kappa[2]), elast_grid);
+                
+                this->DistributeElasticity(Ra, Rc, Ra, Rb,   realval_mds(0.0), (real_mds)(kappa[3]), elast_grid);
+                this->DistributeElasticity(Ra, Rc, Ra, Rc, (real_mds)(phi[1]), (real_mds)(kappa[4]), elast_grid);
+                this->DistributeElasticity(Ra, Rc, Rb, Rc,   realval_mds(0.0), (real_mds)(kappa[5]), elast_grid);
+                
+                this->DistributeElasticity(Rb, Rc, Ra, Rb,   realval_mds(0.0), (real_mds)(kappa[6]), elast_grid);
+                this->DistributeElasticity(Rb, Rc, Ra, Rc,   realval_mds(0.0), (real_mds)(kappa[7]), elast_grid);
+                this->DistributeElasticity(Rb, Rc, Rb, Rc, (real_mds)(phi[2]), (real_mds)(kappa[8]), elast_grid);
             } else if (-3 == nAtoms) {
                 const array3_mds Ra = {(real_mds)R[0][0], (real_mds)R[0][1], (real_mds)R[0][2]};
                 const array3_mds Rb = {(real_mds)R[1][0], (real_mds)R[1][1], (real_mds)R[1][2]};
@@ -1134,7 +1176,7 @@ void StressGrid::DistributeInteraction(int nAtoms, array3_ext *R, array3_ext *F,
                 const array3_mds Fa  = {(real_mds)F[0][0], (real_mds)F[0][1], (real_mds)F[0][2]};
                 const array3_mds Fb  = {(real_mds)F[1][0], (real_mds)F[1][1], (real_mds)F[1][2]};
                 const array3_mds Fc  = {(real_mds)F[2][0], (real_mds)F[2][1], (real_mds)F[2][2]};
-                this->DistributeSettle(Ra, Rb, Rc, Fa, Fb, Fc, lapack, grid);
+                this->DistributeSettle(Ra, Rb, Rc, Fa, Fb, Fc, lapack, stress_grid, elast_grid);
             } else if (4 == nAtoms) {
                 const array3_mds Ra = {(real_mds)R[0][0], (real_mds)R[0][1], (real_mds)R[0][2]};
                 const array3_mds Rb = {(real_mds)R[1][0], (real_mds)R[1][1], (real_mds)R[1][2]};
@@ -1144,7 +1186,7 @@ void StressGrid::DistributeInteraction(int nAtoms, array3_ext *R, array3_ext *F,
                 const array3_mds Fb  = {(real_mds)F[1][0], (real_mds)F[1][1], (real_mds)F[1][2]};
                 const array3_mds Fc  = {(real_mds)F[2][0], (real_mds)F[2][1], (real_mds)F[2][2]};
                 const array3_mds Fd  = {(real_mds)F[3][0], (real_mds)F[3][1], (real_mds)F[3][2]};
-                this->DistributeN4(Ra, Rb, Rc, Rd, Fa, Fb, Fc, Fd, lapack, grid);
+                this->DistributeN4(Ra, Rb, Rc, Rd, Fa, Fb, Fc, Fd, lapack, stress_grid);
             } else if (5 == nAtoms) {
                 const array3_mds Ra = {(real_mds)R[0][0], (real_mds)R[0][1], (real_mds)R[0][2]};
                 const array3_mds Rb = {(real_mds)R[1][0], (real_mds)R[1][1], (real_mds)R[1][2]};
@@ -1156,9 +1198,124 @@ void StressGrid::DistributeInteraction(int nAtoms, array3_ext *R, array3_ext *F,
                 const array3_mds Fc  = {(real_mds)F[2][0], (real_mds)F[2][1], (real_mds)F[2][2]};
                 const array3_mds Fd  = {(real_mds)F[3][0], (real_mds)F[3][1], (real_mds)F[3][2]};
                 const array3_mds Ff  = {(real_mds)F[4][0], (real_mds)F[4][1], (real_mds)F[4][2]};
-                this->DistributeN5(Ra, Rb, Rc, Rd, Rf, Fa, Fb, Fc, Fd, Ff, lapack, grid);
+                this->DistributeN5(Ra, Rb, Rc, Rd, Rf, Fa, Fb, Fc, Fd, Ff, lapack, stress_grid);
             } else {
-                this->DistributeNBody(nAtoms, R, F, lapack, grid);
+                this->DistributeNBody(nAtoms, R, F, lapack, stress_grid);
+            }
+        } else if (this->state.spatatom == mds_atom) {
+            // This is because SETTLE calls the function with nAtoms=-3
+            if (nAtoms < 0) nAtoms = -nAtoms;
+
+            if (atomIDs == nullptr) {
+                std::cout << "ERROR:: the atomIDs array is nullptr. Cannot calculate the stress/atom.";
+                return;
+            }
+
+            for (n = 0; n < nAtoms; n++) {
+                if (atomIDs[n] >= this->state.nAtoms) {
+                    std::cout << "ERROR:: the atom label" << atomIDs[n] << "is equal or larger than the total number of atoms" << this->state.nAtoms;
+                    return;
+                }
+            }
+
+            //Initialize the value of the (local) stress to 0
+            for(i = 0; i< mds_ndim; i++) {
+                stress[i][i] = 0.0;
+                for(j=i+1; j< mds_ndim; j++) {
+                    stress[i][j] = 0.0;
+                    stress[j][i] = 0.0;
+                }
+            }
+
+            //Calculate the stress
+            for(n = 0; n < nAtoms; n++) {
+                for(i = 0; i< mds_ndim; i++) {
+                    temp = -(F[n][i] * R[n][i])/nAtoms;
+                    stress[i][i] += temp;
+                    for(j=i+1; j< mds_ndim; j++) {
+                        temp = -(F[n][i] * R[n][j])/nAtoms;
+                        stress[i][j] += temp;
+                        stress[j][i] += temp;
+                    }
+                }
+            }
+
+            for (n = 0; n < nAtoms; n++) {
+                summatrix3(this->alloc.current_grid[atomIDs[n]],stress,this->alloc.current_grid[atomIDs[n]]);
+            }
+        }
+    }
+
+    return;
+}
+
+void StressGrid::DistributeInteraction(int nAtoms, array3_ext *R, array3_ext *F, int *atomIDs = nullptr)
+{
+    int    n;
+    int    i,j;
+    real_mds temp;
+    matrix3_mds stress;
+
+    int batch_id = this->m_thread_map[std::this_thread::get_id()];
+    this->state.ierr |= checkError( nAtoms > this->state.maxClust,
+        "Distribute Interaction has been called with a number of atoms larger than the maximum cluster");
+    
+    if (MDS_OK == this->state.ierr)
+    {
+        // If spatatom==mds_spat distribute the stress spatially following Noll's procedure
+        if (this->state.spatatom == mds_spat)
+        {
+            //------------------------------------------------------------------------------------
+            matrix3_mds * stress_grid = this->alloc.current_grid+batch_id*this->state.nCells;
+            matrix6_mds * elast_grid = this->alloc.current_grid_elborn+batch_id*this->state.nCells;
+            Lapack * lapack = this->alloc.lapack[batch_id];
+
+            // Depending on the number of atoms, call a different function
+            if (2 == nAtoms) {
+                const array3_mds Ra = {(real_mds)R[0][0], (real_mds)R[0][1], (real_mds)R[0][2]};
+                const array3_mds Rb = {(real_mds)R[1][0], (real_mds)R[1][1], (real_mds)R[1][2]};
+                const array3_mds Fa = {(real_mds)F[0][0], (real_mds)F[0][1], (real_mds)F[0][2]};
+                this->DistributePairInteraction(Ra, Rb, Fa, stress_grid);
+            } else if (3 == nAtoms) {
+                const array3_mds Ra = {(real_mds)R[0][0], (real_mds)R[0][1], (real_mds)R[0][2]};
+                const array3_mds Rb = {(real_mds)R[1][0], (real_mds)R[1][1], (real_mds)R[1][2]};
+                const array3_mds Rc = {(real_mds)R[2][0], (real_mds)R[2][1], (real_mds)R[2][2]};
+                const array3_mds Fa  = {(real_mds)F[0][0], (real_mds)F[0][1], (real_mds)F[0][2]};
+                const array3_mds Fb  = {(real_mds)F[1][0], (real_mds)F[1][1], (real_mds)F[1][2]};
+                const array3_mds Fc  = {(real_mds)F[2][0], (real_mds)F[2][1], (real_mds)F[2][2]};
+                this->DistributeN3(Ra, Rb, Rc, Fa, Fb, Fc, lapack, stress_grid);
+            } else if (-3 == nAtoms) {
+                const array3_mds Ra = {(real_mds)R[0][0], (real_mds)R[0][1], (real_mds)R[0][2]};
+                const array3_mds Rb = {(real_mds)R[1][0], (real_mds)R[1][1], (real_mds)R[1][2]};
+                const array3_mds Rc = {(real_mds)R[2][0], (real_mds)R[2][1], (real_mds)R[2][2]};
+                const array3_mds Fa  = {(real_mds)F[0][0], (real_mds)F[0][1], (real_mds)F[0][2]};
+                const array3_mds Fb  = {(real_mds)F[1][0], (real_mds)F[1][1], (real_mds)F[1][2]};
+                const array3_mds Fc  = {(real_mds)F[2][0], (real_mds)F[2][1], (real_mds)F[2][2]};
+                this->DistributeSettle(Ra, Rb, Rc, Fa, Fb, Fc, lapack, stress_grid, elast_grid);
+            } else if (4 == nAtoms) {
+                const array3_mds Ra = {(real_mds)R[0][0], (real_mds)R[0][1], (real_mds)R[0][2]};
+                const array3_mds Rb = {(real_mds)R[1][0], (real_mds)R[1][1], (real_mds)R[1][2]};
+                const array3_mds Rc = {(real_mds)R[2][0], (real_mds)R[2][1], (real_mds)R[2][2]};
+                const array3_mds Rd = {(real_mds)R[3][0], (real_mds)R[3][1], (real_mds)R[3][2]};
+                const array3_mds Fa  = {(real_mds)F[0][0], (real_mds)F[0][1], (real_mds)F[0][2]};
+                const array3_mds Fb  = {(real_mds)F[1][0], (real_mds)F[1][1], (real_mds)F[1][2]};
+                const array3_mds Fc  = {(real_mds)F[2][0], (real_mds)F[2][1], (real_mds)F[2][2]};
+                const array3_mds Fd  = {(real_mds)F[3][0], (real_mds)F[3][1], (real_mds)F[3][2]};
+                this->DistributeN4(Ra, Rb, Rc, Rd, Fa, Fb, Fc, Fd, lapack, stress_grid);
+            } else if (5 == nAtoms) {
+                const array3_mds Ra = {(real_mds)R[0][0], (real_mds)R[0][1], (real_mds)R[0][2]};
+                const array3_mds Rb = {(real_mds)R[1][0], (real_mds)R[1][1], (real_mds)R[1][2]};
+                const array3_mds Rc = {(real_mds)R[2][0], (real_mds)R[2][1], (real_mds)R[2][2]};
+                const array3_mds Rd = {(real_mds)R[3][0], (real_mds)R[3][1], (real_mds)R[3][2]};
+                const array3_mds Rf = {(real_mds)R[4][0], (real_mds)R[4][1], (real_mds)R[4][2]};
+                const array3_mds Fa  = {(real_mds)F[0][0], (real_mds)F[0][1], (real_mds)F[0][2]};
+                const array3_mds Fb  = {(real_mds)F[1][0], (real_mds)F[1][1], (real_mds)F[1][2]};
+                const array3_mds Fc  = {(real_mds)F[2][0], (real_mds)F[2][1], (real_mds)F[2][2]};
+                const array3_mds Fd  = {(real_mds)F[3][0], (real_mds)F[3][1], (real_mds)F[3][2]};
+                const array3_mds Ff  = {(real_mds)F[4][0], (real_mds)F[4][1], (real_mds)F[4][2]};
+                this->DistributeN5(Ra, Rb, Rc, Rd, Rf, Fa, Fb, Fc, Fd, Ff, lapack, stress_grid);
+            } else {
+                this->DistributeNBody(nAtoms, R, F, lapack, stress_grid);
             }
         } else if (this->state.spatatom == mds_atom) {
             // This is because SETTLE calls the function with nAtoms=-3
@@ -1208,70 +1365,32 @@ void StressGrid::DistributeInteraction(int nAtoms, array3_ext *R, array3_ext *F,
 }
 
 void StressGrid::DistributeElasticity(
-        const array3_ext & xi_ext,
-        const array3_ext & xj_ext,
-        const array3_ext & xk_ext,
-        const array3_ext & xl_ext,
-        real_ext phi_ext,
-        real_ext kappa_ext)
+        const array3_mds & xi,
+        const array3_mds & xj,
+        const array3_mds & xk,
+        const array3_mds & xl,
+        real_mds phi,
+        real_mds kappa,
+        matrix6_mds * grid)
 {
-    if (true == this->state.disable)
+    // no point in performing calculations when these are both 0
+    if (realval_mds(0.0) == phi && realval_mds(0.0) == kappa)
         return;
     
-    int batch_id = this->m_thread_map[std::this_thread::get_id()];
-    matrix6_mds * grid = this->alloc.current_grid_elborn+batch_id*this->state.nCells;
-
-    const array3_mds xi = {(real_mds)xi_ext[0], (real_mds)xi_ext[1], (real_mds)xi_ext[2]};
-    const array3_mds xj = {(real_mds)xj_ext[0], (real_mds)xj_ext[1], (real_mds)xj_ext[2]};
-    const array3_mds xk = {(real_mds)xk_ext[0], (real_mds)xk_ext[1], (real_mds)xk_ext[2]};
-    const array3_mds xl = {(real_mds)xl_ext[0], (real_mds)xl_ext[1], (real_mds)xl_ext[2]};
-    const real_mds phi = (real_mds)phi_ext;
-    const real_mds kappa = (real_mds)kappa_ext;
+    array3_mds xij, xkl;
+    diffarray3( xj, xi, xij, state.box, state.periodic);
+    diffarray3( xl, xk, xkl, state.box, state.periodic);
     
-    //------------------------------------------------------------------------------------
-    // Calculate the elasticity tensor
-    array3_mds diff, diff2;
-    diffarray3( xj, xi, diff, this->state.box, this->state.periodic);
-    diffarray3( xl, xk, diff2, this->state.box, this->state.periodic);
-    const real_mds rinv = realval_mds(1.0)/normarray3(diff);
-    const real_mds rinv2 = kappa*rinv/normarray3(diff2);
-    const real_mds rinv3 = phi*rinv*rinv*rinv;
-    const real_mds diff00 = diff[0]*diff[0];
-    const real_mds diff11 = diff[1]*diff[1];
-    const real_mds diff22 = diff[2]*diff[2];
-    const real_mds diff01 = diff[0]*diff[1];
-    const real_mds diff02 = diff[0]*diff[2];
-    const real_mds diff12 = diff[1]*diff[2];
-    const real_mds diff200 = diff2[0]*diff2[0];
-    const real_mds diff211 = diff2[1]*diff2[1];
-    const real_mds diff222 = diff2[2]*diff2[2];
-    const real_mds diff201 = diff2[0]*diff2[1];
-    const real_mds diff202 = diff2[0]*diff2[2];
-    const real_mds diff212 = diff2[1]*diff2[2];
+    // remove possible nan values (should be careful enough to not need this!)
+    //if (realval_mds(0.0) == diff_norm || realval_mds(0.0) == diff2_norm)
+    //    return;
 
-    // Stiffness matrix in Voigt notation
-    // 0 = xx; 1 = yy; 2 = zz; 3 = yz or zy; 4 = xz or zx; 5 = xy or yx
-    // All indices                         Voigt indices           Stress indices
-    // ( xxxx xxyy xxzz xxyz xxxz xxxy ) = ( 00 01 02 03 04 05 ) = [ 0000 0011 0022 0012 0002 0001 ]
-    // (      yyyy yyzz yyyz yyxz yyxy ) = (    11 12 13 14 15 ) = [      1111 1122 1112 1102 1101 ]
-    // (           zzzz zzyz zzxz zzxy ) = (       22 23 24 25 ) = [           2222 2212 2202 2201 ]
-    // (                yzyz yzxz yzxy ) = (          33 34 35 ) = [                1212 1202 1201 ]
-    // (                     xzxz xzxy ) = (             44 45 ) = [                     0202 0201 ]
-    // (                          xyxy ) = (                55 ) = [                          0101 ]
-
-    matrix6_mds elast = {
-        { /*00*/diff00*diff200*rinv2 - diff00*diff00*rinv3, /*01*/diff00*diff211*rinv2 - diff00*diff11*rinv3, /*02*/diff00*diff222*rinv2 - diff00*diff22*rinv3, /*03*/diff00*diff212*rinv2 - diff00*diff12*rinv3, /*04*/diff00*diff202*rinv2 - diff00*diff02*rinv3, /*05*/diff00*diff201*rinv2 - diff00*diff01*rinv3 },
-        {                                              0.0, /*11*/diff11*diff211*rinv2 - diff11*diff11*rinv3, /*12*/diff11*diff222*rinv2 - diff11*diff22*rinv3, /*13*/diff11*diff212*rinv2 - diff11*diff12*rinv3, /*14*/diff11*diff202*rinv2 - diff11*diff02*rinv3, /*15*/diff11*diff201*rinv2 - diff11*diff01*rinv3 },
-        {                                              0.0,                                              0.0, /*22*/diff22*diff222*rinv2 - diff22*diff22*rinv3, /*23*/diff22*diff212*rinv2 - diff22*diff12*rinv3, /*24*/diff22*diff202*rinv2 - diff22*diff02*rinv3, /*25*/diff22*diff201*rinv2 - diff22*diff01*rinv3 },
-        {                                              0.0,                                              0.0,                                              0.0, /*33*/diff12*diff212*rinv2 - diff12*diff12*rinv3, /*34*/diff12*diff202*rinv2 - diff12*diff02*rinv3, /*35*/diff12*diff201*rinv2 - diff12*diff01*rinv3 },
-        {                                              0.0,                                              0.0,                                              0.0,                                              0.0, /*44*/diff02*diff202*rinv2 - diff02*diff02*rinv3, /*45*/diff02*diff201*rinv2 - diff02*diff01*rinv3 },
-        {                                              0.0,                                              0.0,                                              0.0,                                              0.0,                                              0.0, /*55*/diff01*diff201*rinv2 - diff01*diff01*rinv3 }
-    };
-    
+    matrix6_mds elast = {0};
+    calculate_elasticity(xij, xkl, phi, kappa, elast);
     if (this->state.gridDims == mds_griddim_xyz) {
-        distribute_observable_3d(this->state, xi, xj, diff, elast, grid);
+        distribute_observable_3d(this->state, xi, xj, xij, elast, grid);
     } else {
-        distribute_observable_1d(this->state, xi, xj, diff, elast, grid);
+        distribute_observable_1d(this->state, xi, xj, xij, elast, grid);
     }
 }
 
@@ -1299,9 +1418,6 @@ void StressGrid::DistributeKinetic(
         array3_ext vb = nullptr,
         int atomID = -1)
 {
-    if (true == this->state.disable)
-        return;
-
     matrix3_mds stress = {0};
     matrix6_mds elast = {0};
 
@@ -1606,7 +1722,8 @@ void StressGrid::DistributeSettle(
         const array3_mds & Fb,
         const array3_mds & Fc,
         Lapack * lapack,
-        matrix3_mds * grid)
+        matrix3_mds * stress_grid,
+        matrix6_mds * elast_grid)
 {
     if (this->state.fdecomp == mds_ccfd || this->state.fdecomp == mds_ncfd || this->state.fdecomp == mds_gld ) {
         array3_mds AB, AC, BC;
@@ -1654,32 +1771,22 @@ void StressGrid::DistributeSettle(
         real_mds lbc = (real_mds)b[2];        
 
         array3_mds Fij1 = {lab * AB[0], lab * AB[1], lab * AB[2]};
-        this->DistributePairInteraction( Ra, Rb, Fij1, grid);
+        this->DistributePairInteraction( Ra, Rb, Fij1, stress_grid);
         
         array3_mds Fij2 = {lac * AC[0], lac * AC[1], lac * AC[2]};
-        this->DistributePairInteraction( Ra, Rc, Fij2, grid);
+        this->DistributePairInteraction( Ra, Rc, Fij2, stress_grid);
 
         array3_mds Fij3 = {lbc * BC[0], lbc * BC[1], lbc * BC[2]};
-        this->DistributePairInteraction( Rb, Rc, Fij3, grid);
+        this->DistributePairInteraction( Rb, Rc, Fij3, stress_grid);
         
         // Calculate scalar force and bond stiffness
         real_mds phi_ab = lab*normAB;
         real_mds phi_ac = lac*normAC;
         real_mds phi_bc = lbc*normBC;
         
-        //Calculate Elasticity (if we are using mixed precision, will have to convert to ext floats)
-        if constexpr (sizeof(real_mds) == sizeof(real_ext) ) {
-            this->DistributeElasticity(Ra, Rb, Ra, Rb, phi_ab, realval_mds(0.0));
-            this->DistributeElasticity(Ra, Rc, Ra, Rc, phi_ac, realval_mds(0.0));
-            this->DistributeElasticity(Rb, Rc, Rb, Rc, phi_bc, realval_mds(0.0));
-        } else {
-            const array3_ext Ra_ext = {(real_ext)Ra[0], (real_ext)Ra[1], (real_ext)Ra[2]};
-            const array3_ext Rb_ext = {(real_ext)Rb[0], (real_ext)Rb[1], (real_ext)Rb[2]};
-            const array3_ext Rc_ext = {(real_ext)Rc[0], (real_ext)Rc[1], (real_ext)Rc[2]};
-            this->DistributeElasticity(Ra_ext, Rb_ext, Ra_ext, Rb_ext, (real_ext)phi_ab, realval_ext(0.0));
-            this->DistributeElasticity(Ra_ext, Rc_ext, Ra_ext, Rc_ext, (real_ext)phi_ac, realval_ext(0.0));
-            this->DistributeElasticity(Rb_ext, Rc_ext, Rb_ext, Rc_ext, (real_ext)phi_bc, realval_ext(0.0));
-        }
+        this->DistributeElasticity(Ra, Rb, Ra, Rb, phi_ab, realval_mds(0.0), elast_grid);
+        this->DistributeElasticity(Ra, Rc, Ra, Rc, phi_ac, realval_mds(0.0), elast_grid);
+        this->DistributeElasticity(Rb, Rc, Rb, Rc, phi_bc, realval_mds(0.0), elast_grid);
     }
 }
 
@@ -1989,8 +2096,8 @@ void StressGrid::DistributeN5(
 // General function to decompose N-body potentials (it can be used to compute higher order terms coming from EAM for instance)
 void StressGrid::DistributeNBody(
         int nAtoms,
-        array3_ext *R,
-        array3_ext *F,
+        const array3_ext *R,
+        const array3_ext *F,
         Lapack * lapack,
         matrix3_mds * grid)
 {

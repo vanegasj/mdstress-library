@@ -46,7 +46,6 @@ namespace mds {
         bool        nodispcor;
         bool        cuda;
         bool        initialized;
-        bool        disable;
         barray      periodic;
         real_mds    mindihangle;
         int         maxpart;
@@ -95,30 +94,13 @@ class  mds::StressGrid
 {
     public :
         const char *GetNameOfClass() const
-        {   return "StressGrid";     }
-
-        void Enable()
-        {
-            std::lock_guard<std::mutex> lock(m_mutex_state);
-            if (this->state.disable == true && this->state.initialized == true)
-                this->state.disable = false;
-        }
-        void Disable()
-        {
-            std::lock_guard<std::mutex> lock(m_mutex_state);
-            this->state.disable = true;
-        }
+        {   return "StressGrid";    }
 
         bool CheckInit()
-        {
-            return this->state.initialized;
-        }
+        {   return this->state.initialized;    }
 
         void SetThreadIDs(int thread_id, int max_threads)
         {
-            if (true == this->state.disable)
-                return;
-
             std::lock_guard<std::mutex> lock(m_mutex_state);
             this->m_thread_map[std::this_thread::get_id()] = thread_id;
             this->m_max_threads = max_threads;
@@ -126,16 +108,11 @@ class  mds::StressGrid
 
         void SetNumberOfAtoms(int n)
         {
-            if (true == this->state.disable)
-                return;
-
             std::lock_guard<std::mutex> lock(m_mutex_state);
             this->state.nAtoms = n;
         }
         int  GetNumberOfAtoms( )
-        {
-            return this->state.nAtoms;
-        }
+        {    return this->state.nAtoms;    }
 
         void SetPeriodicBoundaries(bool x, bool y, bool z, bool enforce);
         void  GetPeriodicBoundaries(bool & x, bool & y, bool & z, bool enforce)
@@ -148,25 +125,16 @@ class  mds::StressGrid
 
         void SetNumberOfGridCellsX(int nx)
         {
-            if (true == this->state.disable)
-                return;
-
             std::lock_guard<std::mutex> lock(m_mutex_state);
             this->state.gridCells[0] = nx;
         }
         void SetNumberOfGridCellsY(int ny)
         {
-            if (true == this->state.disable)
-                return;
-
             std::lock_guard<std::mutex> lock(m_mutex_state);
             this->state.gridCells[1] = ny;
         }
         void SetNumberOfGridCellsZ(int nz)
         {
-            if (true == this->state.disable)
-                return;
-
             std::lock_guard<std::mutex> lock(m_mutex_state);
             this->state.gridCells[2] = nz;
         }
@@ -179,9 +147,6 @@ class  mds::StressGrid
 
         void SetSpacing(real_ext d)
         {
-            if (true == this->state.disable)
-                return;
-
             std::lock_guard<std::mutex> lock(m_mutex_state);
             this->state.gridSpacing = (real_mds)d;
         }
@@ -196,9 +161,6 @@ class  mds::StressGrid
 
         void SetForceDecomposition ( int fdecomp )
         {
-            if (true == this->state.disable)
-                return;
-
             std::lock_guard<std::mutex> lock(m_mutex_state);
             this->state.fdecomp = fdecomp;
         }
@@ -207,9 +169,6 @@ class  mds::StressGrid
 
         void SetStressType ( int spatatom )
         {
-            if (true == this->state.disable)
-                return;
-
             std::lock_guard<std::mutex> lock(m_mutex_state);
             this->state.spatatom = spatatom;
         }
@@ -218,9 +177,6 @@ class  mds::StressGrid
 
         void SetContribType ( int contrib )
         {
-            if (true == this->state.disable)
-                return;
-
             std::lock_guard<std::mutex> lock(m_mutex_state);
             this->state.contrib = contrib;
         }
@@ -229,9 +185,6 @@ class  mds::StressGrid
 
         void SetMinDihAngle (real_ext mindihangle)
         {
-            if (true == this->state.disable)
-                return;
-
             std::lock_guard<std::mutex> lock(m_mutex_state);
             this->state.mindihangle = (real_mds)mindihangle;
         }
@@ -245,9 +198,6 @@ class  mds::StressGrid
 
         void SetBox(matrix3_ext box, int epc)
         {
-            if (true == this->state.disable)
-                return;
-
             std::lock_guard<std::mutex> lock(m_mutex_state);
             if (epc != 0)
                 this->state.pcoupl = true;
@@ -258,9 +208,6 @@ class  mds::StressGrid
 
         void SetMaxCluster ( int maxClust )
         {
-            if (true == this->state.disable)
-                return;
-
             std::lock_guard<std::mutex> lock(m_mutex_state);
             this->state.maxClust = maxClust;
         }
@@ -269,18 +216,12 @@ class  mds::StressGrid
 
         void SetFileName ( const char *filename )
         {
-            if (true == this->state.disable)
-                return;
-
             std::lock_guard<std::mutex> lock(m_mutex_state);
             this->m_filename.assign(filename);
         }
 
         void SetTemperature(real_ext temperature)
         {
-            if (true == this->state.disable)
-                return;
-
             std::lock_guard<std::mutex> lock(m_mutex_state);
             this->state.temperature = (real_mds)temperature;
         }
@@ -292,18 +233,12 @@ class  mds::StressGrid
 
         void EnableCuda()
         {
-            if (true == this->state.disable)
-                return;
-
             std::lock_guard<std::mutex> lock(m_mutex_state);
             this->state.cuda = true;
         }
 
         void DisableDispersionCorrection()
         {
-            if (true == this->state.disable)
-                return;
-
             std::lock_guard<std::mutex> lock(m_mutex_state);
             this->state.nodispcor = true;
         }
@@ -336,13 +271,13 @@ class  mds::StressGrid
                 array3_ext *R,
                 array3_ext *F,
                 int *atomIDs );
-        void DistributeElasticity(
-                const array3_ext & xi_ext,
-                const array3_ext & xj_ext,
-                const array3_ext & xk_ext,
-                const array3_ext & xl_ext,
-                real_ext phi_ext,
-                real_ext kappa_ext);
+        void DistributeInteraction(
+                int nAtoms,
+                const array3_ext *R,
+                const array3_ext *F,
+                const real_ext *phi,
+                const real_ext *kappa,
+                const int *atomIDs);
         void DistributeKinetic(
                 real_ext mass,
                 array3_ext x,
@@ -364,12 +299,20 @@ class  mds::StressGrid
         std::mutex m_mutex_state;
 
         void Clear();
-
+        void DistributeElasticity(
+                const array3_mds & xi,
+                const array3_mds & xj,
+                const array3_mds & xk,
+                const array3_mds & xl,
+                real_mds phi,
+                real_mds kappa,
+                matrix6_mds * grid);
         void DistributePairInteraction(
                 const array3_mds & R1,
                 const array3_mds & R2,
                 const array3_mds & F,
                 matrix3_mds * grid);
+
         void DistributeN3(
                 const array3_mds & Ra,
                 const array3_mds & Rb,
@@ -387,7 +330,8 @@ class  mds::StressGrid
                 const array3_mds & Fb,
                 const array3_mds & Fc,
                 Lapack * lapack,
-                matrix3_mds * grid);
+                matrix3_mds * stress_grid,
+                matrix6_mds * elast_grid);
         void DistributeN4(
                 const array3_mds & Ra,
                 const array3_mds & Rb,
@@ -414,8 +358,8 @@ class  mds::StressGrid
                 matrix3_mds * grid);
         void DistributeNBody(
                 int nAtoms,
-                array3_ext *R,
-                array3_ext *F,
+                const array3_ext *R,
+                const array3_ext *F,
                 Lapack * lapack,
                 matrix3_mds * grid);
 };
