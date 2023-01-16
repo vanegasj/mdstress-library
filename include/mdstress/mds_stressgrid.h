@@ -299,12 +299,6 @@ class  mds::StressGrid
         std::mutex m_mutex_state;
 
         void Clear();
-        void DistributePairInteraction(
-                const array3_mds & R1,
-                const array3_mds & R2,
-                const array3_mds & F,
-                matrix3_mds * grid);
-
         void DistributeN3(
                 const array3_mds & Ra,
                 const array3_mds & Rb,
