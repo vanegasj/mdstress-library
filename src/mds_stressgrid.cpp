@@ -340,7 +340,7 @@ static inline void distribute_stress(
 }
 
 // Decompose 3-body potentials
-static inline void distribute_n3(
+static void distribute_n3(
         const state_t & state,
         const array3_mds & Ra,
         const array3_mds & Rb,
@@ -428,7 +428,7 @@ static inline void distribute_n3(
     }
 }
 
-static inline void distribute_n4(
+static void distribute_n4(
         const state_t & state,
         const array3_mds & Ra,
         const array3_mds & Rb,
@@ -536,7 +536,7 @@ static inline void distribute_n4(
 }
 
 // Decompose 5-body potentials (CMAP)
-static inline void distribute_n5(
+static void distribute_n5(
         const state_t & state,
         const array3_mds & Ra,
         const array3_mds & Rb,
@@ -731,7 +731,7 @@ static inline void distribute_n5(
     }
 }
 
-static inline void distribute_nbody(
+static void distribute_nbody(
         const state_t & state,
         int nAtoms,
         const array3_ext *R,
@@ -784,7 +784,7 @@ static inline void distribute_nbody(
         Eigen::MatrixXd x = Eigen::MatrixXd::Zero(n_cols,1);
         x = svd.solve(b_eig);
 
-        // need to eliminate components in NULL space:
+        // TODO: need to eliminate components in NULL space:
         // AtA x = At b
         // (QR)t(QR) x = (QR)t b
         // RtR x = RtQt b
