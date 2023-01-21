@@ -28,7 +28,6 @@
 #include "mds_defines.h"
 #include "mds_basicops.h"
 #include "mds_cmenger.h"
-#include "mds_lapack.h"
 
 // counters and runtime parameters
 namespace mds {
@@ -38,7 +37,6 @@ namespace mds {
         iarray      gridCells;
         int         gridDims;
         real_mds    gridSpacing;
-        int         maxClust;
         matrix3_mds box;
         int         spatatom;
         int         fdecomp;
@@ -48,7 +46,6 @@ namespace mds {
         bool        initialized;
         barray      periodic;
         real_mds    mindihangle;
-        int         maxpart;
         real_mds    temperature;
         bool        pcoupl;
         int         ierr;
@@ -64,12 +61,6 @@ namespace mds {
 
     // allocations
     typedef struct {
-        double      *Amat;
-        double      *AmatT;
-        double      *bvec;
-        array3_mds  *Rij;
-        array3_mds  *Fij;
-        array3_mds  *Uij;
         matrix3_mds *current_grid;
         matrix3_mds *current_gridtot;
         matrix6_mds *current_grid_elborn;
@@ -86,7 +77,6 @@ namespace mds {
         int         *molecule_id;
         real_mds    *radii;
         real_mds    *positions;
-        Lapack     **lapack;
     } alloc_t;
 }
 
@@ -191,11 +181,6 @@ class  mds::StressGrid
         real_ext GetMinDihAngle ( )
         {   return (real_ext)this->state.mindihangle;   }
 
-        array3_mds * GetNbodyDecompPairForces()
-        {   return this->alloc.Fij;    }
-        array3_mds * GetNbodyDecompPairVectors()
-        {   return this->alloc.Rij;    }
-
         void SetBox(matrix3_ext box, int epc)
         {
             std::lock_guard<std::mutex> lock(m_mutex_state);
@@ -205,14 +190,6 @@ class  mds::StressGrid
                 for (int j = 0; j < mds_ndim; j++)
                     this->state.box[i][j] = (real_mds)box[i][j];
         }
-
-        void SetMaxCluster ( int maxClust )
-        {
-            std::lock_guard<std::mutex> lock(m_mutex_state);
-            this->state.maxClust = maxClust;
-        }
-        int GetMaxCluster ( ) const
-        {   return this->state.maxClust;  }
 
         void SetFileName ( const char *filename )
         {
@@ -294,59 +271,12 @@ class  mds::StressGrid
 
         // objects
         std::string m_filename;
+
+        // threads
         int m_max_threads;
         std::map<std::thread::id,int> m_thread_map;
         std::mutex m_mutex_state;
 
         void Clear();
-        void DistributeN3(
-                const array3_mds & Ra,
-                const array3_mds & Rb,
-                const array3_mds & Rc,
-                const array3_mds & Fa,
-                const array3_mds & Fb,
-                const array3_mds & Fc,
-                Lapack * lapack,
-                matrix3_mds * grid);
-        void DistributeSettle(
-                const array3_mds & Ra,
-                const array3_mds & Rb,
-                const array3_mds & Rc,
-                const array3_mds & Fa,
-                const array3_mds & Fb,
-                const array3_mds & Fc,
-                Lapack * lapack,
-                matrix3_mds * stress_grid,
-                matrix6_mds * elast_grid);
-        void DistributeN4(
-                const array3_mds & Ra,
-                const array3_mds & Rb,
-                const array3_mds & Rc,
-                const array3_mds & Rd,
-                const array3_mds & Fa,
-                const array3_mds & Fb,
-                const array3_mds & Fc,
-                const array3_mds & Fd,
-                Lapack * lapack,
-                matrix3_mds * grid);
-        void DistributeN5(
-                const array3_mds & Ra,
-                const array3_mds & Rb,
-                const array3_mds & Rc,
-                const array3_mds & Rd,
-                const array3_mds & Re,
-                const array3_mds & Fa,
-                const array3_mds & Fb,
-                const array3_mds & Fc,
-                const array3_mds & Fd,
-                const array3_mds & Fe,
-                Lapack * lapack,
-                matrix3_mds * grid);
-        void DistributeNBody(
-                int nAtoms,
-                const array3_ext *R,
-                const array3_ext *F,
-                Lapack * lapack,
-                matrix3_mds * grid);
 };
 #endif//MDS_STRESSGRID_H

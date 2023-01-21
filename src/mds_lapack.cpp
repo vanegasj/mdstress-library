@@ -41,10 +41,10 @@ mds::Lapack::Lapack( int nRowMax, int nColMax )
     
     this->liwork = mds_max(1, 3 * mds_min(nRowMax,nColMax) * nlvl + 11 * mds_min(nRowMax,nColMax));
     
-    this->work   = new double [this->lwork];  //Shared among dgelsd, dgeqp3 and dormqr
-    this->iwork  = new int    [this->liwork]; //Used in dgelsd
-    this->darray = new double [nRowMax];      //Used for dgelsd and dgeqp3
-    this->iarray = new int    [nRowMax];      //This is used for dgeqp3 (we use it for the transpose!!!)
+    this->work   = new double [this->lwork]();  //Shared among dgelsd, dgeqp3 and dormqr
+    this->iwork  = new int    [this->liwork](); //Used in dgelsd
+    this->darray = new double [nRowMax]();      //Used for dgelsd and dgeqp3
+    this->iarray = new int    [nRowMax]();      //This is used for dgeqp3 (we use it for the transpose!!!)
     
     this->eps1 = mds_eps;
     

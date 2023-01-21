@@ -32,22 +32,8 @@ set_property(CACHE EXT_PRECISION PROPERTY STRINGS EXT_DOUBLE EXT_FLOAT)
 set(MDS_PRECISION "MDS_DOUBLE" CACHE STRING "Precision used by mdstresslib internally")
 set_property(CACHE MDS_PRECISION PROPERTY STRINGS MDS_FLOAT MDS_DOUBLE MDS_LONG_DOUBLE)
 
-# find lapack library
-find_library(LAPACK_LIBRARY_SYS NAMES lapack liblapack HINTS /usr/lib REQUIRED)
-if (NOT LAPACK_LIBRARY_SYS)
-    unset(LAPACK_LIBRARY_SYS-NOTFOUND)
-    unset(LAPACK_LIBRARY_SYS)
-    # check to see if we need to download LAPACK
-    set(LAPACK_URL http://www.netlib.org/lapack/lapack-3.8.0.tar.gz)
-    set(LAPACK_DOWNLOAD_PATH ${CMAKE_CURRENT_SOURCE_DIR}/contrib/lapack-3.8.0.tar.gz)
-    file(DOWNLOAD ${LAPACK_URL} ${LAPACK_DOWNLOAD_PATH})
-    execute_process(
-        COMMAND tar xaf lapack-3.8.0.tar.gz
-        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/contrib)
-    add_subdirectory(contrib/lapack-3.8.0)
-else()
-    find_library(LAPACK_LIBRARY NAMES lapack liblapack HINTS /usr/lib REQUIRED)
-endif()
+# find the eigen library
+find_package(Eigen3 3.3 REQUIRED NO_MODULE)
 
 # set our cmake modules path for tclap
 set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake" ${CMAKE_MODULE_PATH})
@@ -82,7 +68,7 @@ include_directories(include/mdstress include/voro++ ${CMAKE_CURRENT_BINARY_DIR})
 
 add_library(mdstress SHARED ${MDSTRESS_SOURCES} ${VORO_SOURCES})
 #set_target_properties(mdstress PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
-target_link_libraries(mdstress PRIVATE ${LAPACK_LIBRARY})
+target_link_libraries(mdstress PRIVATE Eigen3::Eigen)
 
 install(TARGETS mdstress RUNTIME DESTINATION bin LIBRARY DESTINATION lib ARCHIVE DESTINATION lib/static)
 install(FILES ${MDSTRESS_SOURCES_H} DESTINATION include/mdstress)

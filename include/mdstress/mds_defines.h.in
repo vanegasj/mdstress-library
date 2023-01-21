@@ -78,15 +78,6 @@ namespace mds
     #define mds_gridc_far  0x0002
     #define mds_gridc_full 0x0003
 
-    #define mds_nrow3    9
-    #define mds_ncol3    3
-
-    #define mds_nrow4    12
-    #define mds_ncol4    6
-
-    #define mds_nrow5    15
-    #define mds_ncol5    10
-    
     #define mds_eps      1.0e-10
 
     #define mds_fileext "mds"
