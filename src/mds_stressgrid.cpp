@@ -27,7 +27,7 @@
 #include "mds_error.h"
 #include "voro++.hh"
 
-// testing eigen
+// using Eigen to do nbody force decompositions
 #include <Eigen/Dense>
 
 //#define CUSTRESS_ENABLE
@@ -36,50 +36,6 @@
 //#endif//CUSTRESS_ENABLE
 
 using namespace mds;
-
-#define BUILD_STRESS(F, diff) \
-    { \
-        F[0]*diff[0], F[0]*diff[1], F[0]*diff[2], \
-        F[1]*diff[0], F[1]*diff[1], F[1]*diff[2], \
-        F[2]*diff[0], F[2]*diff[1], F[2]*diff[2] \
-    }
-
-// Returns the stiffness matrix in Voigt notation
-// 0 = xx; 1 = yy; 2 = zz; 3 = yz or zy; 4 = xz or zx; 5 = xy or yx
-// All indices                         Voigt indices           Stress indices
-// ( xxxx xxyy xxzz xxyz xxxz xxxy ) = ( 00 01 02 03 04 05 ) = [ 0000 0011 0022 0012 0002 0001 ]
-// (      yyyy yyzz yyyz yyxz yyxy ) = (    11 12 13 14 15 ) = [      1111 1122 1112 1102 1101 ]
-// (           zzzz zzyz zzxz zzxy ) = (       22 23 24 25 ) = [           2222 2212 2202 2201 ]
-// (                yzyz yzxz yzxy ) = (          33 34 35 ) = [                1212 1202 1201 ]
-// (                     xzxz xzxy ) = (             44 45 ) = [                     0202 0201 ]
-// (                          xyxy ) = (                55 ) = [                          0101 ]
-#define PREPARE_ELASTICITY(xij, xkl, phi, kappa) \
-    const real_mds xij_norm = normarray3(xij); \
-    const real_mds xkl_norm = normarray3(xkl); \
-    const real_mds rinv = realval_mds(1.0)/xij_norm; \
-    const real_mds rinv2 = kappa*rinv/xkl_norm; \
-    const real_mds rinv3 = phi*rinv*rinv*rinv; \
-    const real_mds xij00 = xij[0]*xij[0]; \
-    const real_mds xij11 = xij[1]*xij[1]; \
-    const real_mds xij22 = xij[2]*xij[2]; \
-    const real_mds xij01 = xij[0]*xij[1]; \
-    const real_mds xij02 = xij[0]*xij[2]; \
-    const real_mds xij12 = xij[1]*xij[2]; \
-    const real_mds xkl00 = xkl[0]*xkl[0]; \
-    const real_mds xkl11 = xkl[1]*xkl[1]; \
-    const real_mds xkl22 = xkl[2]*xkl[2]; \
-    const real_mds xkl01 = xkl[0]*xkl[1]; \
-    const real_mds xkl02 = xkl[0]*xkl[2]; \
-    const real_mds xkl12 = xkl[1]*xkl[2]
-#define BUILD_ELASTICITY() \
-    { \
-        {/*00*/xij00*xkl00*rinv2 - xij00*xij00*rinv3, /*01*/xij00*xkl11*rinv2 - xij00*xij11*rinv3, /*02*/xij00*xkl22*rinv2 - xij00*xij22*rinv3, /*03*/xij00*xkl12*rinv2 - xij00*xij12*rinv3, /*04*/xij00*xkl02*rinv2 - xij00*xij02*rinv3, /*05*/xij00*xkl01*rinv2 - xij00*xij01*rinv3},\
-        {                           realval_mds(0.0), /*11*/xij11*xkl11*rinv2 - xij11*xij11*rinv3, /*12*/xij11*xkl22*rinv2 - xij11*xij22*rinv3, /*13*/xij11*xkl12*rinv2 - xij11*xij12*rinv3, /*14*/xij11*xkl02*rinv2 - xij11*xij02*rinv3, /*15*/xij11*xkl01*rinv2 - xij11*xij01*rinv3},\
-        {                           realval_mds(0.0),                            realval_mds(0.0), /*22*/xij22*xkl22*rinv2 - xij22*xij22*rinv3, /*23*/xij22*xkl12*rinv2 - xij22*xij12*rinv3, /*24*/xij22*xkl02*rinv2 - xij22*xij02*rinv3, /*25*/xij22*xkl01*rinv2 - xij22*xij01*rinv3},\
-        {                           realval_mds(0.0),                            realval_mds(0.0),                            realval_mds(0.0), /*33*/xij12*xkl12*rinv2 - xij12*xij12*rinv3, /*34*/xij12*xkl02*rinv2 - xij12*xij02*rinv3, /*35*/xij12*xkl01*rinv2 - xij12*xij01*rinv3},\
-        {                           realval_mds(0.0),                            realval_mds(0.0),                            realval_mds(0.0),                            realval_mds(0.0), /*44*/xij02*xkl02*rinv2 - xij02*xij02*rinv3, /*45*/xij02*xkl01*rinv2 - xij02*xij01*rinv3},\
-        {                           realval_mds(0.0),                            realval_mds(0.0),                            realval_mds(0.0),                            realval_mds(0.0),                            realval_mds(0.0), /*55*/xij01*xkl01*rinv2 - xij01*xij01*rinv3},\
-    }
 
 static inline void distribute_observables_3d(
         const state_t & state,
@@ -290,101 +246,99 @@ static inline void distribute_observables_1d(
     }
 }
 
-static inline void distribute_elasticity(
+static inline void distribute_n2(
         const state_t & state,
         const array3_mds & xi,
         const array3_mds & xj,
-        const array3_mds & xk,
-        const array3_mds & xl,
-        real_mds phi,
-        real_mds kappa,
-        matrix6_mds * elast_grid)
-{
-    // no point in performing calculations when these are both 0
-    if (realval_mds(0.0) == phi && realval_mds(0.0) == kappa)
-        return;
-    
-    array3_mds xij, xkl;
-    diffarray3( xj, xi, xij, state.box, state.periodic);
-    diffarray3( xl, xk, xkl, state.box, state.periodic);
-    
-    //------------------------------------------------------------------------------------
-    // Calculate the elasticity tensor
-    PREPARE_ELASTICITY(xij, xkl, phi, kappa);
-    const matrix6_mds elast = BUILD_ELASTICITY();
-
-    if (state.gridDims == mds_griddim_xyz) {
-        distribute_observables_3d(state, xi, xj, xij, nullptr, &elast, nullptr, elast_grid);
-    } else {
-        distribute_observables_1d(state, xi, xj, xij, nullptr, &elast, nullptr, elast_grid);
-    }
-}
-
-static inline void distribute_stress(
-        const state_t & state,
-        const array3_mds & xi,
-        const array3_mds & xj,
-        const array3_mds & F,
-        matrix3_mds * stress_grid)
-{
-    // Calculate the stress tensor
-    array3_mds diff;
-    diffarray3( xj, xi, diff, state.box, state.periodic);
-    const matrix3_mds stress = BUILD_STRESS(F, diff);
-
-#ifdef CUSTRESS_ENABLE
-    if (state.cuda && custress_distribute_pair_interaction(xi,xj,F,batch_id))
-        return;
-#endif
-
-    if (state.gridDims == mds_griddim_xyz) {
-        distribute_observables_3d(state, xi, xj, diff, &stress, nullptr, stress_grid, nullptr);
-    } else {
-        distribute_observables_1d(state, xi, xj, diff, &stress, nullptr, stress_grid, nullptr);
-    }
-}
-
-static inline void distribute_stress_elasticity(
-        const state_t & state,
-        const array3_mds & xi,
-        const array3_mds & xj,
-        const array3_mds & F,
+        const array3_mds * F,
         matrix3_mds * stress_grid,
-        const array3_mds & xk,
-        const array3_mds & xl,
-        real_mds phi,
-        real_mds kappa,
+        const array3_mds * xk,
+        const array3_mds * xl,
+        const real_mds * phi_kappa,
         matrix6_mds * elast_grid)
 {
     // Calculate the stress tensor
-    array3_mds diff;
-    diffarray3( xj, xi, diff, state.box, state.periodic);
-    const matrix3_mds stress = BUILD_STRESS(F, diff);
+    array3_mds xij;
+    diffarray3( xj, xi, xij, state.box, state.periodic);
 
 #ifdef CUSTRESS_ENABLE
     if (state.cuda && custress_distribute_pair_interaction(xi,xj,F,batch_id))
         return;
 #endif
 
+    // stress is relatively inexpensive so just do it here to reduce cases later
+    matrix3_mds stress = {0};
+    if (nullptr != stress_grid) {
+        stress[0][0] = F[0][0]*xij[0];
+        stress[0][1] = F[0][0]*xij[1];
+        stress[0][2] = F[0][0]*xij[2];
+        stress[1][0] = F[0][1]*xij[0];
+        stress[1][1] = F[0][1]*xij[1];
+        stress[1][2] = F[0][1]*xij[2];
+        stress[2][0] = F[0][2]*xij[0];
+        stress[2][1] = F[0][2]*xij[1];
+        stress[2][2] = F[0][2]*xij[2];
+    }
 
-    // no point in performing calculations when these are both 0
-    if (realval_mds(0.0) == phi && realval_mds(0.0) == kappa)
-    {
-        if (state.gridDims == mds_griddim_xyz) {
-            distribute_observables_3d(state, xi, xj, diff, &stress, nullptr, stress_grid, nullptr);
-        } else {
-            distribute_observables_1d(state, xi, xj, diff, &stress, nullptr, stress_grid, nullptr);
-        }
+    matrix6_mds elast = {0};
+    if (nullptr != elast_grid &&
+            (realval_mds(0.0) != phi_kappa[0] || realval_mds(0.0) != phi_kappa[1])) {
+        // Construct the stiffness matrix in Voigt notation
+        // 0 = xx; 1 = yy; 2 = zz; 3 = yz or zy; 4 = xz or zx; 5 = xy or yx
+        // All indices                         Voigt indices           Stress indices
+        // ( xxxx xxyy xxzz xxyz xxxz xxxy ) = ( 00 01 02 03 04 05 ) = [ 0000 0011 0022 0012 0002 0001 ]
+        // (      yyyy yyzz yyyz yyxz yyxy ) = (    11 12 13 14 15 ) = [      1111 1122 1112 1102 1101 ]
+        // (           zzzz zzyz zzxz zzxy ) = (       22 23 24 25 ) = [           2222 2212 2202 2201 ]
+        // (                yzyz yzxz yzxy ) = (          33 34 35 ) = [                1212 1202 1201 ]
+        // (                     xzxz xzxy ) = (             44 45 ) = [                     0202 0201 ]
+        // (                          xyxy ) = (                55 ) = [                          0101 ]
+        array3_mds xkl;
+        diffarray3( *xl, *xk, xkl, state.box, state.periodic);
+
+        const real_mds xij_norm = normarray3(xij);
+        const real_mds xkl_norm = normarray3(xkl);
+        const real_mds rinv = realval_mds(1.0)/xij_norm;
+        const real_mds rinv2 = phi_kappa[1]*rinv/xkl_norm;
+        const real_mds rinv3 = phi_kappa[0]*rinv*rinv*rinv;
+        const real_mds xij00 = xij[0]*xij[0];
+        const real_mds xij11 = xij[1]*xij[1];
+        const real_mds xij22 = xij[2]*xij[2];
+        const real_mds xij01 = xij[0]*xij[1];
+        const real_mds xij02 = xij[0]*xij[2];
+        const real_mds xij12 = xij[1]*xij[2];
+        const real_mds xkl00 = xkl[0]*xkl[0];
+        const real_mds xkl11 = xkl[1]*xkl[1];
+        const real_mds xkl22 = xkl[2]*xkl[2];
+        const real_mds xkl01 = xkl[0]*xkl[1];
+        const real_mds xkl02 = xkl[0]*xkl[2];
+        const real_mds xkl12 = xkl[1]*xkl[2];
+
+        elast[0][0] = xij00*xkl00*rinv2 - xij00*xij00*rinv3;
+        elast[0][1] = xij00*xkl11*rinv2 - xij00*xij11*rinv3;
+        elast[0][2] = xij00*xkl22*rinv2 - xij00*xij22*rinv3;
+        elast[0][3] = xij00*xkl12*rinv2 - xij00*xij12*rinv3;
+        elast[0][4] = xij00*xkl02*rinv2 - xij00*xij02*rinv3;
+        elast[0][5] = xij00*xkl01*rinv2 - xij00*xij01*rinv3;
+        elast[1][1] = xij11*xkl11*rinv2 - xij11*xij11*rinv3;
+        elast[1][2] = xij11*xkl22*rinv2 - xij11*xij22*rinv3;
+        elast[1][3] = xij11*xkl12*rinv2 - xij11*xij12*rinv3;
+        elast[1][4] = xij11*xkl02*rinv2 - xij11*xij02*rinv3;
+        elast[1][5] = xij11*xkl01*rinv2 - xij11*xij01*rinv3;
+        elast[2][2] = xij22*xkl22*rinv2 - xij22*xij22*rinv3;
+        elast[2][3] = xij22*xkl12*rinv2 - xij22*xij12*rinv3;
+        elast[2][4] = xij22*xkl02*rinv2 - xij22*xij02*rinv3;
+        elast[2][5] = xij22*xkl01*rinv2 - xij22*xij01*rinv3;
+        elast[3][3] = xij12*xkl12*rinv2 - xij12*xij12*rinv3;
+        elast[3][4] = xij12*xkl02*rinv2 - xij12*xij02*rinv3;
+        elast[3][5] = xij12*xkl01*rinv2 - xij12*xij01*rinv3;
+        elast[4][4] = xij02*xkl02*rinv2 - xij02*xij02*rinv3;
+        elast[4][5] = xij02*xkl01*rinv2 - xij02*xij01*rinv3;
+        elast[5][5] = xij01*xkl01*rinv2 - xij01*xij01*rinv3;
     } else {
-        array3_mds xij, xkl;
-        diffarray3( xj, xi, xij, state.box, state.periodic);
-        diffarray3( xl, xk, xkl, state.box, state.periodic);
-        
-        //------------------------------------------------------------------------------------
-        // Calculate the elasticity tensor
-        PREPARE_ELASTICITY(xij, xkl, phi, kappa);
-        const matrix6_mds elast = BUILD_ELASTICITY();
-
+        elast_grid = nullptr;
+    }
+    
+    if (nullptr != stress_grid || nullptr != elast_grid) {
         if (state.gridDims == mds_griddim_xyz) {
             distribute_observables_3d(state, xi, xj, xij, &stress, &elast, stress_grid, elast_grid);
         } else {
@@ -394,7 +348,7 @@ static inline void distribute_stress_elasticity(
 }
 
 // Decompose 3-body potentials
-static void distribute_n3(
+static void decompose_n3(
         const state_t & state,
         const array3_ext *R,
         const array3_ext *F,
@@ -460,48 +414,56 @@ static void distribute_n3(
             const real_mds normAC = normarray3(AC);
             const real_mds normBC = normarray3(BC);
 
-            const real_mds phi_ab = lab*normAB;
-            const real_mds phi_ac = lac*normAC;
-            const real_mds phi_bc = lbc*normBC;
-
-            distribute_stress_elasticity(state, Ra, Rb, Fij1, stress_grid, Ra, Rb, phi_ab, realval_mds(0.0), elast_grid);
-            distribute_stress_elasticity(state, Ra, Rc, Fij2, stress_grid, Ra, Rc, phi_ac, realval_mds(0.0), elast_grid);
-            distribute_stress_elasticity(state, Rb, Rc, Fij3, stress_grid, Rb, Rc, phi_bc, realval_mds(0.0), elast_grid);
+            const real_mds phi_kappa1[2] = {lab*normAB, realval_mds(0.0)};
+            const real_mds phi_kappa2[2] = {lac*normAC, realval_mds(0.0)};
+            const real_mds phi_kappa3[2] = {lbc*normBC, realval_mds(0.0)};
+            distribute_n2(state, Ra, Rb, &Fij1, stress_grid, &Ra, &Rb, phi_kappa1, elast_grid);
+            distribute_n2(state, Ra, Rc, &Fij2, stress_grid, &Ra, &Rc, phi_kappa2, elast_grid);
+            distribute_n2(state, Rb, Rc, &Fij3, stress_grid, &Rb, &Rc, phi_kappa3, elast_grid);
         } else if (nullptr != phi && nullptr != kappa && nullptr != elast_grid) {
-            // stress and elasticity
-            distribute_stress_elasticity(state, Ra, Rb, Fij1, stress_grid, Ra, Rb, (real_mds)(phi[0]), (real_mds)(kappa[0]), elast_grid);
-            distribute_elasticity(state, Ra, Rb, Ra, Rc,   realval_mds(0.0), (real_mds)(kappa[1]), elast_grid);
-            distribute_elasticity(state, Ra, Rb, Rb, Rc,   realval_mds(0.0), (real_mds)(kappa[2]), elast_grid);
-            
-            distribute_elasticity(state, Ra, Rc, Ra, Rb,   realval_mds(0.0), (real_mds)(kappa[3]), elast_grid);
-            distribute_stress_elasticity(state, Ra, Rc, Fij2, stress_grid ,Ra, Rc, (real_mds)(phi[1]), (real_mds)(kappa[4]), elast_grid);
-            distribute_elasticity(state, Ra, Rc, Rb, Rc,   realval_mds(0.0), (real_mds)(kappa[5]), elast_grid);
-            
-            distribute_elasticity(state, Rb, Rc, Ra, Rb,   realval_mds(0.0), (real_mds)(kappa[6]), elast_grid);
-            distribute_elasticity(state, Rb, Rc, Ra, Rc,   realval_mds(0.0), (real_mds)(kappa[7]), elast_grid);
-            distribute_stress_elasticity(state, Rb, Rc, Fij3, stress_grid, Rb, Rc, (real_mds)(phi[2]), (real_mds)(kappa[8]), elast_grid);
+            // calculate the diagonal terms
+            const real_mds phi_kappa11[2] = {(real_mds)(phi[0]), (real_mds)(kappa[0])};
+            const real_mds phi_kappa22[2] = {(real_mds)(phi[1]), (real_mds)(kappa[4])};
+            const real_mds phi_kappa33[2] = {(real_mds)(phi[2]), (real_mds)(kappa[8])};
+            distribute_n2(state, Ra, Rb, &Fij1, stress_grid, &Ra, &Rb, phi_kappa11, elast_grid);
+            distribute_n2(state, Ra, Rc, &Fij2, stress_grid, &Ra, &Rc, phi_kappa22, elast_grid);
+            distribute_n2(state, Rb, Rc, &Fij3, stress_grid, &Rb, &Rc, phi_kappa33, elast_grid);
+
+            // and the off diagonal
+            const real_mds phi_kappa12[2] = {realval_mds(0.0), (real_mds)(kappa[1])};
+            const real_mds phi_kappa13[2] = {realval_mds(0.0), (real_mds)(kappa[2])};
+            const real_mds phi_kappa21[2] = {realval_mds(0.0), (real_mds)(kappa[3])};
+            const real_mds phi_kappa23[2] = {realval_mds(0.0), (real_mds)(kappa[5])};
+            const real_mds phi_kappa31[2] = {realval_mds(0.0), (real_mds)(kappa[6])};
+            const real_mds phi_kappa32[2] = {realval_mds(0.0), (real_mds)(kappa[7])};
+            distribute_n2(state, Ra, Rb, nullptr, nullptr, &Ra, &Rc, phi_kappa12, elast_grid);
+            distribute_n2(state, Ra, Rb, nullptr, nullptr, &Rb, &Rc, phi_kappa13, elast_grid);
+            distribute_n2(state, Ra, Rc, nullptr, nullptr, &Ra, &Rb, phi_kappa21, elast_grid);
+            distribute_n2(state, Ra, Rc, nullptr, nullptr, &Rb, &Rc, phi_kappa23, elast_grid);
+            distribute_n2(state, Rb, Rc, nullptr, nullptr, &Ra, &Rb, phi_kappa31, elast_grid);
+            distribute_n2(state, Rb, Rc, nullptr, nullptr, &Ra, &Rc, phi_kappa32, elast_grid);
         } else {
             // general stress only case
-            distribute_stress(state, Ra, Rb, Fij1, stress_grid);
-            distribute_stress(state, Ra, Rc, Fij2, stress_grid);
-            distribute_stress(state, Rb, Rc, Fij3, stress_grid);
+            distribute_n2(state, Ra, Rb, &Fij1, stress_grid, nullptr, nullptr, nullptr, nullptr);
+            distribute_n2(state, Ra, Rc, &Fij2, stress_grid, nullptr, nullptr, nullptr, nullptr);
+            distribute_n2(state, Rb, Rc, &Fij3, stress_grid, nullptr, nullptr, nullptr, nullptr);
         }
     } else if (state.fdecomp == mds_gld) {
         array3_mds Fij1 = {
             (Fa[0]-Fb[0])/realval_mds(3.0), (Fa[1]-Fb[1])/realval_mds(3.0), (Fa[2]-Fb[2])/realval_mds(3.0)};
-        distribute_stress(state, Ra, Rb, Fij1, stress_grid);
+        distribute_n2(state, Ra, Rb, &Fij1, stress_grid, nullptr, nullptr, nullptr, nullptr);
 
         array3_mds Fij2 = {
             (Fa[0]-Fc[0])/realval_mds(3.0), (Fa[1]-Fc[1])/realval_mds(3.0), (Fa[2]-Fc[2])/realval_mds(3.0)};
-        distribute_stress(state, Ra, Rc, Fij2, stress_grid);
+        distribute_n2(state, Ra, Rc, &Fij2, stress_grid, nullptr, nullptr, nullptr, nullptr);
 
         array3_mds Fij3 = {
             (Fb[0]-Fc[0])/realval_mds(3.0), (Fb[1]-Fc[1])/realval_mds(3.0), (Fb[2]-Fc[2])/realval_mds(3.0)};
-        distribute_stress(state, Rb, Rc, Fij3, stress_grid);
+        distribute_n2(state, Rb, Rc, &Fij3, stress_grid, nullptr, nullptr, nullptr, nullptr);
     }
 }
 
-static void distribute_n4(
+static void decompose_n4(
         const state_t & state,
         const array3_ext *R,
         const array3_ext *F,
@@ -568,51 +530,51 @@ static void distribute_n4(
         const real_mds lcd = (real_mds)x(5,0);
 
         const array3_mds Fij1 = {lab * AB[0], lab * AB[1], lab * AB[2]};
-        distribute_stress(state, Ra, Rb, Fij1, grid);
+        distribute_n2(state, Ra, Rb, &Fij1, grid, nullptr, nullptr, nullptr, nullptr);
 
         const array3_mds Fij2 = {lac * AC[0], lac * AC[1], lac * AC[2]};
-        distribute_stress(state, Ra, Rc, Fij2, grid);
+        distribute_n2(state, Ra, Rc, &Fij2, grid, nullptr, nullptr, nullptr, nullptr);
 
         const array3_mds Fij3 = {lad * AD[0], lad * AD[1], lad * AD[2]};
-        distribute_stress(state, Ra, Rd, Fij3, grid);
+        distribute_n2(state, Ra, Rd, &Fij3, grid, nullptr, nullptr, nullptr, nullptr);
 
         const array3_mds Fij4 = {lbc * BC[0], lbc * BC[1], lbc * BC[2]};
-        distribute_stress(state, Rb, Rc, Fij4, grid);
+        distribute_n2(state, Rb, Rc, &Fij4, grid, nullptr, nullptr, nullptr, nullptr);
 
         const array3_mds Fij5 = {lbd * BD[0], lbd * BD[1], lbd * BD[2]};
-        distribute_stress(state, Rb, Rd, Fij5, grid);
+        distribute_n2(state, Rb, Rd, &Fij5, grid, nullptr, nullptr, nullptr, nullptr);
 
         const array3_mds Fij6 = {lcd * CD[0], lcd * CD[1], lcd * CD[2]};
-        distribute_stress(state, Rc, Rd, Fij6, grid);
+        distribute_n2(state, Rc, Rd, &Fij6, grid, nullptr, nullptr, nullptr, nullptr);
     } else if (state.fdecomp == mds_gld) {
         const array3_mds Fij1 = {
             (Fa[0]-Fb[0])/realval_mds(4.0), (Fa[1]-Fb[1])/realval_mds(4.0), (Fa[2]-Fb[2])/realval_mds(4.0)};
-        distribute_stress(state, Ra, Rb, Fij1, grid);
+        distribute_n2(state, Ra, Rb, &Fij1, grid, nullptr, nullptr, nullptr, nullptr);
 
         const array3_mds Fij2 = {
             (Fa[0]-Fc[0])/realval_mds(4.0), (Fa[1]-Fc[1])/realval_mds(4.0), (Fa[2]-Fc[2])/realval_mds(4.0)};
-        distribute_stress(state, Ra, Rc, Fij2, grid);
+        distribute_n2(state, Ra, Rc, &Fij2, grid, nullptr, nullptr, nullptr, nullptr);
 
         const array3_mds Fij3 = {
             (Fa[0]-Fd[0])/realval_mds(4.0), (Fa[1]-Fd[1])/realval_mds(4.0), (Fa[2]-Fd[2])/realval_mds(4.0)};
-        distribute_stress(state, Ra, Rd, Fij3, grid);
+        distribute_n2(state, Ra, Rd, &Fij3, grid, nullptr, nullptr, nullptr, nullptr);
 
         const array3_mds Fij4 = {
             (Fb[0]-Fc[0])/realval_mds(4.0), (Fb[1]-Fc[1])/realval_mds(4.0), (Fb[2]-Fc[2])/realval_mds(4.0)};
-        distribute_stress(state, Rb, Rc, Fij4, grid);
+        distribute_n2(state, Rb, Rc, &Fij4, grid, nullptr, nullptr, nullptr, nullptr);
 
         const array3_mds Fij5 = {
             (Fb[0]-Fd[0])/realval_mds(4.0), (Fb[1]-Fd[1])/realval_mds(4.0), (Fb[2]-Fd[2])/realval_mds(4.0)};
-        distribute_stress(state, Rb, Rd, Fij5, grid);
+        distribute_n2(state, Rb, Rd, &Fij5, grid, nullptr, nullptr, nullptr, nullptr);
 
         const array3_mds Fij6 = {
             (Fc[0]-Fd[0])/realval_mds(4.0), (Fc[1]-Fd[1])/realval_mds(4.0), (Fc[2]-Fd[2])/realval_mds(4.0)};
-        distribute_stress(state, Rc, Rd, Fij6, grid);
+        distribute_n2(state, Rc, Rd, &Fij6, grid, nullptr, nullptr, nullptr, nullptr);
     }
 }
 
 // Decompose 5-body potentials (CMAP)
-static void distribute_n5(
+static void decompose_n5(
         const state_t & state,
         const array3_ext *R,
         const array3_ext *F,
@@ -739,78 +701,78 @@ static void distribute_n5(
         const real_mds lde = (real_mds)x(9,0);
 
         const array3_mds Fij1 = {lab * AB[0], lab * AB[1], lab * AB[2]};
-        distribute_stress(state, Ra, Rb, Fij1, grid);
+        distribute_n2(state, Ra, Rb, &Fij1, grid, nullptr, nullptr, nullptr, nullptr);
 
         const array3_mds Fij2 = {lac * AC[0], lac * AC[1], lac * AC[2]};
-        distribute_stress(state, Ra, Rc, Fij2, grid);
+        distribute_n2(state, Ra, Rc, &Fij2, grid, nullptr, nullptr, nullptr, nullptr);
 
         const array3_mds Fij3 = {lad * AD[0], lad * AD[1], lad * AD[2]};
-        distribute_stress(state, Ra, Rd, Fij3, grid);
+        distribute_n2(state, Ra, Rd, &Fij3, grid, nullptr, nullptr, nullptr, nullptr);
 
         const array3_mds Fij4 = {lae * AE[0], lae * AE[1], lae * AE[2]};
-        distribute_stress(state, Ra, Re, Fij4, grid);
+        distribute_n2(state, Ra, Re, &Fij4, grid, nullptr, nullptr, nullptr, nullptr);
 
         const array3_mds Fij5 = {lbc * BC[0], lbc * BC[1], lbc * BC[2]};
-        distribute_stress(state, Rb, Rc, Fij5, grid);
+        distribute_n2(state, Rb, Rc, &Fij5, grid, nullptr, nullptr, nullptr, nullptr);
 
         const array3_mds Fij6 = {lbd * BD[0], lbd * BD[1], lbd * BD[2]};
-        distribute_stress(state, Rb, Rd, Fij6, grid);
+        distribute_n2(state, Rb, Rd, &Fij6, grid, nullptr, nullptr, nullptr, nullptr);
 
         const array3_mds Fij7 = {lbe * BE[0], lbe * BE[1], lbe * BE[2]};
-        distribute_stress(state, Rb, Re, Fij7, grid);
+        distribute_n2(state, Rb, Re, &Fij7, grid, nullptr, nullptr, nullptr, nullptr);
 
         const array3_mds Fij8 = {lcd * CD[0], lcd * CD[1], lcd * CD[2]};
-        distribute_stress(state, Rc, Rd, Fij8, grid);
+        distribute_n2(state, Rc, Rd, &Fij8, grid, nullptr, nullptr, nullptr, nullptr);
 
         const array3_mds Fij9 = {lce * CE[0], lce * CE[1], lce * CE[2]};
-        distribute_stress(state, Rc, Re, Fij9, grid);
+        distribute_n2(state, Rc, Re, &Fij9, grid, nullptr, nullptr, nullptr, nullptr);
 
         const array3_mds Fij10= {lde * DE[0], lde * DE[1], lde * DE[2]};
-        distribute_stress(state, Rd, Re,Fij10, grid);
+        distribute_n2(state, Rd, Re, &Fij10, grid, nullptr, nullptr, nullptr, nullptr);
     } else if (state.fdecomp == mds_gld) {
         const array3_mds Fij1 = {
             (Fa[0]-Fb[0])/realval_mds(5.0), (Fa[1]-Fb[1])/realval_mds(5.0), (Fa[2]-Fb[2])/realval_mds(5.0)};
-        distribute_stress(state, Ra, Rb, Fij1, grid);
+        distribute_n2(state, Ra, Rb, &Fij1, grid, nullptr, nullptr, nullptr, nullptr);
 
         const array3_mds Fij2 = {
             (Fa[0]-Fc[0])/realval_mds(5.0), (Fa[1]-Fc[1])/realval_mds(5.0), (Fa[2]-Fc[2])/realval_mds(5.0)};
-        distribute_stress(state, Ra, Rc, Fij2, grid);
+        distribute_n2(state, Ra, Rc, &Fij2, grid, nullptr, nullptr, nullptr, nullptr);
 
         const array3_mds Fij3 = {
             (Fa[0]-Fd[0])/realval_mds(5.0), (Fa[1]-Fd[1])/realval_mds(5.0), (Fa[2]-Fd[2])/realval_mds(5.0)};
-        distribute_stress(state, Ra, Rd, Fij3, grid);
+        distribute_n2(state, Ra, Rd, &Fij3, grid, nullptr, nullptr, nullptr, nullptr);
 
         const array3_mds Fij4 = {
             (Fa[0]-Fe[0])/realval_mds(5.0), (Fa[1]-Fe[1])/realval_mds(5.0), (Fa[2]-Fe[2])/realval_mds(5.0)};
-        distribute_stress(state, Ra, Re, Fij4, grid);
+        distribute_n2(state, Ra, Re, &Fij4, grid, nullptr, nullptr, nullptr, nullptr);
 
         const array3_mds Fij5 = {
             (Fb[0]-Fc[0])/realval_mds(5.0), (Fb[1]-Fc[1])/realval_mds(5.0), (Fb[2]-Fc[2])/realval_mds(5.0)};
-        distribute_stress(state, Rb, Rc, Fij5, grid);
+        distribute_n2(state, Rb, Rc, &Fij5, grid, nullptr, nullptr, nullptr, nullptr);
 
         const array3_mds Fij6 = {
             (Fb[0]-Fd[0])/realval_mds(5.0), (Fb[1]-Fd[1])/realval_mds(5.0), (Fb[2]-Fd[2])/realval_mds(5.0)};
-        distribute_stress(state, Rb, Rd, Fij6, grid);
+        distribute_n2(state, Rb, Rd, &Fij6, grid, nullptr, nullptr, nullptr, nullptr);
 
         const array3_mds Fij7 = {
             (Fb[0]-Fe[0])/realval_mds(5.0), (Fb[1]-Fe[1])/realval_mds(5.0), (Fb[2]-Fe[2])/realval_mds(5.0)};
-        distribute_stress(state, Rb, Re, Fij7, grid);
+        distribute_n2(state, Rb, Re, &Fij7, grid, nullptr, nullptr, nullptr, nullptr);
 
         const array3_mds Fij8 = {
             (Fc[0]-Fd[0])/realval_mds(5.0), (Fc[1]-Fd[1])/realval_mds(5.0), (Fc[2]-Fd[2])/realval_mds(5.0)};
-        distribute_stress(state, Rc, Rd, Fij8, grid);
+        distribute_n2(state, Rc, Rd, &Fij8, grid, nullptr, nullptr, nullptr, nullptr);
 
         const array3_mds Fij9 = {
             (Fc[0]-Fe[0])/realval_mds(5.0), (Fc[1]-Fe[1])/realval_mds(5.0), (Fc[2]-Fe[2])/realval_mds(5.0)};
-        distribute_stress(state, Rc, Re, Fij9, grid);
+        distribute_n2(state, Rc, Re, &Fij9, grid, nullptr, nullptr, nullptr, nullptr);
 
         const array3_mds Fij10 = {
             (Fd[0]-Fe[0])/realval_mds(5.0), (Fd[1]-Fe[1])/realval_mds(5.0), (Fd[2]-Fe[2])/realval_mds(5.0)};
-        distribute_stress(state, Rd, Re, Fij10, grid);
+        distribute_n2(state, Rd, Re, &Fij10, grid, nullptr, nullptr, nullptr, nullptr);
     }
 }
 
-static void distribute_nbody(
+static void decompose_nbody(
         const state_t & state,
         int nAtoms,
         const array3_ext *R,
@@ -883,7 +845,7 @@ static void distribute_nbody(
 
                 const real_mds lab = x(col, 0);
                 const array3_mds Fab = {lab*AB[0], lab*AB[1], lab*AB[2]};
-                distribute_stress(state, Ra, Rb, Fab, stress_grid);
+                distribute_n2(state, Ra, Rb, &Fab, stress_grid, nullptr, nullptr, nullptr, nullptr);
 
                 col += 1;
             }
@@ -900,7 +862,7 @@ static void distribute_nbody(
                 array3_mds Fab = {0};
                 diffarray3(Fa, Fb, Fab);
                 scalearray3(Fab, realval_mds(1.0)/static_cast<real_mds>(nAtoms), Fab);
-                distribute_stress(state, Ra, Rb, Fab, stress_grid);
+                distribute_n2(state, Ra, Rb, &Fab, stress_grid, nullptr, nullptr, nullptr, nullptr);
 
                 col += 1;
             }
@@ -1692,47 +1654,22 @@ void StressGrid::DistributeInteraction(
                 const array3_mds Ra = {(real_mds)R[0][0], (real_mds)R[0][1], (real_mds)R[0][2]};
                 const array3_mds Rb = {(real_mds)R[1][0], (real_mds)R[1][1], (real_mds)R[1][2]};
                 const array3_mds Fa = {(real_mds)F[0][0], (real_mds)F[0][1], (real_mds)F[0][2]};
-                distribute_stress_elasticity(this->state, Ra, Rb, Fa, stress_grid, Ra, Rb, (real_mds)(*phi), (real_mds)(*kappa), elast_grid);
+                if (nullptr != phi && nullptr != kappa) {
+                    const real_mds kappa_phi[2] = {(real_mds)(*phi), (real_mds)(*kappa)};
+                    distribute_n2(this->state, Ra, Rb, &Fa, stress_grid, &Ra, &Rb, kappa_phi, elast_grid);
+                } else {
+                    distribute_n2(this->state, Ra, Rb, &Fa, stress_grid, nullptr, nullptr, nullptr, nullptr);
+                }
             } else if (3 == nAtoms) {
-                distribute_n3(this->state, R, F, stress_grid, phi, kappa, elast_grid);
+                decompose_n3(this->state, R, F, stress_grid, phi, kappa, elast_grid);
             } else if (-3 == nAtoms) {
-                distribute_n3(this->state, R, F, stress_grid, nullptr, nullptr, elast_grid);
-            }
-        }
-    }
-}
-
-void StressGrid::DistributeInteraction(int nAtoms, array3_ext *R, array3_ext *F, int *atomIDs = nullptr)
-{
-    int    n;
-    int    i,j;
-    real_mds temp;
-    matrix3_mds stress;
-
-    int batch_id = this->m_thread_map[std::this_thread::get_id()];
-    
-    if (MDS_OK == this->state.ierr)
-    {
-        // If spatatom==mds_spat distribute the stress spatially following Noll's procedure
-        if (this->state.spatatom == mds_spat)
-        {
-            //------------------------------------------------------------------------------------
-            matrix3_mds * stress_grid = this->alloc.current_grid+batch_id*this->state.nCells;
-
-            // Depending on the number of atoms, call a different function
-            if (2 == nAtoms) {
-                const array3_mds Ra = {(real_mds)R[0][0], (real_mds)R[0][1], (real_mds)R[0][2]};
-                const array3_mds Rb = {(real_mds)R[1][0], (real_mds)R[1][1], (real_mds)R[1][2]};
-                const array3_mds Fa = {(real_mds)F[0][0], (real_mds)F[0][1], (real_mds)F[0][2]};
-                distribute_stress(this->state, Ra, Rb, Fa, stress_grid);
-            } else if (3 == nAtoms) {
-                distribute_n3(this->state, R, F, stress_grid, nullptr, nullptr, nullptr);
+                decompose_n3(this->state, R, F, stress_grid, nullptr, nullptr, elast_grid);
             } else if (4 == nAtoms) {
-                distribute_n4(this->state, R, F, stress_grid);
+                decompose_n4(this->state, R, F, stress_grid);
             } else if (5 == nAtoms) {
-                distribute_n5(this->state, R, F, stress_grid);
+                decompose_n5(this->state, R, F, stress_grid);
             } else {
-                distribute_nbody(this->state, nAtoms, R, F, stress_grid);
+                decompose_nbody(this->state, nAtoms, R, F, stress_grid);
             }
         } else if (this->state.spatatom == mds_atom) {
             // This is because SETTLE calls the function with nAtoms=-3
@@ -1743,42 +1680,38 @@ void StressGrid::DistributeInteraction(int nAtoms, array3_ext *R, array3_ext *F,
                 return;
             }
 
-            for (n = 0; n < nAtoms; n++) {
+            for (int n = 0; n < nAtoms; n++) {
                 if (atomIDs[n] >= this->state.nAtoms) {
                     std::cout << "ERROR:: the atom label" << atomIDs[n] << "is equal or larger than the total number of atoms" << this->state.nAtoms;
                     return;
                 }
             }
 
-            //Initialize the value of the (local) stress to 0
-            for(i = 0; i< mds_ndim; i++) {
-                stress[i][i] = 0.0;
-                for(j=i+1; j< mds_ndim; j++) {
-                    stress[i][j] = 0.0;
-                    stress[j][i] = 0.0;
-                }
-            }
+            // Initialize the value of the (local) stress to 0
+            matrix3_mds stress = {0};
 
-            //Calculate the stress
-            for(n = 0; n < nAtoms; n++) {
-                for(i = 0; i< mds_ndim; i++) {
-                    temp = -(F[n][i] * R[n][i])/nAtoms;
-                    stress[i][i] += temp;
-                    for(j=i+1; j< mds_ndim; j++) {
-                        temp = -(F[n][i] * R[n][j])/nAtoms;
+            // Calculate the stress
+            for(int n = 0; n < nAtoms; n++) {
+                for(int i = 0; i< mds_ndim; i++) {
+                    stress[i][i] += -(F[n][i] * R[n][i])/nAtoms;
+                    for(int j=i+1; j< mds_ndim; j++) {
+                        const real_mds temp = -(F[n][i] * R[n][j])/nAtoms;
                         stress[i][j] += temp;
                         stress[j][i] += temp;
                     }
                 }
             }
 
-            for (n = 0; n < nAtoms; n++) {
+            for (int n = 0; n < nAtoms; n++) {
                 summatrix3(this->alloc.current_grid[atomIDs[n]],stress,this->alloc.current_grid[atomIDs[n]]);
             }
         }
     }
+}
 
-    return;
+void StressGrid::DistributeInteraction(int nAtoms, array3_ext *R, array3_ext *F, int *atomIDs = nullptr)
+{
+    this->DistributeInteraction(nAtoms, R, F, nullptr, nullptr, atomIDs);
 }
 
 //----------------------------------------------------------------------------------------
