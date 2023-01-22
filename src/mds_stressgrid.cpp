@@ -37,7 +37,51 @@
 
 using namespace mds;
 
-static inline void distribute_observable_3d(
+#define BUILD_STRESS(F, diff) \
+    { \
+        F[0]*diff[0], F[0]*diff[1], F[0]*diff[2], \
+        F[1]*diff[0], F[1]*diff[1], F[1]*diff[2], \
+        F[2]*diff[0], F[2]*diff[1], F[2]*diff[2] \
+    }
+
+// Returns the stiffness matrix in Voigt notation
+// 0 = xx; 1 = yy; 2 = zz; 3 = yz or zy; 4 = xz or zx; 5 = xy or yx
+// All indices                         Voigt indices           Stress indices
+// ( xxxx xxyy xxzz xxyz xxxz xxxy ) = ( 00 01 02 03 04 05 ) = [ 0000 0011 0022 0012 0002 0001 ]
+// (      yyyy yyzz yyyz yyxz yyxy ) = (    11 12 13 14 15 ) = [      1111 1122 1112 1102 1101 ]
+// (           zzzz zzyz zzxz zzxy ) = (       22 23 24 25 ) = [           2222 2212 2202 2201 ]
+// (                yzyz yzxz yzxy ) = (          33 34 35 ) = [                1212 1202 1201 ]
+// (                     xzxz xzxy ) = (             44 45 ) = [                     0202 0201 ]
+// (                          xyxy ) = (                55 ) = [                          0101 ]
+#define PREPARE_ELASTICITY(xij, xkl, phi, kappa) \
+    const real_mds xij_norm = normarray3(xij); \
+    const real_mds xkl_norm = normarray3(xkl); \
+    const real_mds rinv = realval_mds(1.0)/xij_norm; \
+    const real_mds rinv2 = kappa*rinv/xkl_norm; \
+    const real_mds rinv3 = phi*rinv*rinv*rinv; \
+    const real_mds xij00 = xij[0]*xij[0]; \
+    const real_mds xij11 = xij[1]*xij[1]; \
+    const real_mds xij22 = xij[2]*xij[2]; \
+    const real_mds xij01 = xij[0]*xij[1]; \
+    const real_mds xij02 = xij[0]*xij[2]; \
+    const real_mds xij12 = xij[1]*xij[2]; \
+    const real_mds xkl00 = xkl[0]*xkl[0]; \
+    const real_mds xkl11 = xkl[1]*xkl[1]; \
+    const real_mds xkl22 = xkl[2]*xkl[2]; \
+    const real_mds xkl01 = xkl[0]*xkl[1]; \
+    const real_mds xkl02 = xkl[0]*xkl[2]; \
+    const real_mds xkl12 = xkl[1]*xkl[2]
+#define BUILD_ELASTICITY() \
+    { \
+        {/*00*/xij00*xkl00*rinv2 - xij00*xij00*rinv3, /*01*/xij00*xkl11*rinv2 - xij00*xij11*rinv3, /*02*/xij00*xkl22*rinv2 - xij00*xij22*rinv3, /*03*/xij00*xkl12*rinv2 - xij00*xij12*rinv3, /*04*/xij00*xkl02*rinv2 - xij00*xij02*rinv3, /*05*/xij00*xkl01*rinv2 - xij00*xij01*rinv3},\
+        {                           realval_mds(0.0), /*11*/xij11*xkl11*rinv2 - xij11*xij11*rinv3, /*12*/xij11*xkl22*rinv2 - xij11*xij22*rinv3, /*13*/xij11*xkl12*rinv2 - xij11*xij12*rinv3, /*14*/xij11*xkl02*rinv2 - xij11*xij02*rinv3, /*15*/xij11*xkl01*rinv2 - xij11*xij01*rinv3},\
+        {                           realval_mds(0.0),                            realval_mds(0.0), /*22*/xij22*xkl22*rinv2 - xij22*xij22*rinv3, /*23*/xij22*xkl12*rinv2 - xij22*xij12*rinv3, /*24*/xij22*xkl02*rinv2 - xij22*xij02*rinv3, /*25*/xij22*xkl01*rinv2 - xij22*xij01*rinv3},\
+        {                           realval_mds(0.0),                            realval_mds(0.0),                            realval_mds(0.0), /*33*/xij12*xkl12*rinv2 - xij12*xij12*rinv3, /*34*/xij12*xkl02*rinv2 - xij12*xij02*rinv3, /*35*/xij12*xkl01*rinv2 - xij12*xij01*rinv3},\
+        {                           realval_mds(0.0),                            realval_mds(0.0),                            realval_mds(0.0),                            realval_mds(0.0), /*44*/xij02*xkl02*rinv2 - xij02*xij02*rinv3, /*45*/xij02*xkl01*rinv2 - xij02*xij01*rinv3},\
+        {                           realval_mds(0.0),                            realval_mds(0.0),                            realval_mds(0.0),                            realval_mds(0.0),                            realval_mds(0.0), /*55*/xij01*xkl01*rinv2 - xij01*xij01*rinv3},\
+    }
+
+static inline void distribute_observables_3d(
         const state_t & state,
         const array3_mds & xi,
         const array3_mds & xj,
@@ -186,7 +230,7 @@ static inline void distribute_observable_3d(
     }
 }
 
-static inline void distribute_observable_1d(
+static inline void distribute_observables_1d(
         const state_t & state,
         const array3_mds & xi,
         const array3_mds & xj,
@@ -266,52 +310,13 @@ static inline void distribute_elasticity(
     
     //------------------------------------------------------------------------------------
     // Calculate the elasticity tensor
-    const real_mds xij_norm = normarray3(xij);
-    const real_mds xkl_norm = normarray3(xkl);
-
-    // remove possible nan values (should be careful enough to not need this!)
-    if (realval_mds(0.0) == xij_norm || realval_mds(0.0) == xkl_norm)
-        return;
-
-    const real_mds rinv = realval_mds(1.0)/xij_norm;
-    const real_mds rinv2 = kappa*rinv/xkl_norm;
-    const real_mds rinv3 = phi*rinv*rinv*rinv;
-    
-    const real_mds xij00 = xij[0]*xij[0];
-    const real_mds xij11 = xij[1]*xij[1];
-    const real_mds xij22 = xij[2]*xij[2];
-    const real_mds xij01 = xij[0]*xij[1];
-    const real_mds xij02 = xij[0]*xij[2];
-    const real_mds xij12 = xij[1]*xij[2];
-    const real_mds xkl00 = xkl[0]*xkl[0];
-    const real_mds xkl11 = xkl[1]*xkl[1];
-    const real_mds xkl22 = xkl[2]*xkl[2];
-    const real_mds xkl01 = xkl[0]*xkl[1];
-    const real_mds xkl02 = xkl[0]*xkl[2];
-    const real_mds xkl12 = xkl[1]*xkl[2];
-
-    // Stiffness matrix in Voigt notation
-    // 0 = xx; 1 = yy; 2 = zz; 3 = yz or zy; 4 = xz or zx; 5 = xy or yx
-    // All indices                         Voigt indices           Stress indices
-    // ( xxxx xxyy xxzz xxyz xxxz xxxy ) = ( 00 01 02 03 04 05 ) = [ 0000 0011 0022 0012 0002 0001 ]
-    // (      yyyy yyzz yyyz yyxz yyxy ) = (    11 12 13 14 15 ) = [      1111 1122 1112 1102 1101 ]
-    // (           zzzz zzyz zzxz zzxy ) = (       22 23 24 25 ) = [           2222 2212 2202 2201 ]
-    // (                yzyz yzxz yzxy ) = (          33 34 35 ) = [                1212 1202 1201 ]
-    // (                     xzxz xzxy ) = (             44 45 ) = [                     0202 0201 ]
-    // (                          xyxy ) = (                55 ) = [                          0101 ]
-    const matrix6_mds elast = {
-        {/*00*/xij00*xkl00*rinv2 - xij00*xij00*rinv3, /*01*/xij00*xkl11*rinv2 - xij00*xij11*rinv3, /*02*/xij00*xkl22*rinv2 - xij00*xij22*rinv3, /*03*/xij00*xkl12*rinv2 - xij00*xij12*rinv3, /*04*/xij00*xkl02*rinv2 - xij00*xij02*rinv3, /*05*/xij00*xkl01*rinv2 - xij00*xij01*rinv3},
-        {                           realval_mds(0.0), /*11*/xij11*xkl11*rinv2 - xij11*xij11*rinv3, /*12*/xij11*xkl22*rinv2 - xij11*xij22*rinv3, /*13*/xij11*xkl12*rinv2 - xij11*xij12*rinv3, /*14*/xij11*xkl02*rinv2 - xij11*xij02*rinv3, /*15*/xij11*xkl01*rinv2 - xij11*xij01*rinv3},
-        {                           realval_mds(0.0),                            realval_mds(0.0), /*22*/xij22*xkl22*rinv2 - xij22*xij22*rinv3, /*23*/xij22*xkl12*rinv2 - xij22*xij12*rinv3, /*24*/xij22*xkl02*rinv2 - xij22*xij02*rinv3, /*25*/xij22*xkl01*rinv2 - xij22*xij01*rinv3},
-        {                           realval_mds(0.0),                            realval_mds(0.0),                            realval_mds(0.0), /*33*/xij12*xkl12*rinv2 - xij12*xij12*rinv3, /*34*/xij12*xkl02*rinv2 - xij12*xij02*rinv3, /*35*/xij12*xkl01*rinv2 - xij12*xij01*rinv3},
-        {                           realval_mds(0.0),                            realval_mds(0.0),                            realval_mds(0.0),                            realval_mds(0.0), /*44*/xij02*xkl02*rinv2 - xij02*xij02*rinv3, /*45*/xij02*xkl01*rinv2 - xij02*xij01*rinv3},
-        {                           realval_mds(0.0),                            realval_mds(0.0),                            realval_mds(0.0),                            realval_mds(0.0),                            realval_mds(0.0), /*55*/xij01*xkl01*rinv2 - xij01*xij01*rinv3},
-    };
+    PREPARE_ELASTICITY(xij, xkl, phi, kappa);
+    const matrix6_mds elast = BUILD_ELASTICITY();
 
     if (state.gridDims == mds_griddim_xyz) {
-        distribute_observable_3d(state, xi, xj, xij, nullptr, &elast, nullptr, elast_grid);
+        distribute_observables_3d(state, xi, xj, xij, nullptr, &elast, nullptr, elast_grid);
     } else {
-        distribute_observable_1d(state, xi, xj, xij, nullptr, &elast, nullptr, elast_grid);
+        distribute_observables_1d(state, xi, xj, xij, nullptr, &elast, nullptr, elast_grid);
     }
 }
 
@@ -325,11 +330,7 @@ static inline void distribute_stress(
     // Calculate the stress tensor
     array3_mds diff;
     diffarray3( xj, xi, diff, state.box, state.periodic);
-    const matrix3_mds stress = {
-        F[0]*diff[0], F[0]*diff[1], F[0]*diff[2],
-        F[1]*diff[0], F[1]*diff[1], F[1]*diff[2],
-        F[2]*diff[0], F[2]*diff[1], F[2]*diff[2]
-    };
+    const matrix3_mds stress = BUILD_STRESS(F, diff);
 
 #ifdef CUSTRESS_ENABLE
     if (state.cuda && custress_distribute_pair_interaction(xi,xj,F,batch_id))
@@ -337,9 +338,9 @@ static inline void distribute_stress(
 #endif
 
     if (state.gridDims == mds_griddim_xyz) {
-        distribute_observable_3d(state, xi, xj, diff, &stress, nullptr, stress_grid, nullptr);
+        distribute_observables_3d(state, xi, xj, diff, &stress, nullptr, stress_grid, nullptr);
     } else {
-        distribute_observable_1d(state, xi, xj, diff, &stress, nullptr, stress_grid, nullptr);
+        distribute_observables_1d(state, xi, xj, diff, &stress, nullptr, stress_grid, nullptr);
     }
 }
 
@@ -358,11 +359,7 @@ static inline void distribute_stress_elasticity(
     // Calculate the stress tensor
     array3_mds diff;
     diffarray3( xj, xi, diff, state.box, state.periodic);
-    const matrix3_mds stress = {
-        F[0]*diff[0], F[0]*diff[1], F[0]*diff[2],
-        F[1]*diff[0], F[1]*diff[1], F[1]*diff[2],
-        F[2]*diff[0], F[2]*diff[1], F[2]*diff[2]
-    };
+    const matrix3_mds stress = BUILD_STRESS(F, diff);
 
 #ifdef CUSTRESS_ENABLE
     if (state.cuda && custress_distribute_pair_interaction(xi,xj,F,batch_id))
@@ -374,9 +371,9 @@ static inline void distribute_stress_elasticity(
     if (realval_mds(0.0) == phi && realval_mds(0.0) == kappa)
     {
         if (state.gridDims == mds_griddim_xyz) {
-            distribute_observable_3d(state, xi, xj, diff, &stress, nullptr, stress_grid, nullptr);
+            distribute_observables_3d(state, xi, xj, diff, &stress, nullptr, stress_grid, nullptr);
         } else {
-            distribute_observable_1d(state, xi, xj, diff, &stress, nullptr, stress_grid, nullptr);
+            distribute_observables_1d(state, xi, xj, diff, &stress, nullptr, stress_grid, nullptr);
         }
     } else {
         array3_mds xij, xkl;
@@ -385,56 +382,16 @@ static inline void distribute_stress_elasticity(
         
         //------------------------------------------------------------------------------------
         // Calculate the elasticity tensor
-        const real_mds xij_norm = normarray3(xij);
-        const real_mds xkl_norm = normarray3(xkl);
-
-        // remove possible nan values (should be careful enough to not need this!)
-        if (realval_mds(0.0) == xij_norm || realval_mds(0.0) == xkl_norm)
-            return;
-
-        const real_mds rinv = realval_mds(1.0)/xij_norm;
-        const real_mds rinv2 = kappa*rinv/xkl_norm;
-        const real_mds rinv3 = phi*rinv*rinv*rinv;
-        
-        const real_mds xij00 = xij[0]*xij[0];
-        const real_mds xij11 = xij[1]*xij[1];
-        const real_mds xij22 = xij[2]*xij[2];
-        const real_mds xij01 = xij[0]*xij[1];
-        const real_mds xij02 = xij[0]*xij[2];
-        const real_mds xij12 = xij[1]*xij[2];
-        const real_mds xkl00 = xkl[0]*xkl[0];
-        const real_mds xkl11 = xkl[1]*xkl[1];
-        const real_mds xkl22 = xkl[2]*xkl[2];
-        const real_mds xkl01 = xkl[0]*xkl[1];
-        const real_mds xkl02 = xkl[0]*xkl[2];
-        const real_mds xkl12 = xkl[1]*xkl[2];
-
-        // Stiffness matrix in Voigt notation
-        // 0 = xx; 1 = yy; 2 = zz; 3 = yz or zy; 4 = xz or zx; 5 = xy or yx
-        // All indices                         Voigt indices           Stress indices
-        // ( xxxx xxyy xxzz xxyz xxxz xxxy ) = ( 00 01 02 03 04 05 ) = [ 0000 0011 0022 0012 0002 0001 ]
-        // (      yyyy yyzz yyyz yyxz yyxy ) = (    11 12 13 14 15 ) = [      1111 1122 1112 1102 1101 ]
-        // (           zzzz zzyz zzxz zzxy ) = (       22 23 24 25 ) = [           2222 2212 2202 2201 ]
-        // (                yzyz yzxz yzxy ) = (          33 34 35 ) = [                1212 1202 1201 ]
-        // (                     xzxz xzxy ) = (             44 45 ) = [                     0202 0201 ]
-        // (                          xyxy ) = (                55 ) = [                          0101 ]
-        const matrix6_mds elast = {
-            {/*00*/xij00*xkl00*rinv2 - xij00*xij00*rinv3, /*01*/xij00*xkl11*rinv2 - xij00*xij11*rinv3, /*02*/xij00*xkl22*rinv2 - xij00*xij22*rinv3, /*03*/xij00*xkl12*rinv2 - xij00*xij12*rinv3, /*04*/xij00*xkl02*rinv2 - xij00*xij02*rinv3, /*05*/xij00*xkl01*rinv2 - xij00*xij01*rinv3},
-            {                           realval_mds(0.0), /*11*/xij11*xkl11*rinv2 - xij11*xij11*rinv3, /*12*/xij11*xkl22*rinv2 - xij11*xij22*rinv3, /*13*/xij11*xkl12*rinv2 - xij11*xij12*rinv3, /*14*/xij11*xkl02*rinv2 - xij11*xij02*rinv3, /*15*/xij11*xkl01*rinv2 - xij11*xij01*rinv3},
-            {                           realval_mds(0.0),                            realval_mds(0.0), /*22*/xij22*xkl22*rinv2 - xij22*xij22*rinv3, /*23*/xij22*xkl12*rinv2 - xij22*xij12*rinv3, /*24*/xij22*xkl02*rinv2 - xij22*xij02*rinv3, /*25*/xij22*xkl01*rinv2 - xij22*xij01*rinv3},
-            {                           realval_mds(0.0),                            realval_mds(0.0),                            realval_mds(0.0), /*33*/xij12*xkl12*rinv2 - xij12*xij12*rinv3, /*34*/xij12*xkl02*rinv2 - xij12*xij02*rinv3, /*35*/xij12*xkl01*rinv2 - xij12*xij01*rinv3},
-            {                           realval_mds(0.0),                            realval_mds(0.0),                            realval_mds(0.0),                            realval_mds(0.0), /*44*/xij02*xkl02*rinv2 - xij02*xij02*rinv3, /*45*/xij02*xkl01*rinv2 - xij02*xij01*rinv3},
-            {                           realval_mds(0.0),                            realval_mds(0.0),                            realval_mds(0.0),                            realval_mds(0.0),                            realval_mds(0.0), /*55*/xij01*xkl01*rinv2 - xij01*xij01*rinv3},
-        };
+        PREPARE_ELASTICITY(xij, xkl, phi, kappa);
+        const matrix6_mds elast = BUILD_ELASTICITY();
 
         if (state.gridDims == mds_griddim_xyz) {
-            distribute_observable_3d(state, xi, xj, xij, &stress, &elast, stress_grid, elast_grid);
+            distribute_observables_3d(state, xi, xj, xij, &stress, &elast, stress_grid, elast_grid);
         } else {
-            distribute_observable_1d(state, xi, xj, xij, &stress, &elast, stress_grid, elast_grid);
+            distribute_observables_1d(state, xi, xj, xij, &stress, &elast, stress_grid, elast_grid);
         }
     }
 }
-
 
 // Decompose 3-body potentials
 static void distribute_n3(
@@ -950,7 +907,6 @@ static void distribute_nbody(
         }
     }
 }
-
 
 //Constructor
 StressGrid::StressGrid() :
@@ -1769,20 +1725,14 @@ void StressGrid::DistributeInteraction(int nAtoms, array3_ext *R, array3_ext *F,
                 const array3_mds Rb = {(real_mds)R[1][0], (real_mds)R[1][1], (real_mds)R[1][2]};
                 const array3_mds Fa = {(real_mds)F[0][0], (real_mds)F[0][1], (real_mds)F[0][2]};
                 distribute_stress(this->state, Ra, Rb, Fa, stress_grid);
-            } else if (3 <= nAtoms) {
-                if (4 <= nAtoms) {
-                    if (5 <= nAtoms) {
-                        if (6 <= nAtoms) {
-                            distribute_nbody(this->state, nAtoms, R, F, stress_grid);
-                        } else {
-                            distribute_n5(this->state, R, F, stress_grid);
-                        }
-                    } else {
-                        distribute_n4(this->state, R, F, stress_grid);
-                    }
-                } else {
-                    distribute_n3(this->state, R, F, stress_grid, nullptr, nullptr, nullptr);
-                }
+            } else if (3 == nAtoms) {
+                distribute_n3(this->state, R, F, stress_grid, nullptr, nullptr, nullptr);
+            } else if (4 == nAtoms) {
+                distribute_n4(this->state, R, F, stress_grid);
+            } else if (5 == nAtoms) {
+                distribute_n5(this->state, R, F, stress_grid);
+            } else {
+                distribute_nbody(this->state, nAtoms, R, F, stress_grid);
             }
         } else if (this->state.spatatom == mds_atom) {
             // This is because SETTLE calls the function with nAtoms=-3
