@@ -1709,11 +1709,6 @@ void StressGrid::DistributeInteraction(
     }
 }
 
-void StressGrid::DistributeInteraction(int nAtoms, array3_ext *R, array3_ext *F, int *atomIDs = nullptr)
-{
-    this->DistributeInteraction(nAtoms, R, F, nullptr, nullptr, atomIDs);
-}
-
 //----------------------------------------------------------------------------------------
 // DistributeKinetic
 //

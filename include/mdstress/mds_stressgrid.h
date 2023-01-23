@@ -245,11 +245,6 @@ class  mds::StressGrid
 
         void DistributeInteraction(
                 int nAtoms,
-                array3_ext *R,
-                array3_ext *F,
-                int *atomIDs );
-        void DistributeInteraction(
-                int nAtoms,
                 const array3_ext *R,
                 const array3_ext *F,
                 const real_ext *phi,
