@@ -105,17 +105,8 @@ class  mds::StressGrid
             std::lock_guard<std::mutex> lock(m_mutex_state);
             this->settings.nAtoms = n;
         }
-        int  GetNumberOfAtoms( )
-        {    return this->settings.nAtoms;    }
 
         void SetPeriodicBoundaries(bool x, bool y, bool z, bool enforce);
-        void  GetPeriodicBoundaries(bool & x, bool & y, bool & z, bool enforce)
-        {
-            x = this->settings.periodic[0];
-            y = this->settings.periodic[1];
-            z = this->settings.periodic[2];
-            enforce = this->settings.periodic[3];
-        }
 
         void SetNumberOfGridCellsX(int nx)
         {
@@ -132,58 +123,36 @@ class  mds::StressGrid
             std::lock_guard<std::mutex> lock(m_mutex_state);
             this->settings.gridCells[2] = nz;
         }
-        int  GetNumberOfGridCellsX( )
-        {   return this->settings.gridCells[0]; }
-        int  GetNumberOfGridCellsY( )
-        {   return this->settings.gridCells[1]; }
-        int  GetNumberOfGridCellsZ( )
-        {   return this->settings.gridCells[2]; }
 
         void SetSpacing(real_ext d)
         {
             std::lock_guard<std::mutex> lock(m_mutex_state);
             this->settings.gridSpacing = (real_mds)d;
         }
-        real_ext  GetSpacing( )
-        {   return (real_ext)this->settings.gridSpacing; }
-        real_ext  GetSpacingX( )
-        {   return (real_ext)this->state.gridsp[0]; }
-        real_ext  GetSpacingY( )
-        {   return (real_ext)this->state.gridsp[1]; }
-        real_ext  GetSpacingZ( )
-        {   return (real_ext)this->state.gridsp[2]; }
 
         void SetForceDecomposition ( int fdecomp )
         {
             std::lock_guard<std::mutex> lock(m_mutex_state);
             this->settings.fdecomp = fdecomp;
         }
-        int GetForceDecomposition ( void ) const
-        {   return this->settings.fdecomp;   }
 
         void SetStressType ( int spatatom )
         {
             std::lock_guard<std::mutex> lock(m_mutex_state);
             this->settings.spatatom = spatatom;
         }
-        int GetStressType ( void ) const
-        {   return this->settings.spatatom;   }
 
         void SetContribType ( int contrib )
         {
             std::lock_guard<std::mutex> lock(m_mutex_state);
             this->settings.contrib = contrib;
         }
-        int GetContribType ( void ) const
-        {   return this->settings.contrib;   }
 
         void SetMinDihAngle (real_ext mindihangle)
         {
             std::lock_guard<std::mutex> lock(m_mutex_state);
             this->settings.mindihangle = (real_mds)mindihangle;
         }
-        real_ext GetMinDihAngle ( )
-        {   return (real_ext)this->settings.mindihangle;   }
 
         void SetBox(matrix3_ext box, int epc)
         {
@@ -223,9 +192,6 @@ class  mds::StressGrid
             std::lock_guard<std::mutex> lock(m_mutex_state);
             this->settings.nodispcor = true;
         }
-
-        int GetError ( )
-        {   return this->state.ierr;  }
 
         void Init ( );
 
