@@ -38,6 +38,7 @@
 using namespace mds;
 
 static inline void distribute_observables_3d(
+        const settings_t & settings,
         const state_t & state,
         const array3_mds & xi,
         const array3_mds & xj,
@@ -50,15 +51,15 @@ static inline void distribute_observables_3d(
     //------------------------------------------------------------------------------------
     // calculate the grid coordinates (no pbc) for the extreme points
     iarray i1 = {
-        int(state.gridCells[0] * xi[0] * state.invbox[0][0] - (xi[0] < 0.0) ),
-        int(state.gridCells[1] * xi[1] * state.invbox[1][1] - (xi[1] < 0.0) ),
-        int(state.gridCells[2] * xi[2] * state.invbox[2][2] - (xi[2] < 0.0) )
+        int(settings.gridCells[0] * xi[0] * state.invbox[0][0] - (xi[0] < 0.0) ),
+        int(settings.gridCells[1] * xi[1] * state.invbox[1][1] - (xi[1] < 0.0) ),
+        int(settings.gridCells[2] * xi[2] * state.invbox[2][2] - (xi[2] < 0.0) )
     };
 
     const iarray i2 = {
-        int(state.gridCells[0] * xj[0] * state.invbox[0][0] - (xj[0] < 0.0) ),
-        int(state.gridCells[1] * xj[1] * state.invbox[1][1] - (xj[1] < 0.0) ),
-        int(state.gridCells[2] * xj[2] * state.invbox[2][2] - (xj[2] < 0.0) ),
+        int(settings.gridCells[0] * xj[0] * state.invbox[0][0] - (xj[0] < 0.0) ),
+        int(settings.gridCells[1] * xj[1] * state.invbox[1][1] - (xj[1] < 0.0) ),
+        int(settings.gridCells[2] * xj[2] * state.invbox[2][2] - (xj[2] < 0.0) ),
     };
     const array3_mds t_c1 = {
         xi[0] / (xi[0]-xj[0]),
@@ -133,12 +134,12 @@ static inline void distribute_observables_3d(
         const real_mds byz = d_cgrid[1]*d_cgrid[2];
         const real_mds bxyz = d_cgrid[0]*byz;
     
-        const int iip1 = ((i1[0] + 1 + state.gridCells[0]) % state.gridCells[0])*state.gridCells[1]*state.gridCells[2];
-        const int jjp1 = ((i1[1] + 1 + state.gridCells[1]) % state.gridCells[1])*state.gridCells[2];
-        const int kkp1 = ((i1[2] + 1 + state.gridCells[2]) % state.gridCells[2]);
-        const int iim1 = ((i1[0] + state.gridCells[0]) % state.gridCells[0])*state.gridCells[1]*state.gridCells[2];
-        const int jjm1 = ((i1[1] + state.gridCells[1]) % state.gridCells[1])*state.gridCells[2];
-        const int kkm1 = ((i1[2] + state.gridCells[2]) % state.gridCells[2]);
+        const int iip1 = ((i1[0] + 1 + settings.gridCells[0]) % settings.gridCells[0])*settings.gridCells[1]*settings.gridCells[2];
+        const int jjp1 = ((i1[1] + 1 + settings.gridCells[1]) % settings.gridCells[1])*settings.gridCells[2];
+        const int kkp1 = ((i1[2] + 1 + settings.gridCells[2]) % settings.gridCells[2]);
+        const int iim1 = ((i1[0] + settings.gridCells[0]) % settings.gridCells[0])*settings.gridCells[1]*settings.gridCells[2];
+        const int jjm1 = ((i1[1] + settings.gridCells[1]) % settings.gridCells[1])*settings.gridCells[2];
+        const int kkm1 = ((i1[2] + settings.gridCells[2]) % settings.gridCells[2]);
 
         // the composite constants in terms of i, j, k
         const real_mds D[8] = {
@@ -187,6 +188,7 @@ static inline void distribute_observables_3d(
 }
 
 static inline void distribute_observables_1d(
+        const settings_t & settings,
         const state_t & state,
         const array3_mds & xi,
         const array3_mds & xj,
@@ -197,8 +199,8 @@ static inline void distribute_observables_1d(
         matrix6_mds * elast_grid)
 {
     // calculate the grid coordinates (no pbc) for the extreme points
-    int i1 = state.gridCells[state.gridDims] * xi[state.gridDims] * state.invbox[state.gridDims][state.gridDims] - (xi[state.gridDims] < 0.0);
-    const int i2 = state.gridCells[state.gridDims] * xj[state.gridDims] * state.invbox[state.gridDims][state.gridDims] - (xj[state.gridDims] < 0.0);
+    int i1 = settings.gridCells[state.gridDims] * xi[state.gridDims] * state.invbox[state.gridDims][state.gridDims] - (xi[state.gridDims] < 0.0);
+    const int i2 = settings.gridCells[state.gridDims] * xj[state.gridDims] * state.invbox[state.gridDims][state.gridDims] - (xj[state.gridDims] < 0.0);
     const int c = (i2>i1)-(i1>i2);
     const real_mds t_c1 = xi[state.gridDims] / (xi[state.gridDims]-xj[state.gridDims]);
     const real_mds t_c2 = state.gridsp[state.gridDims] / (xi[state.gridDims]-xj[state.gridDims]);
@@ -223,8 +225,8 @@ static inline void distribute_observables_1d(
         const real_mds dt1 = newt - oldt;
         const real_mds dt2 = t22 - t12;
 
-        const int p1 = ((i1 + 1 + state.gridCells[state.gridDims]) % state.gridCells[state.gridDims]);
-        const int m1 = ((i1 + state.gridCells[state.gridDims]) % state.gridCells[state.gridDims]);
+        const int p1 = ((i1 + 1 + settings.gridCells[state.gridDims]) % settings.gridCells[state.gridDims]);
+        const int m1 = ((i1 + settings.gridCells[state.gridDims]) % settings.gridCells[state.gridDims]);
 
         // the composite constants in terms of i, j, k
         const real_mds D1 = state.gridsp[5-state.gridDims]*(realval_mds(2.0)*d_cgrid*dt1+diff[state.gridDims]*dt2);
@@ -247,6 +249,7 @@ static inline void distribute_observables_1d(
 }
 
 static inline void distribute_n2(
+        const settings_t & settings,
         const state_t & state,
         const array3_mds & xi,
         const array3_mds & xj,
@@ -259,10 +262,10 @@ static inline void distribute_n2(
 {
     // Calculate the stress tensor
     array3_mds xij;
-    diffarray3( xj, xi, xij, state.box, state.periodic);
+    diffarray3( xj, xi, xij, state.box, settings.periodic);
 
 #ifdef CUSTRESS_ENABLE
-    if (state.cuda && custress_distribute_pair_interaction(xi,xj,F,batch_id))
+    if (settings.cuda && custress_distribute_pair_interaction(xi,xj,F,batch_id))
         return;
 #endif
 
@@ -293,7 +296,7 @@ static inline void distribute_n2(
         // (                     xzxz xzxy ) = (             44 45 ) = [                     0202 0201 ]
         // (                          xyxy ) = (                55 ) = [                          0101 ]
         array3_mds xkl;
-        diffarray3( *xl, *xk, xkl, state.box, state.periodic);
+        diffarray3( *xl, *xk, xkl, state.box, settings.periodic);
 
         const real_mds xij_norm = normarray3(xij);
         const real_mds xkl_norm = normarray3(xkl);
@@ -340,15 +343,16 @@ static inline void distribute_n2(
     
     if (nullptr != stress_grid || nullptr != elast_grid) {
         if (state.gridDims == mds_griddim_xyz) {
-            distribute_observables_3d(state, xi, xj, xij, &stress, &elast, stress_grid, elast_grid);
+            distribute_observables_3d(settings, state, xi, xj, xij, &stress, &elast, stress_grid, elast_grid);
         } else {
-            distribute_observables_1d(state, xi, xj, xij, &stress, &elast, stress_grid, elast_grid);
+            distribute_observables_1d(settings, state, xi, xj, xij, &stress, &elast, stress_grid, elast_grid);
         }
     }
 }
 
 // Decompose 3-body potentials
 static void decompose_n3(
+        const settings_t & settings,
         const state_t & state,
         const array3_ext *R,
         const array3_ext *F,
@@ -364,12 +368,12 @@ static void decompose_n3(
     const array3_mds Fb  = {(real_mds)F[1][0], (real_mds)F[1][1], (real_mds)F[1][2]};
     const array3_mds Fc  = {(real_mds)F[2][0], (real_mds)F[2][1], (real_mds)F[2][2]};
 
-    if (state.fdecomp == mds_ccfd || state.fdecomp == mds_ncfd) {
+    if (settings.fdecomp == mds_ccfd || settings.fdecomp == mds_ncfd) {
         // Vectors between particles
         array3_mds AB, AC, BC;
-        diffarray3(Rb, Ra, AB, state.box, state.periodic);
-        diffarray3(Rc, Ra, AC, state.box, state.periodic);
-        diffarray3(Rc, Rb, BC, state.box, state.periodic);
+        diffarray3(Rb, Ra, AB, state.box, settings.periodic);
+        diffarray3(Rc, Ra, AC, state.box, settings.periodic);
+        diffarray3(Rc, Rb, BC, state.box, settings.periodic);
 
         /// We want to solve M*x = b
         const Eigen::Matrix<double,9,3> M_eig{
@@ -417,17 +421,17 @@ static void decompose_n3(
             const real_mds phi_kappa1[2] = {lab*normAB, realval_mds(0.0)};
             const real_mds phi_kappa2[2] = {lac*normAC, realval_mds(0.0)};
             const real_mds phi_kappa3[2] = {lbc*normBC, realval_mds(0.0)};
-            distribute_n2(state, Ra, Rb, &Fij1, stress_grid, &Ra, &Rb, phi_kappa1, elast_grid);
-            distribute_n2(state, Ra, Rc, &Fij2, stress_grid, &Ra, &Rc, phi_kappa2, elast_grid);
-            distribute_n2(state, Rb, Rc, &Fij3, stress_grid, &Rb, &Rc, phi_kappa3, elast_grid);
+            distribute_n2(settings, state, Ra, Rb, &Fij1, stress_grid, &Ra, &Rb, phi_kappa1, elast_grid);
+            distribute_n2(settings, state, Ra, Rc, &Fij2, stress_grid, &Ra, &Rc, phi_kappa2, elast_grid);
+            distribute_n2(settings, state, Rb, Rc, &Fij3, stress_grid, &Rb, &Rc, phi_kappa3, elast_grid);
         } else if (nullptr != phi && nullptr != kappa && nullptr != elast_grid) {
             // calculate the diagonal terms
             const real_mds phi_kappa11[2] = {(real_mds)(phi[0]), (real_mds)(kappa[0])};
             const real_mds phi_kappa22[2] = {(real_mds)(phi[1]), (real_mds)(kappa[4])};
             const real_mds phi_kappa33[2] = {(real_mds)(phi[2]), (real_mds)(kappa[8])};
-            distribute_n2(state, Ra, Rb, &Fij1, stress_grid, &Ra, &Rb, phi_kappa11, elast_grid);
-            distribute_n2(state, Ra, Rc, &Fij2, stress_grid, &Ra, &Rc, phi_kappa22, elast_grid);
-            distribute_n2(state, Rb, Rc, &Fij3, stress_grid, &Rb, &Rc, phi_kappa33, elast_grid);
+            distribute_n2(settings, state, Ra, Rb, &Fij1, stress_grid, &Ra, &Rb, phi_kappa11, elast_grid);
+            distribute_n2(settings, state, Ra, Rc, &Fij2, stress_grid, &Ra, &Rc, phi_kappa22, elast_grid);
+            distribute_n2(settings, state, Rb, Rc, &Fij3, stress_grid, &Rb, &Rc, phi_kappa33, elast_grid);
 
             // and the off diagonal
             const real_mds phi_kappa12[2] = {realval_mds(0.0), (real_mds)(kappa[1])};
@@ -436,34 +440,35 @@ static void decompose_n3(
             const real_mds phi_kappa23[2] = {realval_mds(0.0), (real_mds)(kappa[5])};
             const real_mds phi_kappa31[2] = {realval_mds(0.0), (real_mds)(kappa[6])};
             const real_mds phi_kappa32[2] = {realval_mds(0.0), (real_mds)(kappa[7])};
-            distribute_n2(state, Ra, Rb, nullptr, nullptr, &Ra, &Rc, phi_kappa12, elast_grid);
-            distribute_n2(state, Ra, Rb, nullptr, nullptr, &Rb, &Rc, phi_kappa13, elast_grid);
-            distribute_n2(state, Ra, Rc, nullptr, nullptr, &Ra, &Rb, phi_kappa21, elast_grid);
-            distribute_n2(state, Ra, Rc, nullptr, nullptr, &Rb, &Rc, phi_kappa23, elast_grid);
-            distribute_n2(state, Rb, Rc, nullptr, nullptr, &Ra, &Rb, phi_kappa31, elast_grid);
-            distribute_n2(state, Rb, Rc, nullptr, nullptr, &Ra, &Rc, phi_kappa32, elast_grid);
+            distribute_n2(settings, state, Ra, Rb, nullptr, nullptr, &Ra, &Rc, phi_kappa12, elast_grid);
+            distribute_n2(settings, state, Ra, Rb, nullptr, nullptr, &Rb, &Rc, phi_kappa13, elast_grid);
+            distribute_n2(settings, state, Ra, Rc, nullptr, nullptr, &Ra, &Rb, phi_kappa21, elast_grid);
+            distribute_n2(settings, state, Ra, Rc, nullptr, nullptr, &Rb, &Rc, phi_kappa23, elast_grid);
+            distribute_n2(settings, state, Rb, Rc, nullptr, nullptr, &Ra, &Rb, phi_kappa31, elast_grid);
+            distribute_n2(settings, state, Rb, Rc, nullptr, nullptr, &Ra, &Rc, phi_kappa32, elast_grid);
         } else {
             // general stress only case
-            distribute_n2(state, Ra, Rb, &Fij1, stress_grid, nullptr, nullptr, nullptr, nullptr);
-            distribute_n2(state, Ra, Rc, &Fij2, stress_grid, nullptr, nullptr, nullptr, nullptr);
-            distribute_n2(state, Rb, Rc, &Fij3, stress_grid, nullptr, nullptr, nullptr, nullptr);
+            distribute_n2(settings, state, Ra, Rb, &Fij1, stress_grid, nullptr, nullptr, nullptr, nullptr);
+            distribute_n2(settings, state, Ra, Rc, &Fij2, stress_grid, nullptr, nullptr, nullptr, nullptr);
+            distribute_n2(settings, state, Rb, Rc, &Fij3, stress_grid, nullptr, nullptr, nullptr, nullptr);
         }
-    } else if (state.fdecomp == mds_gld) {
+    } else if (settings.fdecomp == mds_gld) {
         array3_mds Fij1 = {
             (Fa[0]-Fb[0])/realval_mds(3.0), (Fa[1]-Fb[1])/realval_mds(3.0), (Fa[2]-Fb[2])/realval_mds(3.0)};
-        distribute_n2(state, Ra, Rb, &Fij1, stress_grid, nullptr, nullptr, nullptr, nullptr);
+        distribute_n2(settings, state, Ra, Rb, &Fij1, stress_grid, nullptr, nullptr, nullptr, nullptr);
 
         array3_mds Fij2 = {
             (Fa[0]-Fc[0])/realval_mds(3.0), (Fa[1]-Fc[1])/realval_mds(3.0), (Fa[2]-Fc[2])/realval_mds(3.0)};
-        distribute_n2(state, Ra, Rc, &Fij2, stress_grid, nullptr, nullptr, nullptr, nullptr);
+        distribute_n2(settings, state, Ra, Rc, &Fij2, stress_grid, nullptr, nullptr, nullptr, nullptr);
 
         array3_mds Fij3 = {
             (Fb[0]-Fc[0])/realval_mds(3.0), (Fb[1]-Fc[1])/realval_mds(3.0), (Fb[2]-Fc[2])/realval_mds(3.0)};
-        distribute_n2(state, Rb, Rc, &Fij3, stress_grid, nullptr, nullptr, nullptr, nullptr);
+        distribute_n2(settings, state, Rb, Rc, &Fij3, stress_grid, nullptr, nullptr, nullptr, nullptr);
     }
 }
 
 static void decompose_n4(
+        const settings_t & settings,
         const state_t & state,
         const array3_ext *R,
         const array3_ext *F,
@@ -478,14 +483,14 @@ static void decompose_n4(
     const array3_mds Rd = {(real_mds)R[3][0], (real_mds)R[3][1], (real_mds)R[3][2]};
     const array3_mds Fd = {(real_mds)F[3][0], (real_mds)F[3][1], (real_mds)F[3][2]};
 
-    if(state.fdecomp == mds_ccfd || state.fdecomp == mds_ncfd) {
+    if(settings.fdecomp == mds_ccfd || settings.fdecomp == mds_ncfd) {
         array3_mds AB, AC, AD, BC, BD, CD;
-        diffarray3(Rb, Ra, AB, state.box, state.periodic);
-        diffarray3(Rc, Ra, AC, state.box, state.periodic);
-        diffarray3(Rd, Ra, AD, state.box, state.periodic);
-        diffarray3(Rc, Rb, BC, state.box, state.periodic);
-        diffarray3(Rd, Rb, BD, state.box, state.periodic);
-        diffarray3(Rd, Rc, CD, state.box, state.periodic);
+        diffarray3(Rb, Ra, AB, state.box, settings.periodic);
+        diffarray3(Rc, Ra, AC, state.box, settings.periodic);
+        diffarray3(Rd, Ra, AD, state.box, settings.periodic);
+        diffarray3(Rc, Rb, BC, state.box, settings.periodic);
+        diffarray3(Rd, Rb, BD, state.box, settings.periodic);
+        diffarray3(Rd, Rc, CD, state.box, settings.periodic);
 
         const Eigen::Matrix<double, 12, 6> M_eig{
             { (double)AB[0],  (double)AC[0],  (double)AD[0],  0.0          ,  0.0          ,  0.0          }, 
@@ -530,51 +535,52 @@ static void decompose_n4(
         const real_mds lcd = (real_mds)x(5,0);
 
         const array3_mds Fij1 = {lab * AB[0], lab * AB[1], lab * AB[2]};
-        distribute_n2(state, Ra, Rb, &Fij1, grid, nullptr, nullptr, nullptr, nullptr);
+        distribute_n2(settings, state, Ra, Rb, &Fij1, grid, nullptr, nullptr, nullptr, nullptr);
 
         const array3_mds Fij2 = {lac * AC[0], lac * AC[1], lac * AC[2]};
-        distribute_n2(state, Ra, Rc, &Fij2, grid, nullptr, nullptr, nullptr, nullptr);
+        distribute_n2(settings, state, Ra, Rc, &Fij2, grid, nullptr, nullptr, nullptr, nullptr);
 
         const array3_mds Fij3 = {lad * AD[0], lad * AD[1], lad * AD[2]};
-        distribute_n2(state, Ra, Rd, &Fij3, grid, nullptr, nullptr, nullptr, nullptr);
+        distribute_n2(settings, state, Ra, Rd, &Fij3, grid, nullptr, nullptr, nullptr, nullptr);
 
         const array3_mds Fij4 = {lbc * BC[0], lbc * BC[1], lbc * BC[2]};
-        distribute_n2(state, Rb, Rc, &Fij4, grid, nullptr, nullptr, nullptr, nullptr);
+        distribute_n2(settings, state, Rb, Rc, &Fij4, grid, nullptr, nullptr, nullptr, nullptr);
 
         const array3_mds Fij5 = {lbd * BD[0], lbd * BD[1], lbd * BD[2]};
-        distribute_n2(state, Rb, Rd, &Fij5, grid, nullptr, nullptr, nullptr, nullptr);
+        distribute_n2(settings, state, Rb, Rd, &Fij5, grid, nullptr, nullptr, nullptr, nullptr);
 
         const array3_mds Fij6 = {lcd * CD[0], lcd * CD[1], lcd * CD[2]};
-        distribute_n2(state, Rc, Rd, &Fij6, grid, nullptr, nullptr, nullptr, nullptr);
-    } else if (state.fdecomp == mds_gld) {
+        distribute_n2(settings, state, Rc, Rd, &Fij6, grid, nullptr, nullptr, nullptr, nullptr);
+    } else if (settings.fdecomp == mds_gld) {
         const array3_mds Fij1 = {
             (Fa[0]-Fb[0])/realval_mds(4.0), (Fa[1]-Fb[1])/realval_mds(4.0), (Fa[2]-Fb[2])/realval_mds(4.0)};
-        distribute_n2(state, Ra, Rb, &Fij1, grid, nullptr, nullptr, nullptr, nullptr);
+        distribute_n2(settings, state, Ra, Rb, &Fij1, grid, nullptr, nullptr, nullptr, nullptr);
 
         const array3_mds Fij2 = {
             (Fa[0]-Fc[0])/realval_mds(4.0), (Fa[1]-Fc[1])/realval_mds(4.0), (Fa[2]-Fc[2])/realval_mds(4.0)};
-        distribute_n2(state, Ra, Rc, &Fij2, grid, nullptr, nullptr, nullptr, nullptr);
+        distribute_n2(settings, state, Ra, Rc, &Fij2, grid, nullptr, nullptr, nullptr, nullptr);
 
         const array3_mds Fij3 = {
             (Fa[0]-Fd[0])/realval_mds(4.0), (Fa[1]-Fd[1])/realval_mds(4.0), (Fa[2]-Fd[2])/realval_mds(4.0)};
-        distribute_n2(state, Ra, Rd, &Fij3, grid, nullptr, nullptr, nullptr, nullptr);
+        distribute_n2(settings, state, Ra, Rd, &Fij3, grid, nullptr, nullptr, nullptr, nullptr);
 
         const array3_mds Fij4 = {
             (Fb[0]-Fc[0])/realval_mds(4.0), (Fb[1]-Fc[1])/realval_mds(4.0), (Fb[2]-Fc[2])/realval_mds(4.0)};
-        distribute_n2(state, Rb, Rc, &Fij4, grid, nullptr, nullptr, nullptr, nullptr);
+        distribute_n2(settings, state, Rb, Rc, &Fij4, grid, nullptr, nullptr, nullptr, nullptr);
 
         const array3_mds Fij5 = {
             (Fb[0]-Fd[0])/realval_mds(4.0), (Fb[1]-Fd[1])/realval_mds(4.0), (Fb[2]-Fd[2])/realval_mds(4.0)};
-        distribute_n2(state, Rb, Rd, &Fij5, grid, nullptr, nullptr, nullptr, nullptr);
+        distribute_n2(settings, state, Rb, Rd, &Fij5, grid, nullptr, nullptr, nullptr, nullptr);
 
         const array3_mds Fij6 = {
             (Fc[0]-Fd[0])/realval_mds(4.0), (Fc[1]-Fd[1])/realval_mds(4.0), (Fc[2]-Fd[2])/realval_mds(4.0)};
-        distribute_n2(state, Rc, Rd, &Fij6, grid, nullptr, nullptr, nullptr, nullptr);
+        distribute_n2(settings, state, Rc, Rd, &Fij6, grid, nullptr, nullptr, nullptr, nullptr);
     }
 }
 
 // Decompose 5-body potentials (CMAP)
 static void decompose_n5(
+        const settings_t & settings,
         const state_t & state,
         const array3_ext *R,
         const array3_ext *F,
@@ -595,18 +601,18 @@ static void decompose_n5(
     // Matrix of the system (15 equations x 10 unknowns)
     // Vector, we want to solve M*x = b
     // Scalar product of the Normal and the initial CFD
-    if(state.fdecomp == mds_ccfd || state.fdecomp == mds_ncfd) {
+    if(settings.fdecomp == mds_ccfd || settings.fdecomp == mds_ncfd) {
         array3_mds AB, AC, AD, AE, BC, BD, BE, CD, CE, DE;
-        diffarray3(Rb, Ra, AB, state.box, state.periodic);
-        diffarray3(Rc, Ra, AC, state.box, state.periodic);
-        diffarray3(Rd, Ra, AD, state.box, state.periodic);
-        diffarray3(Re, Ra, AE, state.box, state.periodic);
-        diffarray3(Rc, Rb, BC, state.box, state.periodic);
-        diffarray3(Rd, Rb, BD, state.box, state.periodic);
-        diffarray3(Re, Rb, BE, state.box, state.periodic);
-        diffarray3(Rd, Rc, CD, state.box, state.periodic);
-        diffarray3(Re, Rc, CE, state.box, state.periodic);
-        diffarray3(Re, Rd, DE, state.box, state.periodic);
+        diffarray3(Rb, Ra, AB, state.box, settings.periodic);
+        diffarray3(Rc, Ra, AC, state.box, settings.periodic);
+        diffarray3(Rd, Ra, AD, state.box, settings.periodic);
+        diffarray3(Re, Ra, AE, state.box, settings.periodic);
+        diffarray3(Rc, Rb, BC, state.box, settings.periodic);
+        diffarray3(Rd, Rb, BD, state.box, settings.periodic);
+        diffarray3(Re, Rb, BE, state.box, settings.periodic);
+        diffarray3(Rd, Rc, CD, state.box, settings.periodic);
+        diffarray3(Re, Rc, CE, state.box, settings.periodic);
+        diffarray3(Re, Rd, DE, state.box, settings.periodic);
 
         const real_mds normAB=normarray3(AB);
         const real_mds normAC=normarray3(AC);
@@ -673,7 +679,7 @@ static void decompose_n5(
         Eigen::Matrix<double,10,1> x = svd.solve(b_eig);
 
         // If cCFD project the least squares CFD to the shape space
-        if(state.fdecomp == mds_ccfd) {
+        if(settings.fdecomp == mds_ccfd) {
             // Calculate the normal to the Shape Space
             real_mds CaleyMengerNormal[15] = {0};
             ShapeSpace5Normal(normAB,normAC,normAD,normAE,normBC,normBD,normBE,normCD,normCE,normDE,CaleyMengerNormal);
@@ -701,78 +707,79 @@ static void decompose_n5(
         const real_mds lde = (real_mds)x(9,0);
 
         const array3_mds Fij1 = {lab * AB[0], lab * AB[1], lab * AB[2]};
-        distribute_n2(state, Ra, Rb, &Fij1, grid, nullptr, nullptr, nullptr, nullptr);
+        distribute_n2(settings, state, Ra, Rb, &Fij1, grid, nullptr, nullptr, nullptr, nullptr);
 
         const array3_mds Fij2 = {lac * AC[0], lac * AC[1], lac * AC[2]};
-        distribute_n2(state, Ra, Rc, &Fij2, grid, nullptr, nullptr, nullptr, nullptr);
+        distribute_n2(settings, state, Ra, Rc, &Fij2, grid, nullptr, nullptr, nullptr, nullptr);
 
         const array3_mds Fij3 = {lad * AD[0], lad * AD[1], lad * AD[2]};
-        distribute_n2(state, Ra, Rd, &Fij3, grid, nullptr, nullptr, nullptr, nullptr);
+        distribute_n2(settings, state, Ra, Rd, &Fij3, grid, nullptr, nullptr, nullptr, nullptr);
 
         const array3_mds Fij4 = {lae * AE[0], lae * AE[1], lae * AE[2]};
-        distribute_n2(state, Ra, Re, &Fij4, grid, nullptr, nullptr, nullptr, nullptr);
+        distribute_n2(settings, state, Ra, Re, &Fij4, grid, nullptr, nullptr, nullptr, nullptr);
 
         const array3_mds Fij5 = {lbc * BC[0], lbc * BC[1], lbc * BC[2]};
-        distribute_n2(state, Rb, Rc, &Fij5, grid, nullptr, nullptr, nullptr, nullptr);
+        distribute_n2(settings, state, Rb, Rc, &Fij5, grid, nullptr, nullptr, nullptr, nullptr);
 
         const array3_mds Fij6 = {lbd * BD[0], lbd * BD[1], lbd * BD[2]};
-        distribute_n2(state, Rb, Rd, &Fij6, grid, nullptr, nullptr, nullptr, nullptr);
+        distribute_n2(settings, state, Rb, Rd, &Fij6, grid, nullptr, nullptr, nullptr, nullptr);
 
         const array3_mds Fij7 = {lbe * BE[0], lbe * BE[1], lbe * BE[2]};
-        distribute_n2(state, Rb, Re, &Fij7, grid, nullptr, nullptr, nullptr, nullptr);
+        distribute_n2(settings, state, Rb, Re, &Fij7, grid, nullptr, nullptr, nullptr, nullptr);
 
         const array3_mds Fij8 = {lcd * CD[0], lcd * CD[1], lcd * CD[2]};
-        distribute_n2(state, Rc, Rd, &Fij8, grid, nullptr, nullptr, nullptr, nullptr);
+        distribute_n2(settings, state, Rc, Rd, &Fij8, grid, nullptr, nullptr, nullptr, nullptr);
 
         const array3_mds Fij9 = {lce * CE[0], lce * CE[1], lce * CE[2]};
-        distribute_n2(state, Rc, Re, &Fij9, grid, nullptr, nullptr, nullptr, nullptr);
+        distribute_n2(settings, state, Rc, Re, &Fij9, grid, nullptr, nullptr, nullptr, nullptr);
 
         const array3_mds Fij10= {lde * DE[0], lde * DE[1], lde * DE[2]};
-        distribute_n2(state, Rd, Re, &Fij10, grid, nullptr, nullptr, nullptr, nullptr);
-    } else if (state.fdecomp == mds_gld) {
+        distribute_n2(settings, state, Rd, Re, &Fij10, grid, nullptr, nullptr, nullptr, nullptr);
+    } else if (settings.fdecomp == mds_gld) {
         const array3_mds Fij1 = {
             (Fa[0]-Fb[0])/realval_mds(5.0), (Fa[1]-Fb[1])/realval_mds(5.0), (Fa[2]-Fb[2])/realval_mds(5.0)};
-        distribute_n2(state, Ra, Rb, &Fij1, grid, nullptr, nullptr, nullptr, nullptr);
+        distribute_n2(settings, state, Ra, Rb, &Fij1, grid, nullptr, nullptr, nullptr, nullptr);
 
         const array3_mds Fij2 = {
             (Fa[0]-Fc[0])/realval_mds(5.0), (Fa[1]-Fc[1])/realval_mds(5.0), (Fa[2]-Fc[2])/realval_mds(5.0)};
-        distribute_n2(state, Ra, Rc, &Fij2, grid, nullptr, nullptr, nullptr, nullptr);
+        distribute_n2(settings, state, Ra, Rc, &Fij2, grid, nullptr, nullptr, nullptr, nullptr);
 
         const array3_mds Fij3 = {
             (Fa[0]-Fd[0])/realval_mds(5.0), (Fa[1]-Fd[1])/realval_mds(5.0), (Fa[2]-Fd[2])/realval_mds(5.0)};
-        distribute_n2(state, Ra, Rd, &Fij3, grid, nullptr, nullptr, nullptr, nullptr);
+        distribute_n2(settings, state, Ra, Rd, &Fij3, grid, nullptr, nullptr, nullptr, nullptr);
 
         const array3_mds Fij4 = {
             (Fa[0]-Fe[0])/realval_mds(5.0), (Fa[1]-Fe[1])/realval_mds(5.0), (Fa[2]-Fe[2])/realval_mds(5.0)};
-        distribute_n2(state, Ra, Re, &Fij4, grid, nullptr, nullptr, nullptr, nullptr);
+        distribute_n2(settings, state, Ra, Re, &Fij4, grid, nullptr, nullptr, nullptr, nullptr);
 
         const array3_mds Fij5 = {
             (Fb[0]-Fc[0])/realval_mds(5.0), (Fb[1]-Fc[1])/realval_mds(5.0), (Fb[2]-Fc[2])/realval_mds(5.0)};
-        distribute_n2(state, Rb, Rc, &Fij5, grid, nullptr, nullptr, nullptr, nullptr);
+        distribute_n2(settings, state, Rb, Rc, &Fij5, grid, nullptr, nullptr, nullptr, nullptr);
 
         const array3_mds Fij6 = {
             (Fb[0]-Fd[0])/realval_mds(5.0), (Fb[1]-Fd[1])/realval_mds(5.0), (Fb[2]-Fd[2])/realval_mds(5.0)};
-        distribute_n2(state, Rb, Rd, &Fij6, grid, nullptr, nullptr, nullptr, nullptr);
+        distribute_n2(settings, state, Rb, Rd, &Fij6, grid, nullptr, nullptr, nullptr, nullptr);
 
         const array3_mds Fij7 = {
             (Fb[0]-Fe[0])/realval_mds(5.0), (Fb[1]-Fe[1])/realval_mds(5.0), (Fb[2]-Fe[2])/realval_mds(5.0)};
-        distribute_n2(state, Rb, Re, &Fij7, grid, nullptr, nullptr, nullptr, nullptr);
+        distribute_n2(settings, state, Rb, Re, &Fij7, grid, nullptr, nullptr, nullptr, nullptr);
 
         const array3_mds Fij8 = {
             (Fc[0]-Fd[0])/realval_mds(5.0), (Fc[1]-Fd[1])/realval_mds(5.0), (Fc[2]-Fd[2])/realval_mds(5.0)};
-        distribute_n2(state, Rc, Rd, &Fij8, grid, nullptr, nullptr, nullptr, nullptr);
+        distribute_n2(settings, state, Rc, Rd, &Fij8, grid, nullptr, nullptr, nullptr, nullptr);
 
         const array3_mds Fij9 = {
             (Fc[0]-Fe[0])/realval_mds(5.0), (Fc[1]-Fe[1])/realval_mds(5.0), (Fc[2]-Fe[2])/realval_mds(5.0)};
-        distribute_n2(state, Rc, Re, &Fij9, grid, nullptr, nullptr, nullptr, nullptr);
+        distribute_n2(settings, state, Rc, Re, &Fij9, grid, nullptr, nullptr, nullptr, nullptr);
 
         const array3_mds Fij10 = {
             (Fd[0]-Fe[0])/realval_mds(5.0), (Fd[1]-Fe[1])/realval_mds(5.0), (Fd[2]-Fe[2])/realval_mds(5.0)};
-        distribute_n2(state, Rd, Re, &Fij10, grid, nullptr, nullptr, nullptr, nullptr);
+        distribute_n2(settings, state, Rd, Re, &Fij10, grid, nullptr, nullptr, nullptr, nullptr);
     }
 }
 
 static void decompose_nbody(
+        const settings_t & settings,
         const state_t & state,
         int nAtoms,
         const array3_ext *R,
@@ -784,7 +791,7 @@ static void decompose_nbody(
     const int n_cols = (nAtoms*(nAtoms-1))/2;
 
     // fill matrix M
-    if(state.fdecomp == mds_ccfd || state.fdecomp == mds_ncfd) {
+    if(settings.fdecomp == mds_ccfd || settings.fdecomp == mds_ncfd) {
         Eigen::MatrixXd M_eig = Eigen::MatrixXd::Zero(m_rows, n_cols);
 
         int col = 0;
@@ -794,7 +801,7 @@ static void decompose_nbody(
                 double Rb[3] = {R[bi][0], R[bi][1], R[bi][2]};
 
                 double AB[3] = {0};
-                diffarray3(Rb, Ra, AB, state.box, state.periodic);
+                diffarray3(Rb, Ra, AB, state.box, settings.periodic);
                 
                 int rowPos = ai*3;
                 M_eig(rowPos+0, col) = AB[0];
@@ -841,16 +848,16 @@ static void decompose_nbody(
                 array3_mds Rb = {R[bi][0], R[bi][1], R[bi][2]};
                 
                 array3_mds AB = {0};
-                diffarray3(Rb, Ra, AB, state.box, state.periodic);
+                diffarray3(Rb, Ra, AB, state.box, settings.periodic);
 
                 const real_mds lab = x(col, 0);
                 const array3_mds Fab = {lab*AB[0], lab*AB[1], lab*AB[2]};
-                distribute_n2(state, Ra, Rb, &Fab, stress_grid, nullptr, nullptr, nullptr, nullptr);
+                distribute_n2(settings, state, Ra, Rb, &Fab, stress_grid, nullptr, nullptr, nullptr, nullptr);
 
                 col += 1;
             }
         }
-    } else if(state.fdecomp == mds_gld) {
+    } else if(settings.fdecomp == mds_gld) {
         int col = 0;
         for (int ai = 0; ai < nAtoms; ++ai) {
             const array3_mds Ra = {R[ai][0], R[ai][1], R[ai][2]};
@@ -862,7 +869,7 @@ static void decompose_nbody(
                 array3_mds Fab = {0};
                 diffarray3(Fa, Fb, Fab);
                 scalearray3(Fab, realval_mds(1.0)/static_cast<real_mds>(nAtoms), Fab);
-                distribute_n2(state, Ra, Rb, &Fab, stress_grid, nullptr, nullptr, nullptr, nullptr);
+                distribute_n2(settings, state, Ra, Rb, &Fab, stress_grid, nullptr, nullptr, nullptr, nullptr);
 
                 col += 1;
             }
@@ -872,6 +879,7 @@ static void decompose_nbody(
 
 //Constructor
 StressGrid::StressGrid() :
+    settings({0}),
     state({0}),
     alloc({0}),
     m_filename(),
@@ -896,23 +904,23 @@ void StressGrid::Init()
     
     // Check some common settings before attempting initialization
     this->state.ierr = MDS_OK;
-    if (mds_spat == this->state.spatatom) {
+    if (mds_spat == this->settings.spatatom) {
         // grid size must always be greater than or equal to 0
         this->state.ierr |= checkError(
-                this->state.gridCells[0] < 0,
+                this->settings.gridCells[0] < 0,
                 "SetNumberOfGridCellsX(int) - int must not be less than 0");
         this->state.ierr |= checkError(
-                this->state.gridCells[1] < 0,
+                this->settings.gridCells[1] < 0,
                 "SetNumberOfGridCellsY(int) - int must not be less than 0");
         this->state.ierr |= checkError(
-                this->state.gridCells[2] < 0,
+                this->settings.gridCells[2] < 0,
                 "SetNumberOfGridCellsZ(int) - int must not be less than 0");
 
         // if grid size is 0 in all dimensions, we will use spacing to generate grid size
         // and so we check it here
-        if (0 == this->state.gridCells[0] && 0 == this->state.gridCells[1] && 0 == this->state.gridCells[2]) {
+        if (0 == this->settings.gridCells[0] && 0 == this->settings.gridCells[1] && 0 == this->settings.gridCells[2]) {
             this->state.ierr |= checkError(
-                    this->state.gridSpacing < mds_eps,
+                    this->settings.gridSpacing < mds_eps,
                     "SetSpacing(float) - float must be greater than mds_eps");
             this->state.ierr |= checkError(
                     iszeromatrix3(this->state.box),
@@ -921,13 +929,13 @@ void StressGrid::Init()
         
         // mds_spat requires a force decomposition algorithm be selected
         this->state.ierr |= checkError(
-                mds_ccfd != this->state.fdecomp &&
-                mds_ncfd != this->state.fdecomp &&
-                mds_gld  != this->state.fdecomp,
+                mds_ccfd != this->settings.fdecomp &&
+                mds_ncfd != this->settings.fdecomp &&
+                mds_gld  != this->settings.fdecomp,
                 "SetForceDecomposition(type) - type must be mds_{ccfd, ncfd or gld}");
-    } else if (mds_atom == this->state.spatatom) {
+    } else if (mds_atom == this->settings.spatatom) {
         this->state.ierr |= checkError(
-                this->state.nAtoms <= 0,
+                this->settings.nAtoms <= 0,
                 "SetNumberOfAtoms(int) - int must be greater than 0");
     } else /* not mds_spat or mds_atom */ {
         this->state.ierr |= checkError(
@@ -945,27 +953,27 @@ void StressGrid::Init()
         this->Clear();
     
         // Set grid sizes before allocation
-        if (this->state.spatatom == mds_spat) {
-            if(this->state.gridCells[0] == 0)
-                this->state.gridCells[0] = static_cast<int>(this->state.box[0][0]/this->state.gridSpacing);
-            if(this->state.gridCells[1] == 0)
-                this->state.gridCells[1] = static_cast<int>(this->state.box[1][1]/this->state.gridSpacing);
-            if(this->state.gridCells[2] == 0)
-                this->state.gridCells[2] = static_cast<int>(this->state.box[2][2]/this->state.gridSpacing);
+        if (this->settings.spatatom == mds_spat) {
+            if(this->settings.gridCells[0] == 0)
+                this->settings.gridCells[0] = static_cast<int>(this->state.box[0][0]/this->settings.gridSpacing);
+            if(this->settings.gridCells[1] == 0)
+                this->settings.gridCells[1] = static_cast<int>(this->state.box[1][1]/this->settings.gridSpacing);
+            if(this->settings.gridCells[2] == 0)
+                this->settings.gridCells[2] = static_cast<int>(this->state.box[2][2]/this->settings.gridSpacing);
             
-            this->state.nCells = this->state.gridCells[0]*this->state.gridCells[1]*this->state.gridCells[2];
+            this->state.nCells = this->settings.gridCells[0]*this->settings.gridCells[1]*this->settings.gridCells[2];
 
-            if (this->state.nCells == this->state.gridCells[0]) {
+            if (this->state.nCells == this->settings.gridCells[0]) {
                 this->state.gridDims = mds_griddim_xxx;
-            } else if (this->state.nCells == this->state.gridCells[1]) {
+            } else if (this->state.nCells == this->settings.gridCells[1]) {
                 this->state.gridDims = mds_griddim_yyy;
-            } else if (this->state.nCells == this->state.gridCells[2]) {
+            } else if (this->state.nCells == this->settings.gridCells[2]) {
                 this->state.gridDims = mds_griddim_zzz;
             } else {
                 this->state.gridDims = mds_griddim_xyz;
             }
         } else {
-            this->state.nCells = this->state.nAtoms;
+            this->state.nCells = this->settings.nAtoms;
 
             // create the molecule_id array
             this->alloc.molecule_id = new int[this->state.nCells]();
@@ -1000,13 +1008,13 @@ void StressGrid::Init()
         this->state.var_boxvol = realval_mds(0.0);
 
 #ifdef CUSTRESS_ENABLE
-        if (this->state.cuda) {
+        if (this->settings.cuda) {
             custress_init(
                     this->m_max_threads,
                     this->state.nCells,
-                    this->state.gridCells[0],
-                    this->state.gridCells[1],
-                    this->state.gridCells[2]);
+                    this->settings.gridCells[0],
+                    this->settings.gridCells[1],
+                    this->settings.gridCells[2]);
         }
 #endif//CUSTRESS_ENABLE
 
@@ -1025,14 +1033,14 @@ void StressGrid::SetPeriodicBoundaries(bool x, bool y, bool z, bool enforce)
     std::lock_guard<std::mutex> lock(m_mutex_state);
 
 #ifdef CUSTRESS_ENABLE
-    if (this->state.cuda)
+    if (this->settings.cuda)
         custress_set_periodic(x, y, z, enforce);
 #endif//CUSTRESS_ENABLE
 
-    this->state.periodic[0] = x;
-    this->state.periodic[1] = y;
-    this->state.periodic[2] = z;
-    this->state.periodic[3] = enforce;
+    this->settings.periodic[0] = x;
+    this->settings.periodic[1] = y;
+    this->settings.periodic[2] = z;
+    this->settings.periodic[3] = enforce;
 }
 
 // This function updates the box, invbox and computes the new spacings.
@@ -1043,9 +1051,9 @@ void StressGrid::UpdateBoxSpacings ( matrix3_ext box )
             copymatrix3( box, this->state.box);
             inversematrix3( this->state.box, this->state.invbox );
 
-            this->state.gridsp[0] = this->state.box[0][0]/static_cast<real_mds>(this->state.gridCells[0]);
-            this->state.gridsp[1] = this->state.box[1][1]/static_cast<real_mds>(this->state.gridCells[1]);
-            this->state.gridsp[2] = this->state.box[2][2]/static_cast<real_mds>(this->state.gridCells[2]);
+            this->state.gridsp[0] = this->state.box[0][0]/static_cast<real_mds>(this->settings.gridCells[0]);
+            this->state.gridsp[1] = this->state.box[1][1]/static_cast<real_mds>(this->settings.gridCells[1]);
+            this->state.gridsp[2] = this->state.box[2][2]/static_cast<real_mds>(this->settings.gridCells[2]);
             this->state.gridsp[3] = this->state.gridsp[0]*this->state.gridsp[1];
             this->state.gridsp[4] = this->state.gridsp[0]*this->state.gridsp[2];
             this->state.gridsp[5] = this->state.gridsp[1]*this->state.gridsp[2];
@@ -1053,7 +1061,7 @@ void StressGrid::UpdateBoxSpacings ( matrix3_ext box )
             this->state.invgridsp =  realval_mds(1.0)/(this->state.gridsp[0]*this->state.gridsp[1]*this->state.gridsp[2]);
 
 #ifdef CUSTRESS_ENABLE
-            if (this->state.cuda)
+            if (this->settings.cuda)
                 custress_update_box_spacings(this->state.box, this->state.invbox, this->state.gridsp);
 #endif//CUSTRESS_ENABLE
         }
@@ -1097,7 +1105,7 @@ void StressGrid::SumGrid ( )
         if (thread_id == 0)
         {
 #ifdef CUSTRESS_ENABLE
-            if (this->state.cuda)
+            if (this->settings.cuda)
                 custress_sum_grid(this->alloc.current_grid);
 #endif//CUSTRESS_ENABLE
 
@@ -1148,7 +1156,7 @@ void StressGrid::SumGrid ( )
             deltaV2 = Vnew - this->state.avg_boxvol;
             this->state.var_boxvol += deltaV*deltaV2;
 
-            if (this->state.spatatom == mds_spat) {
+            if (this->settings.spatatom == mds_spat) {
                 for (int i = 0; i < this->state.nCells; i++)
                     summatrix3(this->alloc.current_gridtot[0], this->alloc.current_grid[i], this->alloc.current_gridtot[0]); // compute y = sigma_total_kl = sum(sigma_local_kl)/this->state.nCells
 
@@ -1196,7 +1204,7 @@ void StressGrid::SumGrid ( )
 
                 // create the voronoi objects
                 voro::particle_order vorpo = voro::particle_order(this->state.nCells);
-                voro::container_poly vorcon = voro::container_poly(0.0, vor_box[0], 0.0, vor_box[1], 0.0, vor_box[2], gridn[0], gridn[1], gridn[2], this->state.periodic[0], this->state.periodic[1], this->state.periodic[2], 8);
+                voro::container_poly vorcon = voro::container_poly(0.0, vor_box[0], 0.0, vor_box[1], 0.0, vor_box[2], gridn[0], gridn[1], gridn[2], this->settings.periodic[0], this->settings.periodic[1], this->settings.periodic[2], 8);
 
                 // fill the container
                 int voro_cells = 0;
@@ -1262,7 +1270,7 @@ void StressGrid::SumGrid ( )
 
                     // should do an error check here
                     this->state.ierr |= checkError(
-                            pid != this->state.nAtoms,
+                            pid != this->settings.nAtoms,
                             "ERROR:: number of atoms processed does not match number of sites");
                 }
             }
@@ -1283,7 +1291,7 @@ void StressGrid::SumGrid ( )
 
 void StressGrid::DispersionCorrection (real_ext shift)
 {
-    if (this->state.nodispcor == false) {
+    if (this->settings.nodispcor == false) {
         // select the correct grid
         int batch_id = this->m_thread_map[std::this_thread::get_id()];
         matrix3_mds * grid = this->alloc.current_grid+batch_id*this->state.nCells;
@@ -1329,7 +1337,7 @@ void StressGrid::Reset ( )
                 zeromatrix6( this->alloc.sum_grid_elkin[i] );
             }
 
-            if (this->state.spatatom == mds_atom) {
+            if (this->settings.spatatom == mds_atom) {
                 for( int i=0; i<this->state.nCells; i++ )
                     this->alloc.sum_volume[i] = 0.0;
             }
@@ -1378,9 +1386,9 @@ void StressGrid::Write ( )
 
         // open the main output file
         outfile = fopen(outname.c_str(), "wb" );
-        if (this->state.spatatom == mds_spat) {
+        if (this->settings.spatatom == mds_spat) {
             Dtype = 1;
-        } else if (this->state.spatatom == mds_atom) {
+        } else if (this->settings.spatatom == mds_atom) {
             Dtype = 2;
         }
         fwrite(&Dtype, sizeof(int), 1, outfile);
@@ -1415,26 +1423,26 @@ void StressGrid::Write ( )
         fwrite(avgbox_out, sizeof(matrix3_out), 1, eltotal_outfile);
         fwrite(avgbox_out, sizeof(matrix3_out), 1, eltotalhooke_outfile);
 
-        if (this->state.spatatom == mds_spat) {
+        if (this->settings.spatatom == mds_spat) {
             // this is the number of grids in all dimensions, also to all files
-            fwrite(&this->state.gridCells[0], sizeof(this->state.gridCells[0]), 1, outfile);
-            fwrite(&this->state.gridCells[1], sizeof(this->state.gridCells[1]), 1, outfile);
-            fwrite(&this->state.gridCells[2], sizeof(this->state.gridCells[2]), 1, outfile);
-            fwrite(&this->state.gridCells[0], sizeof(this->state.gridCells[0]), 1, elcovar_outfile);
-            fwrite(&this->state.gridCells[1], sizeof(this->state.gridCells[1]), 1, elcovar_outfile);
-            fwrite(&this->state.gridCells[2], sizeof(this->state.gridCells[2]), 1, elcovar_outfile);
-            fwrite(&this->state.gridCells[0], sizeof(this->state.gridCells[0]), 1, elborn_outfile);
-            fwrite(&this->state.gridCells[1], sizeof(this->state.gridCells[1]), 1, elborn_outfile);
-            fwrite(&this->state.gridCells[2], sizeof(this->state.gridCells[2]), 1, elborn_outfile);
-            fwrite(&this->state.gridCells[0], sizeof(this->state.gridCells[0]), 1, elkin_outfile);
-            fwrite(&this->state.gridCells[1], sizeof(this->state.gridCells[1]), 1, elkin_outfile);
-            fwrite(&this->state.gridCells[2], sizeof(this->state.gridCells[2]), 1, elkin_outfile);
-            fwrite(&this->state.gridCells[0], sizeof(this->state.gridCells[0]), 1, eltotal_outfile);
-            fwrite(&this->state.gridCells[1], sizeof(this->state.gridCells[1]), 1, eltotal_outfile);
-            fwrite(&this->state.gridCells[2], sizeof(this->state.gridCells[2]), 1, eltotal_outfile);
-            fwrite(&this->state.gridCells[0], sizeof(this->state.gridCells[0]), 1, eltotalhooke_outfile);
-            fwrite(&this->state.gridCells[1], sizeof(this->state.gridCells[1]), 1, eltotalhooke_outfile);
-            fwrite(&this->state.gridCells[2], sizeof(this->state.gridCells[2]), 1, eltotalhooke_outfile);
+            fwrite(&this->settings.gridCells[0], sizeof(this->settings.gridCells[0]), 1, outfile);
+            fwrite(&this->settings.gridCells[1], sizeof(this->settings.gridCells[1]), 1, outfile);
+            fwrite(&this->settings.gridCells[2], sizeof(this->settings.gridCells[2]), 1, outfile);
+            fwrite(&this->settings.gridCells[0], sizeof(this->settings.gridCells[0]), 1, elcovar_outfile);
+            fwrite(&this->settings.gridCells[1], sizeof(this->settings.gridCells[1]), 1, elcovar_outfile);
+            fwrite(&this->settings.gridCells[2], sizeof(this->settings.gridCells[2]), 1, elcovar_outfile);
+            fwrite(&this->settings.gridCells[0], sizeof(this->settings.gridCells[0]), 1, elborn_outfile);
+            fwrite(&this->settings.gridCells[1], sizeof(this->settings.gridCells[1]), 1, elborn_outfile);
+            fwrite(&this->settings.gridCells[2], sizeof(this->settings.gridCells[2]), 1, elborn_outfile);
+            fwrite(&this->settings.gridCells[0], sizeof(this->settings.gridCells[0]), 1, elkin_outfile);
+            fwrite(&this->settings.gridCells[1], sizeof(this->settings.gridCells[1]), 1, elkin_outfile);
+            fwrite(&this->settings.gridCells[2], sizeof(this->settings.gridCells[2]), 1, elkin_outfile);
+            fwrite(&this->settings.gridCells[0], sizeof(this->settings.gridCells[0]), 1, eltotal_outfile);
+            fwrite(&this->settings.gridCells[1], sizeof(this->settings.gridCells[1]), 1, eltotal_outfile);
+            fwrite(&this->settings.gridCells[2], sizeof(this->settings.gridCells[2]), 1, eltotal_outfile);
+            fwrite(&this->settings.gridCells[0], sizeof(this->settings.gridCells[0]), 1, eltotalhooke_outfile);
+            fwrite(&this->settings.gridCells[1], sizeof(this->settings.gridCells[1]), 1, eltotalhooke_outfile);
+            fwrite(&this->settings.gridCells[2], sizeof(this->settings.gridCells[2]), 1, eltotalhooke_outfile);
         } else {
             // if we are using mds_atom, then there is only nCells == natoms
             fwrite(&this->state.nCells, sizeof(int), 1, outfile);
@@ -1448,11 +1456,11 @@ void StressGrid::Write ( )
         // calculate stress factors
         real_mds stressfac, covfac, covfac2;
         stressfac = realval_mds(mds_units);
-        covfac = -realval_mds(mds_units)*realval_mds(mds_units)*this->state.avg_boxvol/(this->state.temperature*realval_mds(KBfac)*this->state.nframes);
+        covfac = -realval_mds(mds_units)*realval_mds(mds_units)*this->state.avg_boxvol/(this->settings.temperature*realval_mds(KBfac)*this->state.nframes);
         //covfac /= this->state.nCells; // uncomment this for for local-vs-local fluctuations
         covfac2 = realval_mds(0.0);
         if (this->state.pcoupl == true && this->state.nframes > 1)
-            covfac2 = realval_mds(mds_units)*realval_mds(mds_units)*this->state.avg_boxvol/(this->state.temperature*realval_mds(KBfac)*this->state.var_boxvol*this->state.nframes);
+            covfac2 = realval_mds(mds_units)*realval_mds(mds_units)*this->state.avg_boxvol/(this->settings.temperature*realval_mds(KBfac)*this->state.var_boxvol*this->state.nframes);
 
         // need to store matrices in double precision
         matrix3_out sum_grid = {0};
@@ -1492,7 +1500,7 @@ void StressGrid::Write ( )
         }
 
         // append the volume data
-        if (this->state.spatatom == mds_atom)
+        if (this->settings.spatatom == mds_atom)
         {
             for ( int i = 0; i < this->state.nCells; i++ )
             {
@@ -1643,35 +1651,35 @@ void StressGrid::DistributeInteraction(
     if (MDS_OK == this->state.ierr)
     {
         // If spatatom==mds_spat distribute the stress spatially following Noll's procedure
-        if (this->state.spatatom == mds_spat)
+        if (this->settings.spatatom == mds_spat)
         {
             //------------------------------------------------------------------------------------
             matrix3_mds * stress_grid = this->alloc.current_grid+batch_id*this->state.nCells;
             matrix6_mds * elast_grid = this->alloc.current_grid_elborn+batch_id*this->state.nCells;
 
-            // Depending on the number of atoms, call a different function
+            // Call functions tailored for specific number of atoms
             if (2 == nAtoms) {
                 const array3_mds Ra = {(real_mds)R[0][0], (real_mds)R[0][1], (real_mds)R[0][2]};
                 const array3_mds Rb = {(real_mds)R[1][0], (real_mds)R[1][1], (real_mds)R[1][2]};
                 const array3_mds Fa = {(real_mds)F[0][0], (real_mds)F[0][1], (real_mds)F[0][2]};
                 if (nullptr != phi && nullptr != kappa) {
                     const real_mds kappa_phi[2] = {(real_mds)(*phi), (real_mds)(*kappa)};
-                    distribute_n2(this->state, Ra, Rb, &Fa, stress_grid, &Ra, &Rb, kappa_phi, elast_grid);
+                    distribute_n2(this->settings, this->state, Ra, Rb, &Fa, stress_grid, &Ra, &Rb, kappa_phi, elast_grid);
                 } else {
-                    distribute_n2(this->state, Ra, Rb, &Fa, stress_grid, nullptr, nullptr, nullptr, nullptr);
+                    distribute_n2(this->settings, this->state, Ra, Rb, &Fa, stress_grid, nullptr, nullptr, nullptr, nullptr);
                 }
             } else if (3 == nAtoms) {
-                decompose_n3(this->state, R, F, stress_grid, phi, kappa, elast_grid);
+                decompose_n3(this->settings, this->state, R, F, stress_grid, phi, kappa, elast_grid);
             } else if (-3 == nAtoms) {
-                decompose_n3(this->state, R, F, stress_grid, nullptr, nullptr, elast_grid);
+                decompose_n3(this->settings, this->state, R, F, stress_grid, nullptr, nullptr, elast_grid);
             } else if (4 == nAtoms) {
-                decompose_n4(this->state, R, F, stress_grid);
+                decompose_n4(this->settings, this->state, R, F, stress_grid);
             } else if (5 == nAtoms) {
-                decompose_n5(this->state, R, F, stress_grid);
+                decompose_n5(this->settings, this->state, R, F, stress_grid);
             } else {
-                decompose_nbody(this->state, nAtoms, R, F, stress_grid);
+                decompose_nbody(this->settings, this->state, nAtoms, R, F, stress_grid);
             }
-        } else if (this->state.spatatom == mds_atom) {
+        } else if (this->settings.spatatom == mds_atom) {
             // This is because SETTLE calls the function with nAtoms=-3
             if (nAtoms < 0) nAtoms = -nAtoms;
 
@@ -1681,8 +1689,8 @@ void StressGrid::DistributeInteraction(
             }
 
             for (int n = 0; n < nAtoms; n++) {
-                if (atomIDs[n] >= this->state.nAtoms) {
-                    std::cout << "ERROR:: the atom label" << atomIDs[n] << "is equal or larger than the total number of atoms" << this->state.nAtoms;
+                if (atomIDs[n] >= this->settings.nAtoms) {
+                    std::cout << "ERROR:: the atom label" << atomIDs[n] << "is equal or larger than the total number of atoms" << this->settings.nAtoms;
                     return;
                 }
             }
@@ -1806,22 +1814,22 @@ void StressGrid::DistributeKinetic(
         }
 
         // If spatatom==mds_spat distribute the stress spatially following Noll's procedure
-        if (this->state.spatatom == mds_spat)
+        if (this->settings.spatatom == mds_spat)
         {
             // Get the coordinates of the point in the grid
             iarray i1 = {
-                int(this->state.gridCells[0] * x[0] * this->state.invbox[0][0] - (x[0] < 0.0) ),
-                int(this->state.gridCells[1] * x[1] * this->state.invbox[1][1] - (x[1] < 0.0) ),
-                int(this->state.gridCells[2] * x[2] * this->state.invbox[2][2] - (x[2] < 0.0) )
+                int(this->settings.gridCells[0] * x[0] * this->state.invbox[0][0] - (x[0] < 0.0) ),
+                int(this->settings.gridCells[1] * x[1] * this->state.invbox[1][1] - (x[1] < 0.0) ),
+                int(this->settings.gridCells[2] * x[2] * this->state.invbox[2][2] - (x[2] < 0.0) )
             };
             
             // and the index constants
-            const int iip1 = ((i1[0] + 1 + this->state.gridCells[0]) % this->state.gridCells[0])*this->state.gridCells[1]*this->state.gridCells[2];
-            const int jjp1 = ((i1[1] + 1 + this->state.gridCells[1]) % this->state.gridCells[1])*this->state.gridCells[2];
-            const int kkp1 = ((i1[2] + 1 + this->state.gridCells[2]) % this->state.gridCells[2]);
-            const int iim1 = ((i1[0] + this->state.gridCells[0]) % this->state.gridCells[0])*this->state.gridCells[1]*this->state.gridCells[2];
-            const int jjm1 = ((i1[1] + this->state.gridCells[1]) % this->state.gridCells[1])*this->state.gridCells[2];
-            const int kkm1 = ((i1[2] + this->state.gridCells[2]) % this->state.gridCells[2]);
+            const int iip1 = ((i1[0] + 1 + this->settings.gridCells[0]) % this->settings.gridCells[0])*this->settings.gridCells[1]*this->settings.gridCells[2];
+            const int jjp1 = ((i1[1] + 1 + this->settings.gridCells[1]) % this->settings.gridCells[1])*this->settings.gridCells[2];
+            const int kkp1 = ((i1[2] + 1 + this->settings.gridCells[2]) % this->settings.gridCells[2]);
+            const int iim1 = ((i1[0] + this->settings.gridCells[0]) % this->settings.gridCells[0])*this->settings.gridCells[1]*this->settings.gridCells[2];
+            const int jjm1 = ((i1[1] + this->settings.gridCells[1]) % this->settings.gridCells[1])*this->settings.gridCells[2];
+            const int kkm1 = ((i1[2] + this->settings.gridCells[2]) % this->settings.gridCells[2]);
             
             // xc = vector from the corner of the point to the corner of the cell
             const array3_mds xc = {
@@ -1855,7 +1863,7 @@ void StressGrid::DistributeKinetic(
             scalesummatrix6( C*xd[0]*xd[1]*xc[2],elast,elast_grid[iim1+jjm1+kkp1]);
             scalesummatrix6(-C*xd[0]*xd[1]*xd[2],elast,elast_grid[iim1+jjm1+kkm1]);
         }
-        else if (this->state.spatatom == mds_atom)
+        else if (this->settings.spatatom == mds_atom)
         {
             if (atomID == -1)
             {
@@ -1905,7 +1913,7 @@ void StressGrid::Clear() {
         this->state.initialized = false;
     
 #ifdef CUSTRESS_ENABLE
-    if (this->state.cuda)
+    if (this->settings.cuda)
         custress_clear();
 #endif//CUSTRESS_ENABLE
 }
