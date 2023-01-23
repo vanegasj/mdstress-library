@@ -257,7 +257,8 @@ static inline void distribute_n2(
         matrix3_mds * stress_grid,
         const array3_mds * xk,
         const array3_mds * xl,
-        const real_mds * phi_kappa,
+        const real_ext * phi,
+        const real_ext * kappa,
         matrix6_mds * elast_grid)
 {
     // Calculate the stress tensor
@@ -271,7 +272,7 @@ static inline void distribute_n2(
 
     // stress is relatively inexpensive so just do it here to reduce cases later
     matrix3_mds stress = {0};
-    if (nullptr != stress_grid) {
+    if (nullptr != F) {
         stress[0][0] = F[0][0]*xij[0];
         stress[0][1] = F[0][0]*xij[1];
         stress[0][2] = F[0][0]*xij[2];
@@ -284,8 +285,8 @@ static inline void distribute_n2(
     }
 
     matrix6_mds elast = {0};
-    if (nullptr != elast_grid &&
-            (realval_mds(0.0) != phi_kappa[0] || realval_mds(0.0) != phi_kappa[1])) {
+    if (nullptr != phi && nullptr != phi &&
+            (realval_ext(0.0) != phi[0] || realval_ext(0.0) != kappa[1])) {
         // Construct the stiffness matrix in Voigt notation
         // 0 = xx; 1 = yy; 2 = zz; 3 = yz or zy; 4 = xz or zx; 5 = xy or yx
         // All indices                         Voigt indices           Stress indices
@@ -301,8 +302,8 @@ static inline void distribute_n2(
         const real_mds xij_norm = normarray3(xij);
         const real_mds xkl_norm = normarray3(xkl);
         const real_mds rinv = realval_mds(1.0)/xij_norm;
-        const real_mds rinv2 = phi_kappa[1]*rinv/xkl_norm;
-        const real_mds rinv3 = phi_kappa[0]*rinv*rinv*rinv;
+        const real_mds rinv2 = real_mds(kappa[0])*rinv/xkl_norm;
+        const real_mds rinv3 = real_mds(phi[0])*rinv*rinv*rinv;
         const real_mds xij00 = xij[0]*xij[0];
         const real_mds xij11 = xij[1]*xij[1];
         const real_mds xij22 = xij[2]*xij[2];
@@ -418,52 +419,44 @@ static void decompose_n3(
             const real_mds normAC = normarray3(AC);
             const real_mds normBC = normarray3(BC);
 
-            const real_mds phi_kappa1[2] = {lab*normAB, realval_mds(0.0)};
-            const real_mds phi_kappa2[2] = {lac*normAC, realval_mds(0.0)};
-            const real_mds phi_kappa3[2] = {lbc*normBC, realval_mds(0.0)};
-            distribute_n2(settings, state, Ra, Rb, &Fij1, stress_grid, &Ra, &Rb, phi_kappa1, elast_grid);
-            distribute_n2(settings, state, Ra, Rc, &Fij2, stress_grid, &Ra, &Rc, phi_kappa2, elast_grid);
-            distribute_n2(settings, state, Rb, Rc, &Fij3, stress_grid, &Rb, &Rc, phi_kappa3, elast_grid);
+            const real_ext phi_kappa1[2] = {real_ext(lab*normAB), realval_ext(0.0)};
+            const real_ext phi_kappa2[2] = {real_ext(lac*normAC), realval_ext(0.0)};
+            const real_ext phi_kappa3[2] = {real_ext(lbc*normBC), realval_ext(0.0)};
+            distribute_n2(settings, state, Ra, Rb, &Fij1, stress_grid, &Ra, &Rb, phi_kappa1, phi_kappa1+1, elast_grid);
+            distribute_n2(settings, state, Ra, Rc, &Fij2, stress_grid, &Ra, &Rc, phi_kappa2, phi_kappa2+1, elast_grid);
+            distribute_n2(settings, state, Rb, Rc, &Fij3, stress_grid, &Rb, &Rc, phi_kappa3, phi_kappa3+1, elast_grid);
         } else if (nullptr != phi && nullptr != kappa && nullptr != elast_grid) {
             // calculate the diagonal terms
-            const real_mds phi_kappa11[2] = {(real_mds)(phi[0]), (real_mds)(kappa[0])};
-            const real_mds phi_kappa22[2] = {(real_mds)(phi[1]), (real_mds)(kappa[4])};
-            const real_mds phi_kappa33[2] = {(real_mds)(phi[2]), (real_mds)(kappa[8])};
-            distribute_n2(settings, state, Ra, Rb, &Fij1, stress_grid, &Ra, &Rb, phi_kappa11, elast_grid);
-            distribute_n2(settings, state, Ra, Rc, &Fij2, stress_grid, &Ra, &Rc, phi_kappa22, elast_grid);
-            distribute_n2(settings, state, Rb, Rc, &Fij3, stress_grid, &Rb, &Rc, phi_kappa33, elast_grid);
+            distribute_n2(settings, state, Ra, Rb, &Fij1, stress_grid, &Ra, &Rb, phi+0, kappa+0, elast_grid);
+            distribute_n2(settings, state, Ra, Rc, &Fij2, stress_grid, &Ra, &Rc, phi+1, kappa+4, elast_grid);
+            distribute_n2(settings, state, Rb, Rc, &Fij3, stress_grid, &Rb, &Rc, phi+2, kappa+8, elast_grid);
 
             // and the off diagonal
-            const real_mds phi_kappa12[2] = {realval_mds(0.0), (real_mds)(kappa[1])};
-            const real_mds phi_kappa13[2] = {realval_mds(0.0), (real_mds)(kappa[2])};
-            const real_mds phi_kappa21[2] = {realval_mds(0.0), (real_mds)(kappa[3])};
-            const real_mds phi_kappa23[2] = {realval_mds(0.0), (real_mds)(kappa[5])};
-            const real_mds phi_kappa31[2] = {realval_mds(0.0), (real_mds)(kappa[6])};
-            const real_mds phi_kappa32[2] = {realval_mds(0.0), (real_mds)(kappa[7])};
-            distribute_n2(settings, state, Ra, Rb, nullptr, nullptr, &Ra, &Rc, phi_kappa12, elast_grid);
-            distribute_n2(settings, state, Ra, Rb, nullptr, nullptr, &Rb, &Rc, phi_kappa13, elast_grid);
-            distribute_n2(settings, state, Ra, Rc, nullptr, nullptr, &Ra, &Rb, phi_kappa21, elast_grid);
-            distribute_n2(settings, state, Ra, Rc, nullptr, nullptr, &Rb, &Rc, phi_kappa23, elast_grid);
-            distribute_n2(settings, state, Rb, Rc, nullptr, nullptr, &Ra, &Rb, phi_kappa31, elast_grid);
-            distribute_n2(settings, state, Rb, Rc, nullptr, nullptr, &Ra, &Rc, phi_kappa32, elast_grid);
+            const real_ext phi [] = {realval_mds(0.0)};
+            distribute_n2(settings, state, Ra, Rb, nullptr, nullptr, &Ra, &Rc, phi, kappa+1, elast_grid);
+            distribute_n2(settings, state, Ra, Rb, nullptr, nullptr, &Rb, &Rc, phi, kappa+2, elast_grid);
+            distribute_n2(settings, state, Ra, Rc, nullptr, nullptr, &Ra, &Rb, phi, kappa+3, elast_grid);
+            distribute_n2(settings, state, Ra, Rc, nullptr, nullptr, &Rb, &Rc, phi, kappa+5, elast_grid);
+            distribute_n2(settings, state, Rb, Rc, nullptr, nullptr, &Ra, &Rb, phi, kappa+6, elast_grid);
+            distribute_n2(settings, state, Rb, Rc, nullptr, nullptr, &Ra, &Rc, phi, kappa+7, elast_grid);
         } else {
             // general stress only case
-            distribute_n2(settings, state, Ra, Rb, &Fij1, stress_grid, nullptr, nullptr, nullptr, nullptr);
-            distribute_n2(settings, state, Ra, Rc, &Fij2, stress_grid, nullptr, nullptr, nullptr, nullptr);
-            distribute_n2(settings, state, Rb, Rc, &Fij3, stress_grid, nullptr, nullptr, nullptr, nullptr);
+            distribute_n2(settings, state, Ra, Rb, &Fij1, stress_grid, nullptr, nullptr, nullptr, nullptr, nullptr);
+            distribute_n2(settings, state, Ra, Rc, &Fij2, stress_grid, nullptr, nullptr, nullptr, nullptr, nullptr);
+            distribute_n2(settings, state, Rb, Rc, &Fij3, stress_grid, nullptr, nullptr, nullptr, nullptr, nullptr);
         }
     } else if (settings.fdecomp == mds_gld) {
         array3_mds Fij1 = {
             (Fa[0]-Fb[0])/realval_mds(3.0), (Fa[1]-Fb[1])/realval_mds(3.0), (Fa[2]-Fb[2])/realval_mds(3.0)};
-        distribute_n2(settings, state, Ra, Rb, &Fij1, stress_grid, nullptr, nullptr, nullptr, nullptr);
+        distribute_n2(settings, state, Ra, Rb, &Fij1, stress_grid, nullptr, nullptr, nullptr, nullptr, nullptr);
 
         array3_mds Fij2 = {
             (Fa[0]-Fc[0])/realval_mds(3.0), (Fa[1]-Fc[1])/realval_mds(3.0), (Fa[2]-Fc[2])/realval_mds(3.0)};
-        distribute_n2(settings, state, Ra, Rc, &Fij2, stress_grid, nullptr, nullptr, nullptr, nullptr);
+        distribute_n2(settings, state, Ra, Rc, &Fij2, stress_grid, nullptr, nullptr, nullptr, nullptr, nullptr);
 
         array3_mds Fij3 = {
             (Fb[0]-Fc[0])/realval_mds(3.0), (Fb[1]-Fc[1])/realval_mds(3.0), (Fb[2]-Fc[2])/realval_mds(3.0)};
-        distribute_n2(settings, state, Rb, Rc, &Fij3, stress_grid, nullptr, nullptr, nullptr, nullptr);
+        distribute_n2(settings, state, Rb, Rc, &Fij3, stress_grid, nullptr, nullptr, nullptr, nullptr, nullptr);
     }
 }
 
@@ -535,46 +528,46 @@ static void decompose_n4(
         const real_mds lcd = (real_mds)x(5,0);
 
         const array3_mds Fij1 = {lab * AB[0], lab * AB[1], lab * AB[2]};
-        distribute_n2(settings, state, Ra, Rb, &Fij1, grid, nullptr, nullptr, nullptr, nullptr);
+        distribute_n2(settings, state, Ra, Rb, &Fij1, grid, nullptr, nullptr, nullptr, nullptr, nullptr);
 
         const array3_mds Fij2 = {lac * AC[0], lac * AC[1], lac * AC[2]};
-        distribute_n2(settings, state, Ra, Rc, &Fij2, grid, nullptr, nullptr, nullptr, nullptr);
+        distribute_n2(settings, state, Ra, Rc, &Fij2, grid, nullptr, nullptr, nullptr, nullptr, nullptr);
 
         const array3_mds Fij3 = {lad * AD[0], lad * AD[1], lad * AD[2]};
-        distribute_n2(settings, state, Ra, Rd, &Fij3, grid, nullptr, nullptr, nullptr, nullptr);
+        distribute_n2(settings, state, Ra, Rd, &Fij3, grid, nullptr, nullptr, nullptr, nullptr, nullptr);
 
         const array3_mds Fij4 = {lbc * BC[0], lbc * BC[1], lbc * BC[2]};
-        distribute_n2(settings, state, Rb, Rc, &Fij4, grid, nullptr, nullptr, nullptr, nullptr);
+        distribute_n2(settings, state, Rb, Rc, &Fij4, grid, nullptr, nullptr, nullptr, nullptr, nullptr);
 
         const array3_mds Fij5 = {lbd * BD[0], lbd * BD[1], lbd * BD[2]};
-        distribute_n2(settings, state, Rb, Rd, &Fij5, grid, nullptr, nullptr, nullptr, nullptr);
+        distribute_n2(settings, state, Rb, Rd, &Fij5, grid, nullptr, nullptr, nullptr, nullptr, nullptr);
 
         const array3_mds Fij6 = {lcd * CD[0], lcd * CD[1], lcd * CD[2]};
-        distribute_n2(settings, state, Rc, Rd, &Fij6, grid, nullptr, nullptr, nullptr, nullptr);
+        distribute_n2(settings, state, Rc, Rd, &Fij6, grid, nullptr, nullptr, nullptr, nullptr, nullptr);
     } else if (settings.fdecomp == mds_gld) {
         const array3_mds Fij1 = {
             (Fa[0]-Fb[0])/realval_mds(4.0), (Fa[1]-Fb[1])/realval_mds(4.0), (Fa[2]-Fb[2])/realval_mds(4.0)};
-        distribute_n2(settings, state, Ra, Rb, &Fij1, grid, nullptr, nullptr, nullptr, nullptr);
+        distribute_n2(settings, state, Ra, Rb, &Fij1, grid, nullptr, nullptr, nullptr, nullptr, nullptr);
 
         const array3_mds Fij2 = {
             (Fa[0]-Fc[0])/realval_mds(4.0), (Fa[1]-Fc[1])/realval_mds(4.0), (Fa[2]-Fc[2])/realval_mds(4.0)};
-        distribute_n2(settings, state, Ra, Rc, &Fij2, grid, nullptr, nullptr, nullptr, nullptr);
+        distribute_n2(settings, state, Ra, Rc, &Fij2, grid, nullptr, nullptr, nullptr, nullptr, nullptr);
 
         const array3_mds Fij3 = {
             (Fa[0]-Fd[0])/realval_mds(4.0), (Fa[1]-Fd[1])/realval_mds(4.0), (Fa[2]-Fd[2])/realval_mds(4.0)};
-        distribute_n2(settings, state, Ra, Rd, &Fij3, grid, nullptr, nullptr, nullptr, nullptr);
+        distribute_n2(settings, state, Ra, Rd, &Fij3, grid, nullptr, nullptr, nullptr, nullptr, nullptr);
 
         const array3_mds Fij4 = {
             (Fb[0]-Fc[0])/realval_mds(4.0), (Fb[1]-Fc[1])/realval_mds(4.0), (Fb[2]-Fc[2])/realval_mds(4.0)};
-        distribute_n2(settings, state, Rb, Rc, &Fij4, grid, nullptr, nullptr, nullptr, nullptr);
+        distribute_n2(settings, state, Rb, Rc, &Fij4, grid, nullptr, nullptr, nullptr, nullptr, nullptr);
 
         const array3_mds Fij5 = {
             (Fb[0]-Fd[0])/realval_mds(4.0), (Fb[1]-Fd[1])/realval_mds(4.0), (Fb[2]-Fd[2])/realval_mds(4.0)};
-        distribute_n2(settings, state, Rb, Rd, &Fij5, grid, nullptr, nullptr, nullptr, nullptr);
+        distribute_n2(settings, state, Rb, Rd, &Fij5, grid, nullptr, nullptr, nullptr, nullptr, nullptr);
 
         const array3_mds Fij6 = {
             (Fc[0]-Fd[0])/realval_mds(4.0), (Fc[1]-Fd[1])/realval_mds(4.0), (Fc[2]-Fd[2])/realval_mds(4.0)};
-        distribute_n2(settings, state, Rc, Rd, &Fij6, grid, nullptr, nullptr, nullptr, nullptr);
+        distribute_n2(settings, state, Rc, Rd, &Fij6, grid, nullptr, nullptr, nullptr, nullptr, nullptr);
     }
 }
 
@@ -707,74 +700,74 @@ static void decompose_n5(
         const real_mds lde = (real_mds)x(9,0);
 
         const array3_mds Fij1 = {lab * AB[0], lab * AB[1], lab * AB[2]};
-        distribute_n2(settings, state, Ra, Rb, &Fij1, grid, nullptr, nullptr, nullptr, nullptr);
+        distribute_n2(settings, state, Ra, Rb, &Fij1, grid, nullptr, nullptr, nullptr, nullptr, nullptr);
 
         const array3_mds Fij2 = {lac * AC[0], lac * AC[1], lac * AC[2]};
-        distribute_n2(settings, state, Ra, Rc, &Fij2, grid, nullptr, nullptr, nullptr, nullptr);
+        distribute_n2(settings, state, Ra, Rc, &Fij2, grid, nullptr, nullptr, nullptr, nullptr, nullptr);
 
         const array3_mds Fij3 = {lad * AD[0], lad * AD[1], lad * AD[2]};
-        distribute_n2(settings, state, Ra, Rd, &Fij3, grid, nullptr, nullptr, nullptr, nullptr);
+        distribute_n2(settings, state, Ra, Rd, &Fij3, grid, nullptr, nullptr, nullptr, nullptr, nullptr);
 
         const array3_mds Fij4 = {lae * AE[0], lae * AE[1], lae * AE[2]};
-        distribute_n2(settings, state, Ra, Re, &Fij4, grid, nullptr, nullptr, nullptr, nullptr);
+        distribute_n2(settings, state, Ra, Re, &Fij4, grid, nullptr, nullptr, nullptr, nullptr, nullptr);
 
         const array3_mds Fij5 = {lbc * BC[0], lbc * BC[1], lbc * BC[2]};
-        distribute_n2(settings, state, Rb, Rc, &Fij5, grid, nullptr, nullptr, nullptr, nullptr);
+        distribute_n2(settings, state, Rb, Rc, &Fij5, grid, nullptr, nullptr, nullptr, nullptr, nullptr);
 
         const array3_mds Fij6 = {lbd * BD[0], lbd * BD[1], lbd * BD[2]};
-        distribute_n2(settings, state, Rb, Rd, &Fij6, grid, nullptr, nullptr, nullptr, nullptr);
+        distribute_n2(settings, state, Rb, Rd, &Fij6, grid, nullptr, nullptr, nullptr, nullptr, nullptr);
 
         const array3_mds Fij7 = {lbe * BE[0], lbe * BE[1], lbe * BE[2]};
-        distribute_n2(settings, state, Rb, Re, &Fij7, grid, nullptr, nullptr, nullptr, nullptr);
+        distribute_n2(settings, state, Rb, Re, &Fij7, grid, nullptr, nullptr, nullptr, nullptr, nullptr);
 
         const array3_mds Fij8 = {lcd * CD[0], lcd * CD[1], lcd * CD[2]};
-        distribute_n2(settings, state, Rc, Rd, &Fij8, grid, nullptr, nullptr, nullptr, nullptr);
+        distribute_n2(settings, state, Rc, Rd, &Fij8, grid, nullptr, nullptr, nullptr, nullptr, nullptr);
 
         const array3_mds Fij9 = {lce * CE[0], lce * CE[1], lce * CE[2]};
-        distribute_n2(settings, state, Rc, Re, &Fij9, grid, nullptr, nullptr, nullptr, nullptr);
+        distribute_n2(settings, state, Rc, Re, &Fij9, grid, nullptr, nullptr, nullptr, nullptr, nullptr);
 
         const array3_mds Fij10= {lde * DE[0], lde * DE[1], lde * DE[2]};
-        distribute_n2(settings, state, Rd, Re, &Fij10, grid, nullptr, nullptr, nullptr, nullptr);
+        distribute_n2(settings, state, Rd, Re, &Fij10, grid, nullptr, nullptr, nullptr, nullptr, nullptr);
     } else if (settings.fdecomp == mds_gld) {
         const array3_mds Fij1 = {
             (Fa[0]-Fb[0])/realval_mds(5.0), (Fa[1]-Fb[1])/realval_mds(5.0), (Fa[2]-Fb[2])/realval_mds(5.0)};
-        distribute_n2(settings, state, Ra, Rb, &Fij1, grid, nullptr, nullptr, nullptr, nullptr);
+        distribute_n2(settings, state, Ra, Rb, &Fij1, grid, nullptr, nullptr, nullptr, nullptr, nullptr);
 
         const array3_mds Fij2 = {
             (Fa[0]-Fc[0])/realval_mds(5.0), (Fa[1]-Fc[1])/realval_mds(5.0), (Fa[2]-Fc[2])/realval_mds(5.0)};
-        distribute_n2(settings, state, Ra, Rc, &Fij2, grid, nullptr, nullptr, nullptr, nullptr);
+        distribute_n2(settings, state, Ra, Rc, &Fij2, grid, nullptr, nullptr, nullptr, nullptr, nullptr);
 
         const array3_mds Fij3 = {
             (Fa[0]-Fd[0])/realval_mds(5.0), (Fa[1]-Fd[1])/realval_mds(5.0), (Fa[2]-Fd[2])/realval_mds(5.0)};
-        distribute_n2(settings, state, Ra, Rd, &Fij3, grid, nullptr, nullptr, nullptr, nullptr);
+        distribute_n2(settings, state, Ra, Rd, &Fij3, grid, nullptr, nullptr, nullptr, nullptr, nullptr);
 
         const array3_mds Fij4 = {
             (Fa[0]-Fe[0])/realval_mds(5.0), (Fa[1]-Fe[1])/realval_mds(5.0), (Fa[2]-Fe[2])/realval_mds(5.0)};
-        distribute_n2(settings, state, Ra, Re, &Fij4, grid, nullptr, nullptr, nullptr, nullptr);
+        distribute_n2(settings, state, Ra, Re, &Fij4, grid, nullptr, nullptr, nullptr, nullptr, nullptr);
 
         const array3_mds Fij5 = {
             (Fb[0]-Fc[0])/realval_mds(5.0), (Fb[1]-Fc[1])/realval_mds(5.0), (Fb[2]-Fc[2])/realval_mds(5.0)};
-        distribute_n2(settings, state, Rb, Rc, &Fij5, grid, nullptr, nullptr, nullptr, nullptr);
+        distribute_n2(settings, state, Rb, Rc, &Fij5, grid, nullptr, nullptr, nullptr, nullptr, nullptr);
 
         const array3_mds Fij6 = {
             (Fb[0]-Fd[0])/realval_mds(5.0), (Fb[1]-Fd[1])/realval_mds(5.0), (Fb[2]-Fd[2])/realval_mds(5.0)};
-        distribute_n2(settings, state, Rb, Rd, &Fij6, grid, nullptr, nullptr, nullptr, nullptr);
+        distribute_n2(settings, state, Rb, Rd, &Fij6, grid, nullptr, nullptr, nullptr, nullptr, nullptr);
 
         const array3_mds Fij7 = {
             (Fb[0]-Fe[0])/realval_mds(5.0), (Fb[1]-Fe[1])/realval_mds(5.0), (Fb[2]-Fe[2])/realval_mds(5.0)};
-        distribute_n2(settings, state, Rb, Re, &Fij7, grid, nullptr, nullptr, nullptr, nullptr);
+        distribute_n2(settings, state, Rb, Re, &Fij7, grid, nullptr, nullptr, nullptr, nullptr, nullptr);
 
         const array3_mds Fij8 = {
             (Fc[0]-Fd[0])/realval_mds(5.0), (Fc[1]-Fd[1])/realval_mds(5.0), (Fc[2]-Fd[2])/realval_mds(5.0)};
-        distribute_n2(settings, state, Rc, Rd, &Fij8, grid, nullptr, nullptr, nullptr, nullptr);
+        distribute_n2(settings, state, Rc, Rd, &Fij8, grid, nullptr, nullptr, nullptr, nullptr, nullptr);
 
         const array3_mds Fij9 = {
             (Fc[0]-Fe[0])/realval_mds(5.0), (Fc[1]-Fe[1])/realval_mds(5.0), (Fc[2]-Fe[2])/realval_mds(5.0)};
-        distribute_n2(settings, state, Rc, Re, &Fij9, grid, nullptr, nullptr, nullptr, nullptr);
+        distribute_n2(settings, state, Rc, Re, &Fij9, grid, nullptr, nullptr, nullptr, nullptr, nullptr);
 
         const array3_mds Fij10 = {
             (Fd[0]-Fe[0])/realval_mds(5.0), (Fd[1]-Fe[1])/realval_mds(5.0), (Fd[2]-Fe[2])/realval_mds(5.0)};
-        distribute_n2(settings, state, Rd, Re, &Fij10, grid, nullptr, nullptr, nullptr, nullptr);
+        distribute_n2(settings, state, Rd, Re, &Fij10, grid, nullptr, nullptr, nullptr, nullptr, nullptr);
     }
 }
 
@@ -852,7 +845,7 @@ static void decompose_nbody(
 
                 const real_mds lab = x(col, 0);
                 const array3_mds Fab = {lab*AB[0], lab*AB[1], lab*AB[2]};
-                distribute_n2(settings, state, Ra, Rb, &Fab, stress_grid, nullptr, nullptr, nullptr, nullptr);
+                distribute_n2(settings, state, Ra, Rb, &Fab, stress_grid, nullptr, nullptr, nullptr, nullptr, nullptr);
 
                 col += 1;
             }
@@ -869,7 +862,7 @@ static void decompose_nbody(
                 array3_mds Fab = {0};
                 diffarray3(Fa, Fb, Fab);
                 scalearray3(Fab, realval_mds(1.0)/static_cast<real_mds>(nAtoms), Fab);
-                distribute_n2(settings, state, Ra, Rb, &Fab, stress_grid, nullptr, nullptr, nullptr, nullptr);
+                distribute_n2(settings, state, Ra, Rb, &Fab, stress_grid, nullptr, nullptr, nullptr, nullptr, nullptr);
 
                 col += 1;
             }
@@ -1662,12 +1655,7 @@ void StressGrid::DistributeInteraction(
                 const array3_mds Ra = {(real_mds)R[0][0], (real_mds)R[0][1], (real_mds)R[0][2]};
                 const array3_mds Rb = {(real_mds)R[1][0], (real_mds)R[1][1], (real_mds)R[1][2]};
                 const array3_mds Fa = {(real_mds)F[0][0], (real_mds)F[0][1], (real_mds)F[0][2]};
-                if (nullptr != phi && nullptr != kappa) {
-                    const real_mds kappa_phi[2] = {(real_mds)(*phi), (real_mds)(*kappa)};
-                    distribute_n2(this->settings, this->state, Ra, Rb, &Fa, stress_grid, &Ra, &Rb, kappa_phi, elast_grid);
-                } else {
-                    distribute_n2(this->settings, this->state, Ra, Rb, &Fa, stress_grid, nullptr, nullptr, nullptr, nullptr);
-                }
+                distribute_n2(this->settings, this->state, Ra, Rb, &Fa, stress_grid, &Ra, &Rb, phi, kappa, elast_grid);
             } else if (3 == nAtoms) {
                 decompose_n3(this->settings, this->state, R, F, stress_grid, phi, kappa, elast_grid);
             } else if (-3 == nAtoms) {
