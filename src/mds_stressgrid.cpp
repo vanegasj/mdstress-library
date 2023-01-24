@@ -154,26 +154,44 @@ static inline void distribute_observables_3d(
             state.gridsp[6]*dt1,
         };
 
+        const real_mds sf1 = C*( D[0] + D[1] + D[2] + D[3] + D[4] + D[5] + D[6] + D[7]);
+        const real_mds sf2 = C*(-D[0] - D[1] - D[2] + D[3] - D[4] + D[5] + D[6] + D[7]);
+        const real_mds sf3 = C*(-D[0] - D[1] + D[2] - D[3] + D[4] - D[5] + D[6] + D[7]);
+        const real_mds sf4 = C*( D[0] + D[1] - D[2] - D[3] - D[4] - D[5] + D[6] + D[7]);
+        const real_mds sf5 = C*(-D[0] + D[1] - D[2] - D[3] + D[4] + D[5] - D[6] + D[7]);
+        const real_mds sf6 = C*( D[0] - D[1] + D[2] - D[3] - D[4] + D[5] - D[6] + D[7]);
+        const real_mds sf7 = C*( D[0] - D[1] - D[2] + D[3] + D[4] - D[5] - D[6] + D[7]);
+        const real_mds sf8 = C*(-D[0] + D[1] + D[2] + D[3] - D[4] - D[5] - D[6] + D[7]);
+
+        const int ind1 = iip1 + jjp1 + kkp1;
+        const int ind2 = iip1 + jjp1 + kkm1;
+        const int ind3 = iip1 + jjm1 + kkp1;
+        const int ind4 = iip1 + jjm1 + kkm1;
+        const int ind5 = iim1 + jjp1 + kkp1;
+        const int ind6 = iim1 + jjp1 + kkm1;
+        const int ind7 = iim1 + jjm1 + kkp1;
+        const int ind8 = iim1 + jjm1 + kkm1;
+
         // perform the sums into the grid
         if (nullptr != stress_grid) {
-            scalesummatrix3(C*( D[0] + D[1] + D[2] + D[3] + D[4] + D[5] + D[6] + D[7]), *stress, stress_grid[iip1 + jjp1 + kkp1]);
-            scalesummatrix3(C*(-D[0] - D[1] - D[2] + D[3] - D[4] + D[5] + D[6] + D[7]), *stress, stress_grid[iip1 + jjp1 + kkm1]);
-            scalesummatrix3(C*(-D[0] - D[1] + D[2] - D[3] + D[4] - D[5] + D[6] + D[7]), *stress, stress_grid[iip1 + jjm1 + kkp1]);
-            scalesummatrix3(C*( D[0] + D[1] - D[2] - D[3] - D[4] - D[5] + D[6] + D[7]), *stress, stress_grid[iip1 + jjm1 + kkm1]);
-            scalesummatrix3(C*(-D[0] + D[1] - D[2] - D[3] + D[4] + D[5] - D[6] + D[7]), *stress, stress_grid[iim1 + jjp1 + kkp1]);
-            scalesummatrix3(C*( D[0] - D[1] + D[2] - D[3] - D[4] + D[5] - D[6] + D[7]), *stress, stress_grid[iim1 + jjp1 + kkm1]);
-            scalesummatrix3(C*( D[0] - D[1] - D[2] + D[3] + D[4] - D[5] - D[6] + D[7]), *stress, stress_grid[iim1 + jjm1 + kkp1]);
-            scalesummatrix3(C*(-D[0] + D[1] + D[2] + D[3] - D[4] - D[5] - D[6] + D[7]), *stress, stress_grid[iim1 + jjm1 + kkm1]);
+            scalesummatrix3(sf1, *stress, stress_grid[ind1]);
+            scalesummatrix3(sf2, *stress, stress_grid[ind2]);
+            scalesummatrix3(sf3, *stress, stress_grid[ind3]);
+            scalesummatrix3(sf4, *stress, stress_grid[ind4]);
+            scalesummatrix3(sf5, *stress, stress_grid[ind5]);
+            scalesummatrix3(sf6, *stress, stress_grid[ind6]);
+            scalesummatrix3(sf7, *stress, stress_grid[ind7]);
+            scalesummatrix3(sf8, *stress, stress_grid[ind8]);
         }
         if (nullptr != elast_grid) {
-            scalesummatrix6(C*( D[0] + D[1] + D[2] + D[3] + D[4] + D[5] + D[6] + D[7]), *elast, elast_grid[iip1 + jjp1 + kkp1]);
-            scalesummatrix6(C*(-D[0] - D[1] - D[2] + D[3] - D[4] + D[5] + D[6] + D[7]), *elast, elast_grid[iip1 + jjp1 + kkm1]);
-            scalesummatrix6(C*(-D[0] - D[1] + D[2] - D[3] + D[4] - D[5] + D[6] + D[7]), *elast, elast_grid[iip1 + jjm1 + kkp1]);
-            scalesummatrix6(C*( D[0] + D[1] - D[2] - D[3] - D[4] - D[5] + D[6] + D[7]), *elast, elast_grid[iip1 + jjm1 + kkm1]);
-            scalesummatrix6(C*(-D[0] + D[1] - D[2] - D[3] + D[4] + D[5] - D[6] + D[7]), *elast, elast_grid[iim1 + jjp1 + kkp1]);
-            scalesummatrix6(C*( D[0] - D[1] + D[2] - D[3] - D[4] + D[5] - D[6] + D[7]), *elast, elast_grid[iim1 + jjp1 + kkm1]);
-            scalesummatrix6(C*( D[0] - D[1] - D[2] + D[3] + D[4] - D[5] - D[6] + D[7]), *elast, elast_grid[iim1 + jjm1 + kkp1]);
-            scalesummatrix6(C*(-D[0] + D[1] + D[2] + D[3] - D[4] - D[5] - D[6] + D[7]), *elast, elast_grid[iim1 + jjm1 + kkm1]);
+            scalesummatrix6(sf1, *elast, elast_grid[ind1]);
+            scalesummatrix6(sf2, *elast, elast_grid[ind2]);
+            scalesummatrix6(sf3, *elast, elast_grid[ind3]);
+            scalesummatrix6(sf4, *elast, elast_grid[ind4]);
+            scalesummatrix6(sf5, *elast, elast_grid[ind5]);
+            scalesummatrix6(sf6, *elast, elast_grid[ind6]);
+            scalesummatrix6(sf7, *elast, elast_grid[ind7]);
+            scalesummatrix6(sf8, *elast, elast_grid[ind8]);
         }
 
         d_cgrid[iX] -= c[iX] * state.gridsp[iX];
@@ -231,13 +249,17 @@ static inline void distribute_observables_1d(
         // the composite constants in terms of i, j, k
         const real_mds D1 = state.gridsp[5-state.gridDims]*(realval_mds(2.0)*d_cgrid*dt1+diff[state.gridDims]*dt2);
         const real_mds D2 = state.gridsp[6]*dt1;
+
+        const real_mds sf1 = C*( D1 + D2);
+        const real_mds sf2 = C*(-D1 + D2);
+
         if (nullptr != stress_grid) {
-            scalesummatrix3(C*( D1 + D2), *stress, stress_grid[p1]);
-            scalesummatrix3(C*(-D1 + D2), *stress, stress_grid[m1]);
+            scalesummatrix3(sf1, *stress, stress_grid[p1]);
+            scalesummatrix3(sf2, *stress, stress_grid[m1]);
         }
         if (nullptr != elast_grid) {
-            scalesummatrix6(C*( D1 + D2), *elast, elast_grid[p1]);
-            scalesummatrix6(C*(-D1 + D2), *elast, elast_grid[m1]);
+            scalesummatrix6(sf1, *elast, elast_grid[p1]);
+            scalesummatrix6(sf2, *elast, elast_grid[m1]);
         }
         
         d_cgrid -= c * state.gridsp[state.gridDims];
@@ -271,7 +293,7 @@ static inline void distribute_n2(
 #endif
 
     // stress is relatively inexpensive so just do it here to reduce cases later
-    matrix3_mds stress = {0};
+    matrix3_mds stress;
     if (nullptr != F) {
         stress[0][0] = F[0][0]*xij[0];
         stress[0][1] = F[0][0]*xij[1];
@@ -304,40 +326,49 @@ static inline void distribute_n2(
         const real_mds rinv = realval_mds(1.0)/xij_norm;
         const real_mds rinv2 = real_mds(kappa[0])*rinv/xkl_norm;
         const real_mds rinv3 = real_mds(phi[0])*rinv*rinv*rinv;
+
         const real_mds xij00 = xij[0]*xij[0];
         const real_mds xij11 = xij[1]*xij[1];
         const real_mds xij22 = xij[2]*xij[2];
         const real_mds xij01 = xij[0]*xij[1];
         const real_mds xij02 = xij[0]*xij[2];
         const real_mds xij12 = xij[1]*xij[2];
-        const real_mds xkl00 = xkl[0]*xkl[0];
-        const real_mds xkl11 = xkl[1]*xkl[1];
-        const real_mds xkl22 = xkl[2]*xkl[2];
-        const real_mds xkl01 = xkl[0]*xkl[1];
-        const real_mds xkl02 = xkl[0]*xkl[2];
-        const real_mds xkl12 = xkl[1]*xkl[2];
+        
+        const real_mds xij00r = xij00*rinv3;
+        const real_mds xij11r = xij11*rinv3;
+        const real_mds xij22r = xij22*rinv3;
+        const real_mds xij01r = xij01*rinv3;
+        const real_mds xij02r = xij02*rinv3;
+        const real_mds xij12r = xij12*rinv3;
 
-        elast[0][0] = xij00*xkl00*rinv2 - xij00*xij00*rinv3;
-        elast[0][1] = xij00*xkl11*rinv2 - xij00*xij11*rinv3;
-        elast[0][2] = xij00*xkl22*rinv2 - xij00*xij22*rinv3;
-        elast[0][3] = xij00*xkl12*rinv2 - xij00*xij12*rinv3;
-        elast[0][4] = xij00*xkl02*rinv2 - xij00*xij02*rinv3;
-        elast[0][5] = xij00*xkl01*rinv2 - xij00*xij01*rinv3;
-        elast[1][1] = xij11*xkl11*rinv2 - xij11*xij11*rinv3;
-        elast[1][2] = xij11*xkl22*rinv2 - xij11*xij22*rinv3;
-        elast[1][3] = xij11*xkl12*rinv2 - xij11*xij12*rinv3;
-        elast[1][4] = xij11*xkl02*rinv2 - xij11*xij02*rinv3;
-        elast[1][5] = xij11*xkl01*rinv2 - xij11*xij01*rinv3;
-        elast[2][2] = xij22*xkl22*rinv2 - xij22*xij22*rinv3;
-        elast[2][3] = xij22*xkl12*rinv2 - xij22*xij12*rinv3;
-        elast[2][4] = xij22*xkl02*rinv2 - xij22*xij02*rinv3;
-        elast[2][5] = xij22*xkl01*rinv2 - xij22*xij01*rinv3;
-        elast[3][3] = xij12*xkl12*rinv2 - xij12*xij12*rinv3;
-        elast[3][4] = xij12*xkl02*rinv2 - xij12*xij02*rinv3;
-        elast[3][5] = xij12*xkl01*rinv2 - xij12*xij01*rinv3;
-        elast[4][4] = xij02*xkl02*rinv2 - xij02*xij02*rinv3;
-        elast[4][5] = xij02*xkl01*rinv2 - xij02*xij01*rinv3;
-        elast[5][5] = xij01*xkl01*rinv2 - xij01*xij01*rinv3;
+        const real_mds xkl00r = xkl[0]*xkl[0]*rinv2;
+        const real_mds xkl11r = xkl[1]*xkl[1]*rinv2;
+        const real_mds xkl22r = xkl[2]*xkl[2]*rinv2;
+        const real_mds xkl01r = xkl[0]*xkl[1]*rinv2;
+        const real_mds xkl02r = xkl[0]*xkl[2]*rinv2;
+        const real_mds xkl12r = xkl[1]*xkl[2]*rinv2;
+
+        elast[0][0] = xij00*xkl00r - xij00*xij00r;
+        elast[0][1] = xij00*xkl11r - xij00*xij11r;
+        elast[0][2] = xij00*xkl22r - xij00*xij22r;
+        elast[0][3] = xij00*xkl12r - xij00*xij12r;
+        elast[0][4] = xij00*xkl02r - xij00*xij02r;
+        elast[0][5] = xij00*xkl01r - xij00*xij01r;
+        elast[1][1] = xij11*xkl11r - xij11*xij11r;
+        elast[1][2] = xij11*xkl22r - xij11*xij22r;
+        elast[1][3] = xij11*xkl12r - xij11*xij12r;
+        elast[1][4] = xij11*xkl02r - xij11*xij02r;
+        elast[1][5] = xij11*xkl01r - xij11*xij01r;
+        elast[2][2] = xij22*xkl22r - xij22*xij22r;
+        elast[2][3] = xij22*xkl12r - xij22*xij12r;
+        elast[2][4] = xij22*xkl02r - xij22*xij02r;
+        elast[2][5] = xij22*xkl01r - xij22*xij01r;
+        elast[3][3] = xij12*xkl12r - xij12*xij12r;
+        elast[3][4] = xij12*xkl02r - xij12*xij02r;
+        elast[3][5] = xij12*xkl01r - xij12*xij01r;
+        elast[4][4] = xij02*xkl02r - xij02*xij02r;
+        elast[4][5] = xij02*xkl01r - xij02*xij01r;
+        elast[5][5] = xij01*xkl01r - xij01*xij01r;
     } else {
         elast_grid = nullptr;
     }
@@ -402,7 +433,7 @@ static void decompose_n3(
         };
 
         Eigen::JacobiSVD<Eigen::Matrix<double,9,3>> svd;
-        svd.compute(M_eig, Eigen::ComputeFullU | Eigen::ComputeFullV);
+        svd.compute(M_eig, Eigen::ComputeThinU | Eigen::ComputeThinV);
         const Eigen::Matrix<double,3,1> x = svd.solve(b_eig);
 
         const real_mds lab = (real_mds)x(0,0);
@@ -516,7 +547,7 @@ static void decompose_n4(
         };
         
         Eigen::JacobiSVD<Eigen::Matrix<double,12,6>> svd;
-        svd.compute(M_eig, Eigen::ComputeFullU | Eigen::ComputeFullV);
+        svd.compute(M_eig, Eigen::ComputeThinU | Eigen::ComputeThinV);
         const Eigen::Matrix<double,6,1> x = svd.solve(b_eig);
 
         // Sum the 6 contributions to the stress
@@ -668,7 +699,7 @@ static void decompose_n5(
         };
         
         Eigen::JacobiSVD<Eigen::Matrix<double,15,10>> svd;
-        svd.compute(M_eig, Eigen::ComputeFullU | Eigen::ComputeFullV);
+        svd.compute(M_eig, Eigen::ComputeThinU | Eigen::ComputeThinV);
         Eigen::Matrix<double,10,1> x = svd.solve(b_eig);
 
         // If cCFD project the least squares CFD to the shape space
