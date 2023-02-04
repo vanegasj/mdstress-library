@@ -45,13 +45,8 @@ namespace mds
     
     #define mds_units   16.6054
 
-    #define mds_spat    0
-    #define mds_atom    1
-
-
     #define mds_ccfd    0
     #define mds_ncfd    1
-    #define mds_gld     2
 
     // stress contributions
     #define mds_none    0x0000
@@ -142,6 +137,5 @@ namespace mds
 
     class  StressGrid;
     class  StressGridPython;
-    class  Lapack;
 }
 #endif // mds_defines_h

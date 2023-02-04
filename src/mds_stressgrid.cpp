@@ -25,7 +25,6 @@
 #include "mds_stressgrid.h"
 #include "mds_barrier.h"
 #include "mds_error.h"
-#include "voro++.hh"
 
 // using Eigen to do nbody force decompositions
 #include <Eigen/Dense>
@@ -111,8 +110,7 @@ static inline void distribute_observables_3d(
     real_mds oldt = 0.0; 
     
     const int iterations = c[0]*(i2[0]-i1[0]) + c[1]*(i2[1]-i1[1]) + c[2]*(i2[2]-i1[2]);
-    for (int count = 0; count <= iterations; ++count)
-    {
+    for (int count = 0; count <= iterations; ++count) {
         // figure out index
         const int cmp0x = ((t[0]<t[1]+mds_eps) + (t[0]<t[2]+mds_eps))/2;
         const int cmp1x = ((t[1]<t[0]+mds_eps) + (t[1]<t[2]+mds_eps))/2;
@@ -231,8 +229,7 @@ static inline void distribute_observables_1d(
 
     // fix the number of iterations
     const int iterations = c*(i2-i1);
-    for (int count = 0; count <= iterations; ++count)
-    {
+    for (int count = 0; count <= iterations; ++count) {
         // there is always iterations+1, where the last iteration deals
         // with any residual
         real_mds newt = (iterations == count) ? realval_mds(1.0) : t_c1-in*t_c2;
@@ -476,19 +473,7 @@ static void decompose_n3(
             distribute_n2(settings, state, Ra, Rc, &Fij2, stress_grid, nullptr, nullptr, nullptr, nullptr, nullptr);
             distribute_n2(settings, state, Rb, Rc, &Fij3, stress_grid, nullptr, nullptr, nullptr, nullptr, nullptr);
         }
-    } else if (settings.fdecomp == mds_gld) {
-        array3_mds Fij1 = {
-            (Fa[0]-Fb[0])/realval_mds(3.0), (Fa[1]-Fb[1])/realval_mds(3.0), (Fa[2]-Fb[2])/realval_mds(3.0)};
-        distribute_n2(settings, state, Ra, Rb, &Fij1, stress_grid, nullptr, nullptr, nullptr, nullptr, nullptr);
-
-        array3_mds Fij2 = {
-            (Fa[0]-Fc[0])/realval_mds(3.0), (Fa[1]-Fc[1])/realval_mds(3.0), (Fa[2]-Fc[2])/realval_mds(3.0)};
-        distribute_n2(settings, state, Ra, Rc, &Fij2, stress_grid, nullptr, nullptr, nullptr, nullptr, nullptr);
-
-        array3_mds Fij3 = {
-            (Fb[0]-Fc[0])/realval_mds(3.0), (Fb[1]-Fc[1])/realval_mds(3.0), (Fb[2]-Fc[2])/realval_mds(3.0)};
-        distribute_n2(settings, state, Rb, Rc, &Fij3, stress_grid, nullptr, nullptr, nullptr, nullptr, nullptr);
-    }
+    } 
 }
 
 static void decompose_n4(
@@ -574,30 +559,6 @@ static void decompose_n4(
         distribute_n2(settings, state, Rb, Rd, &Fij5, grid, nullptr, nullptr, nullptr, nullptr, nullptr);
 
         const array3_mds Fij6 = {lcd * CD[0], lcd * CD[1], lcd * CD[2]};
-        distribute_n2(settings, state, Rc, Rd, &Fij6, grid, nullptr, nullptr, nullptr, nullptr, nullptr);
-    } else if (settings.fdecomp == mds_gld) {
-        const array3_mds Fij1 = {
-            (Fa[0]-Fb[0])/realval_mds(4.0), (Fa[1]-Fb[1])/realval_mds(4.0), (Fa[2]-Fb[2])/realval_mds(4.0)};
-        distribute_n2(settings, state, Ra, Rb, &Fij1, grid, nullptr, nullptr, nullptr, nullptr, nullptr);
-
-        const array3_mds Fij2 = {
-            (Fa[0]-Fc[0])/realval_mds(4.0), (Fa[1]-Fc[1])/realval_mds(4.0), (Fa[2]-Fc[2])/realval_mds(4.0)};
-        distribute_n2(settings, state, Ra, Rc, &Fij2, grid, nullptr, nullptr, nullptr, nullptr, nullptr);
-
-        const array3_mds Fij3 = {
-            (Fa[0]-Fd[0])/realval_mds(4.0), (Fa[1]-Fd[1])/realval_mds(4.0), (Fa[2]-Fd[2])/realval_mds(4.0)};
-        distribute_n2(settings, state, Ra, Rd, &Fij3, grid, nullptr, nullptr, nullptr, nullptr, nullptr);
-
-        const array3_mds Fij4 = {
-            (Fb[0]-Fc[0])/realval_mds(4.0), (Fb[1]-Fc[1])/realval_mds(4.0), (Fb[2]-Fc[2])/realval_mds(4.0)};
-        distribute_n2(settings, state, Rb, Rc, &Fij4, grid, nullptr, nullptr, nullptr, nullptr, nullptr);
-
-        const array3_mds Fij5 = {
-            (Fb[0]-Fd[0])/realval_mds(4.0), (Fb[1]-Fd[1])/realval_mds(4.0), (Fb[2]-Fd[2])/realval_mds(4.0)};
-        distribute_n2(settings, state, Rb, Rd, &Fij5, grid, nullptr, nullptr, nullptr, nullptr, nullptr);
-
-        const array3_mds Fij6 = {
-            (Fc[0]-Fd[0])/realval_mds(4.0), (Fc[1]-Fd[1])/realval_mds(4.0), (Fc[2]-Fd[2])/realval_mds(4.0)};
         distribute_n2(settings, state, Rc, Rd, &Fij6, grid, nullptr, nullptr, nullptr, nullptr, nullptr);
     }
 }
@@ -759,46 +720,6 @@ static void decompose_n5(
 
         const array3_mds Fij10= {lde * DE[0], lde * DE[1], lde * DE[2]};
         distribute_n2(settings, state, Rd, Re, &Fij10, grid, nullptr, nullptr, nullptr, nullptr, nullptr);
-    } else if (settings.fdecomp == mds_gld) {
-        const array3_mds Fij1 = {
-            (Fa[0]-Fb[0])/realval_mds(5.0), (Fa[1]-Fb[1])/realval_mds(5.0), (Fa[2]-Fb[2])/realval_mds(5.0)};
-        distribute_n2(settings, state, Ra, Rb, &Fij1, grid, nullptr, nullptr, nullptr, nullptr, nullptr);
-
-        const array3_mds Fij2 = {
-            (Fa[0]-Fc[0])/realval_mds(5.0), (Fa[1]-Fc[1])/realval_mds(5.0), (Fa[2]-Fc[2])/realval_mds(5.0)};
-        distribute_n2(settings, state, Ra, Rc, &Fij2, grid, nullptr, nullptr, nullptr, nullptr, nullptr);
-
-        const array3_mds Fij3 = {
-            (Fa[0]-Fd[0])/realval_mds(5.0), (Fa[1]-Fd[1])/realval_mds(5.0), (Fa[2]-Fd[2])/realval_mds(5.0)};
-        distribute_n2(settings, state, Ra, Rd, &Fij3, grid, nullptr, nullptr, nullptr, nullptr, nullptr);
-
-        const array3_mds Fij4 = {
-            (Fa[0]-Fe[0])/realval_mds(5.0), (Fa[1]-Fe[1])/realval_mds(5.0), (Fa[2]-Fe[2])/realval_mds(5.0)};
-        distribute_n2(settings, state, Ra, Re, &Fij4, grid, nullptr, nullptr, nullptr, nullptr, nullptr);
-
-        const array3_mds Fij5 = {
-            (Fb[0]-Fc[0])/realval_mds(5.0), (Fb[1]-Fc[1])/realval_mds(5.0), (Fb[2]-Fc[2])/realval_mds(5.0)};
-        distribute_n2(settings, state, Rb, Rc, &Fij5, grid, nullptr, nullptr, nullptr, nullptr, nullptr);
-
-        const array3_mds Fij6 = {
-            (Fb[0]-Fd[0])/realval_mds(5.0), (Fb[1]-Fd[1])/realval_mds(5.0), (Fb[2]-Fd[2])/realval_mds(5.0)};
-        distribute_n2(settings, state, Rb, Rd, &Fij6, grid, nullptr, nullptr, nullptr, nullptr, nullptr);
-
-        const array3_mds Fij7 = {
-            (Fb[0]-Fe[0])/realval_mds(5.0), (Fb[1]-Fe[1])/realval_mds(5.0), (Fb[2]-Fe[2])/realval_mds(5.0)};
-        distribute_n2(settings, state, Rb, Re, &Fij7, grid, nullptr, nullptr, nullptr, nullptr, nullptr);
-
-        const array3_mds Fij8 = {
-            (Fc[0]-Fd[0])/realval_mds(5.0), (Fc[1]-Fd[1])/realval_mds(5.0), (Fc[2]-Fd[2])/realval_mds(5.0)};
-        distribute_n2(settings, state, Rc, Rd, &Fij8, grid, nullptr, nullptr, nullptr, nullptr, nullptr);
-
-        const array3_mds Fij9 = {
-            (Fc[0]-Fe[0])/realval_mds(5.0), (Fc[1]-Fe[1])/realval_mds(5.0), (Fc[2]-Fe[2])/realval_mds(5.0)};
-        distribute_n2(settings, state, Rc, Re, &Fij9, grid, nullptr, nullptr, nullptr, nullptr, nullptr);
-
-        const array3_mds Fij10 = {
-            (Fd[0]-Fe[0])/realval_mds(5.0), (Fd[1]-Fe[1])/realval_mds(5.0), (Fd[2]-Fe[2])/realval_mds(5.0)};
-        distribute_n2(settings, state, Rd, Re, &Fij10, grid, nullptr, nullptr, nullptr, nullptr, nullptr);
     }
 }
 
@@ -881,23 +802,6 @@ static void decompose_nbody(
                 col += 1;
             }
         }
-    } else if(settings.fdecomp == mds_gld) {
-        int col = 0;
-        for (int ai = 0; ai < nAtoms; ++ai) {
-            const array3_mds Ra = {R[ai][0], R[ai][1], R[ai][2]};
-            const array3_mds Fa = {F[ai][0], F[ai][1], F[ai][2]};
-            for (int bi = ai+1; bi < nAtoms; ++bi) {
-                const array3_mds Rb = {R[bi][0], R[bi][1], R[bi][2]};
-                const array3_mds Fb = {F[bi][0], F[bi][1], F[bi][2]};
-                
-                array3_mds Fab = {0};
-                diffarray3(Fa, Fb, Fab);
-                scalearray3(Fab, realval_mds(1.0)/static_cast<real_mds>(nAtoms), Fab);
-                distribute_n2(settings, state, Ra, Rb, &Fab, stress_grid, nullptr, nullptr, nullptr, nullptr, nullptr);
-
-                col += 1;
-            }
-        }
     }
 }
 
@@ -928,44 +832,34 @@ void StressGrid::Init()
     
     // Check some common settings before attempting initialization
     this->state.ierr = MDS_OK;
-    if (mds_spat == this->settings.spatatom) {
-        // grid size must always be greater than or equal to 0
-        this->state.ierr |= checkError(
-                this->settings.gridCells[0] < 0,
-                "SetNumberOfGridCellsX(int) - int must not be less than 0");
-        this->state.ierr |= checkError(
-                this->settings.gridCells[1] < 0,
-                "SetNumberOfGridCellsY(int) - int must not be less than 0");
-        this->state.ierr |= checkError(
-                this->settings.gridCells[2] < 0,
-                "SetNumberOfGridCellsZ(int) - int must not be less than 0");
 
-        // if grid size is 0 in all dimensions, we will use spacing to generate grid size
-        // and so we check it here
-        if (0 == this->settings.gridCells[0] && 0 == this->settings.gridCells[1] && 0 == this->settings.gridCells[2]) {
-            this->state.ierr |= checkError(
-                    this->settings.gridSpacing < mds_eps,
-                    "SetSpacing(float) - float must be greater than mds_eps");
-            this->state.ierr |= checkError(
-                    iszeromatrix3(this->state.box),
-                    "SetBox(mat3,int) - all mat3 elements must be greater than mds_eps");
-        }
-        
-        // mds_spat requires a force decomposition algorithm be selected
+    // grid size must always be greater than or equal to 0
+    this->state.ierr |= checkError(
+            this->settings.gridCells[0] < 0,
+            "SetNumberOfGridCellsX(int) - int must not be less than 0");
+    this->state.ierr |= checkError(
+            this->settings.gridCells[1] < 0,
+            "SetNumberOfGridCellsY(int) - int must not be less than 0");
+    this->state.ierr |= checkError(
+            this->settings.gridCells[2] < 0,
+            "SetNumberOfGridCellsZ(int) - int must not be less than 0");
+
+    // if grid size is 0 in all dimensions, we will use spacing to generate grid size
+    // and so we check it here
+    if (0 == this->settings.gridCells[0] && 0 == this->settings.gridCells[1] && 0 == this->settings.gridCells[2]) {
         this->state.ierr |= checkError(
-                mds_ccfd != this->settings.fdecomp &&
-                mds_ncfd != this->settings.fdecomp &&
-                mds_gld  != this->settings.fdecomp,
-                "SetForceDecomposition(type) - type must be mds_{ccfd, ncfd or gld}");
-    } else if (mds_atom == this->settings.spatatom) {
+                this->settings.gridSpacing < mds_eps,
+                "SetSpacing(float) - float must be greater than mds_eps");
         this->state.ierr |= checkError(
-                this->settings.nAtoms <= 0,
-                "SetNumberOfAtoms(int) - int must be greater than 0");
-    } else /* not mds_spat or mds_atom */ {
-        this->state.ierr |= checkError(
-                true,
-                "SetStressType(type) - type must be mds_spat or mds_atom");
+                iszeromatrix3(this->state.box),
+                "SetBox(mat3,int) - all mat3 elements must be greater than mds_eps");
     }
+    
+    // a force decomposition algorithm needs to be selected
+    this->state.ierr |= checkError(
+            mds_ccfd != this->settings.fdecomp &&
+            mds_ncfd != this->settings.fdecomp,
+            "SetForceDecomposition(type) - type must be mds_{ccfd, ncfd or gld}");
 
     // parameters unrelated to stress algorithm and md
     this->state.ierr |= checkError(
@@ -977,39 +871,23 @@ void StressGrid::Init()
         this->Clear();
     
         // Set grid sizes before allocation
-        if (this->settings.spatatom == mds_spat) {
-            if(this->settings.gridCells[0] == 0)
-                this->settings.gridCells[0] = static_cast<int>(this->state.box[0][0]/this->settings.gridSpacing);
-            if(this->settings.gridCells[1] == 0)
-                this->settings.gridCells[1] = static_cast<int>(this->state.box[1][1]/this->settings.gridSpacing);
-            if(this->settings.gridCells[2] == 0)
-                this->settings.gridCells[2] = static_cast<int>(this->state.box[2][2]/this->settings.gridSpacing);
-            
-            this->state.nCells = this->settings.gridCells[0]*this->settings.gridCells[1]*this->settings.gridCells[2];
+        if(this->settings.gridCells[0] == 0)
+            this->settings.gridCells[0] = static_cast<int>(this->state.box[0][0]/this->settings.gridSpacing);
+        if(this->settings.gridCells[1] == 0)
+            this->settings.gridCells[1] = static_cast<int>(this->state.box[1][1]/this->settings.gridSpacing);
+        if(this->settings.gridCells[2] == 0)
+            this->settings.gridCells[2] = static_cast<int>(this->state.box[2][2]/this->settings.gridSpacing);
+        
+        this->state.nCells = this->settings.gridCells[0]*this->settings.gridCells[1]*this->settings.gridCells[2];
 
-            if (this->state.nCells == this->settings.gridCells[0]) {
-                this->state.gridDims = mds_griddim_xxx;
-            } else if (this->state.nCells == this->settings.gridCells[1]) {
-                this->state.gridDims = mds_griddim_yyy;
-            } else if (this->state.nCells == this->settings.gridCells[2]) {
-                this->state.gridDims = mds_griddim_zzz;
-            } else {
-                this->state.gridDims = mds_griddim_xyz;
-            }
+        if (this->state.nCells == this->settings.gridCells[0]) {
+            this->state.gridDims = mds_griddim_xxx;
+        } else if (this->state.nCells == this->settings.gridCells[1]) {
+            this->state.gridDims = mds_griddim_yyy;
+        } else if (this->state.nCells == this->settings.gridCells[2]) {
+            this->state.gridDims = mds_griddim_zzz;
         } else {
-            this->state.nCells = this->settings.nAtoms;
-
-            // create the molecule_id array
-            this->alloc.molecule_id = new int[this->state.nCells]();
-            
-            // create the radii array
-            this->alloc.radii = new real_mds[this->state.nCells]();
-            this->alloc.positions = new real_mds[3*this->state.nCells]();
-            this->alloc.sum_volume = new real_mds[this->state.nCells]();
-
-            // set them to defaults
-            for ( int i=0; i < this->state.nCells; ++i )
-                this->alloc.radii[i] = realval_mds(0.001);
+            this->state.gridDims = mds_griddim_xyz;
         }
 
         // Allocate all space necessary for grids
@@ -1041,6 +919,14 @@ void StressGrid::Init()
                     this->settings.gridCells[2]);
         }
 #endif//CUSTRESS_ENABLE
+        printf("STRESSLIB: Spacing requested: %g    Using nx=%d ny=%d nz=%d, grid size %ld \n",
+                this->settings.gridSpacing,
+                this->settings.gridCells[0],
+                this->settings.gridCells[1],
+                this->settings.gridCells[2],
+                this->state.nCells);
+        printf("STRESSLIB: The temperature value used for the elasticity calculations is T = %g K.\n",
+                this->settings.temperature);
 
         // Let us know what precision is being used
         std::cout << "STRESSLIB: Internal Floating Points Precision - " << sizeof(real_mds) << " Bytes" << std::endl;
@@ -1180,123 +1066,27 @@ void StressGrid::SumGrid ( )
             deltaV2 = Vnew - this->state.avg_boxvol;
             this->state.var_boxvol += deltaV*deltaV2;
 
-            if (this->settings.spatatom == mds_spat) {
-                for (int i = 0; i < this->state.nCells; i++)
-                    summatrix3(this->alloc.current_gridtot[0], this->alloc.current_grid[i], this->alloc.current_gridtot[0]); // compute y = sigma_total_kl = sum(sigma_local_kl)/this->state.nCells
+            for (int i = 0; i < this->state.nCells; i++)
+                summatrix3(this->alloc.current_gridtot[0], this->alloc.current_grid[i], this->alloc.current_gridtot[0]); // compute y = sigma_total_kl = sum(sigma_local_kl)/this->state.nCells
 
-                scalematrix3(this->alloc.current_gridtot[0], realval_mds(1.0)/this->state.nCells, this->alloc.current_gridtot[0]); // scale by this->state.nCells
-                scalesummatrix3(realval_mds(-1.0), this->alloc.avg_gridtot[0], this->alloc.current_gridtot[0]); // subtract meany from y and store back into y (which now becomes dy)
-                scalesummatrix3(realval_mds(1.0)/this->state.nframes, this->alloc.current_gridtot[0], this->alloc.avg_gridtot[0]); //compute meany
-                scalesummatrix3(deltaV, this->alloc.current_gridtot[0], this->alloc.sum_gridtot_volcovar[0]); // accumulate the covar(sigma_total_kl, Vol)
+            scalematrix3(this->alloc.current_gridtot[0], realval_mds(1.0)/this->state.nCells, this->alloc.current_gridtot[0]); // scale by this->state.nCells
+            scalesummatrix3(realval_mds(-1.0), this->alloc.avg_gridtot[0], this->alloc.current_gridtot[0]); // subtract meany from y and store back into y (which now becomes dy)
+            scalesummatrix3(realval_mds(1.0)/this->state.nframes, this->alloc.current_gridtot[0], this->alloc.avg_gridtot[0]); //compute meany
+            scalesummatrix3(deltaV, this->alloc.current_gridtot[0], this->alloc.sum_gridtot_volcovar[0]); // accumulate the covar(sigma_total_kl, Vol)
 
-                matrix6_mds tmp_covar[1];
-                matrix3_mds dx[1];
-                for (int i = 0; i < this->state.nCells; i++) {
-                    summatrix3( this->alloc.sum_grid[i], this->alloc.current_grid[i], this->alloc.sum_grid[i] );
-                    summatrix6( this->alloc.sum_grid_elborn[i], this->alloc.current_grid_elborn[i], this->alloc.sum_grid_elborn[i] );
-                    summatrix6( this->alloc.sum_grid_elkin[i], this->alloc.current_grid_elkin[i], this->alloc.sum_grid_elkin[i] );
-                    scalematrix3(this->alloc.avg_grid[i], realval_mds(-1.0), dx[0]); // dx = -meanx
-                    summatrix3(dx[0], this->alloc.current_grid[i], dx[0]); // dx += x
-                    scalesummatrix3(realval_mds(1.0)/this->state.nframes, dx[0], this->alloc.avg_grid[i]); //compute meanx
-                    scalesummatrix3(deltaV, dx[0], this->alloc.sum_grid_volcovar[i]); // accumulate covar(sigma_local_ij, Vol)
-                    matrixouterprod6( dx[0], this->alloc.current_gridtot[0], tmp_covar[0]); // dx*dy - uncomment this line to do local-vs-total fluctuations
-                    //matrixouterprod6( dx[0], dx[0], tmp_covar[0]); // dx*dy - uncomment this line to do local-vs-local fluctuations
-                    summatrix6(this->alloc.sum_grid_elcovar[i], tmp_covar[0], this->alloc.sum_grid_elcovar[i]); //this accumulates the covar of sigma_local_ij*sigma_total_kl
-                }
-            } else {
-                // initialize the voro container
-                array3_mds vor_box;
-                vor_box[0] = (real_mds)this->state.box[0][0];
-                vor_box[1] = (real_mds)this->state.box[1][1];
-                vor_box[2] = (real_mds)this->state.box[2][2];
-
-                real_mds gfxy,gfxz;
-                gfxy = vor_box[1]/vor_box[0];
-                gfxz = vor_box[2]/vor_box[0];
-
-                // need to count the number of sites without radius 0.0
-                int vcells = 0;
-                for (int i = 0; i < this->state.nCells; ++i) {
-                    if (this->alloc.radii[i] > 0.0)
-                        vcells += 1;
-                }
-
-                int gridn[3];
-                gridn[0] = pow(this->state.nCells/(3*gfxy*gfxz), 1/3.0);
-                gridn[1] = gridn[0]*gfxy;
-                gridn[2] = gridn[0]*gfxz;
-
-                // create the voronoi objects
-                voro::particle_order vorpo = voro::particle_order(this->state.nCells);
-                voro::container_poly vorcon = voro::container_poly(0.0, vor_box[0], 0.0, vor_box[1], 0.0, vor_box[2], gridn[0], gridn[1], gridn[2], this->settings.periodic[0], this->settings.periodic[1], this->settings.periodic[2], 8);
-
-                // fill the container
-                int voro_cells = 0;
-                for (int i = 0; i < this->state.nCells; ++i) {
-                    if (this->alloc.radii[i] > 0.0) {
-                        voro_cells += 1;
-                        double px = (double)this->alloc.positions[3*i];
-                        double py = (double)this->alloc.positions[3*i+1];
-                        double pz = (double)this->alloc.positions[3*i+2];
-
-                        // we are scaling the radii down to 1/100th the size here so that the number of voronoi cells is the same as
-                        // the number of atoms with non-zero radii. This is because voro++ does a check and if two particles are within
-                        // a distance less than the sum of their radii, they are put in the same voronoi cell, which does not allow
-                        // the calculation of volumes of every particle in the system
-                        vorcon.put(vorpo, i, px, py, pz, 0.01*this->alloc.radii[i]);
-                    }
-                }
-
-                voro::voronoicell c;
-                voro::c_loop_order vl(vorcon, vorpo);
-
-                // the particle/cell id
-                int pid = 0;
-
-                // track the particle/cell id of atom with largest volume in this molecule
-                int this_molecule = this->alloc.molecule_id[pid];
-                int last_pid = 0;
-                real_mds last_volume = realval_mds(0.0);
-
-                int cells_computed = 0;
-                if (vl.start()) {
-                    do {
-                        if (this->alloc.radii[pid] > 0.0 && vorcon.compute_cell(c,vl)) {
-                            // count the cells
-                            cells_computed += 1;
-
-                            // get the volume of this cell
-                            last_volume = (real_mds)(c.volume());
-                            last_pid = pid;
-
-                            // mark the last volume encountered
-                            this_molecule = this->alloc.molecule_id[pid];
-
-                            scalematrix3(this->alloc.current_grid[pid], realval_mds(1.0)/last_volume, this->alloc.current_grid[pid] );
-                            summatrix3(this->alloc.sum_grid[pid], this->alloc.current_grid[pid], this->alloc.sum_grid[pid] );
-
-                            // add the volume
-                            this->alloc.sum_volume[pid] += last_volume;
-                        } else {
-                            // check that we are working on the same molecule
-                            if (this_molecule != this->alloc.molecule_id[pid]) {
-                                this->state.ierr |= checkError(true,
-                                        "ERROR:: radius of zero encountered, but last atom molecule was not this molecule");
-                            } else {
-                                scalematrix3( this->alloc.current_grid[pid], realval_mds(1.0)/last_volume, this->alloc.current_grid[pid] );
-                                summatrix3( this->alloc.sum_grid[last_pid], this->alloc.current_grid[pid], this->alloc.sum_grid[last_pid] );
-                            }
-                        }
-
-                        // always increment the particle count
-                        pid += 1;
-                    } while(vl.inc());
-
-                    // should do an error check here
-                    this->state.ierr |= checkError(
-                            pid != this->settings.nAtoms,
-                            "ERROR:: number of atoms processed does not match number of sites");
-                }
+            matrix6_mds tmp_covar[1];
+            matrix3_mds dx[1];
+            for (int i = 0; i < this->state.nCells; i++) {
+                summatrix3( this->alloc.sum_grid[i], this->alloc.current_grid[i], this->alloc.sum_grid[i] );
+                summatrix6( this->alloc.sum_grid_elborn[i], this->alloc.current_grid_elborn[i], this->alloc.sum_grid_elborn[i] );
+                summatrix6( this->alloc.sum_grid_elkin[i], this->alloc.current_grid_elkin[i], this->alloc.sum_grid_elkin[i] );
+                scalematrix3(this->alloc.avg_grid[i], realval_mds(-1.0), dx[0]); // dx = -meanx
+                summatrix3(dx[0], this->alloc.current_grid[i], dx[0]); // dx += x
+                scalesummatrix3(realval_mds(1.0)/this->state.nframes, dx[0], this->alloc.avg_grid[i]); //compute meanx
+                scalesummatrix3(deltaV, dx[0], this->alloc.sum_grid_volcovar[i]); // accumulate covar(sigma_local_ij, Vol)
+                matrixouterprod6( dx[0], this->alloc.current_gridtot[0], tmp_covar[0]); // dx*dy - uncomment this line to do local-vs-total fluctuations
+                //matrixouterprod6( dx[0], dx[0], tmp_covar[0]); // dx*dy - uncomment this line to do local-vs-local fluctuations
+                summatrix6(this->alloc.sum_grid_elcovar[i], tmp_covar[0], this->alloc.sum_grid_elcovar[i]); //this accumulates the covar of sigma_local_ij*sigma_total_kl
             }
 
             zeromatrix3(this->alloc.current_gridtot[0]);
@@ -1361,11 +1151,6 @@ void StressGrid::Reset ( )
                 zeromatrix6( this->alloc.sum_grid_elkin[i] );
             }
 
-            if (this->settings.spatatom == mds_atom) {
-                for( int i=0; i<this->state.nCells; i++ )
-                    this->alloc.sum_volume[i] = 0.0;
-            }
-
             this->state.nframes = 0;
             this->state.nreset ++;
             this->state.avg_boxvol = 0.0;
@@ -1410,11 +1195,7 @@ void StressGrid::Write ( )
 
         // open the main output file
         outfile = fopen(outname.c_str(), "wb" );
-        if (this->settings.spatatom == mds_spat) {
-            Dtype = 1;
-        } else if (this->settings.spatatom == mds_atom) {
-            Dtype = 2;
-        }
+        Dtype = 1;
         fwrite(&Dtype, sizeof(int), 1, outfile);
 
         // use different dtype for elasticity file
@@ -1447,35 +1228,25 @@ void StressGrid::Write ( )
         fwrite(avgbox_out, sizeof(matrix3_out), 1, eltotal_outfile);
         fwrite(avgbox_out, sizeof(matrix3_out), 1, eltotalhooke_outfile);
 
-        if (this->settings.spatatom == mds_spat) {
-            // this is the number of grids in all dimensions, also to all files
-            fwrite(&this->settings.gridCells[0], sizeof(this->settings.gridCells[0]), 1, outfile);
-            fwrite(&this->settings.gridCells[1], sizeof(this->settings.gridCells[1]), 1, outfile);
-            fwrite(&this->settings.gridCells[2], sizeof(this->settings.gridCells[2]), 1, outfile);
-            fwrite(&this->settings.gridCells[0], sizeof(this->settings.gridCells[0]), 1, elcovar_outfile);
-            fwrite(&this->settings.gridCells[1], sizeof(this->settings.gridCells[1]), 1, elcovar_outfile);
-            fwrite(&this->settings.gridCells[2], sizeof(this->settings.gridCells[2]), 1, elcovar_outfile);
-            fwrite(&this->settings.gridCells[0], sizeof(this->settings.gridCells[0]), 1, elborn_outfile);
-            fwrite(&this->settings.gridCells[1], sizeof(this->settings.gridCells[1]), 1, elborn_outfile);
-            fwrite(&this->settings.gridCells[2], sizeof(this->settings.gridCells[2]), 1, elborn_outfile);
-            fwrite(&this->settings.gridCells[0], sizeof(this->settings.gridCells[0]), 1, elkin_outfile);
-            fwrite(&this->settings.gridCells[1], sizeof(this->settings.gridCells[1]), 1, elkin_outfile);
-            fwrite(&this->settings.gridCells[2], sizeof(this->settings.gridCells[2]), 1, elkin_outfile);
-            fwrite(&this->settings.gridCells[0], sizeof(this->settings.gridCells[0]), 1, eltotal_outfile);
-            fwrite(&this->settings.gridCells[1], sizeof(this->settings.gridCells[1]), 1, eltotal_outfile);
-            fwrite(&this->settings.gridCells[2], sizeof(this->settings.gridCells[2]), 1, eltotal_outfile);
-            fwrite(&this->settings.gridCells[0], sizeof(this->settings.gridCells[0]), 1, eltotalhooke_outfile);
-            fwrite(&this->settings.gridCells[1], sizeof(this->settings.gridCells[1]), 1, eltotalhooke_outfile);
-            fwrite(&this->settings.gridCells[2], sizeof(this->settings.gridCells[2]), 1, eltotalhooke_outfile);
-        } else {
-            // if we are using mds_atom, then there is only nCells == natoms
-            fwrite(&this->state.nCells, sizeof(int), 1, outfile);
-            fwrite(&this->state.nCells, sizeof(int), 1, elcovar_outfile);
-            fwrite(&this->state.nCells, sizeof(int), 1, elborn_outfile);
-            fwrite(&this->state.nCells, sizeof(int), 1, elkin_outfile);
-            fwrite(&this->state.nCells, sizeof(int), 1, eltotal_outfile);
-            fwrite(&this->state.nCells, sizeof(int), 1, eltotalhooke_outfile);
-        }
+        // this is the number of grids in all dimensions, also to all files
+        fwrite(&this->settings.gridCells[0], sizeof(this->settings.gridCells[0]), 1, outfile);
+        fwrite(&this->settings.gridCells[1], sizeof(this->settings.gridCells[1]), 1, outfile);
+        fwrite(&this->settings.gridCells[2], sizeof(this->settings.gridCells[2]), 1, outfile);
+        fwrite(&this->settings.gridCells[0], sizeof(this->settings.gridCells[0]), 1, elcovar_outfile);
+        fwrite(&this->settings.gridCells[1], sizeof(this->settings.gridCells[1]), 1, elcovar_outfile);
+        fwrite(&this->settings.gridCells[2], sizeof(this->settings.gridCells[2]), 1, elcovar_outfile);
+        fwrite(&this->settings.gridCells[0], sizeof(this->settings.gridCells[0]), 1, elborn_outfile);
+        fwrite(&this->settings.gridCells[1], sizeof(this->settings.gridCells[1]), 1, elborn_outfile);
+        fwrite(&this->settings.gridCells[2], sizeof(this->settings.gridCells[2]), 1, elborn_outfile);
+        fwrite(&this->settings.gridCells[0], sizeof(this->settings.gridCells[0]), 1, elkin_outfile);
+        fwrite(&this->settings.gridCells[1], sizeof(this->settings.gridCells[1]), 1, elkin_outfile);
+        fwrite(&this->settings.gridCells[2], sizeof(this->settings.gridCells[2]), 1, elkin_outfile);
+        fwrite(&this->settings.gridCells[0], sizeof(this->settings.gridCells[0]), 1, eltotal_outfile);
+        fwrite(&this->settings.gridCells[1], sizeof(this->settings.gridCells[1]), 1, eltotal_outfile);
+        fwrite(&this->settings.gridCells[2], sizeof(this->settings.gridCells[2]), 1, eltotal_outfile);
+        fwrite(&this->settings.gridCells[0], sizeof(this->settings.gridCells[0]), 1, eltotalhooke_outfile);
+        fwrite(&this->settings.gridCells[1], sizeof(this->settings.gridCells[1]), 1, eltotalhooke_outfile);
+        fwrite(&this->settings.gridCells[2], sizeof(this->settings.gridCells[2]), 1, eltotalhooke_outfile);
 
         // calculate stress factors
         real_mds stressfac, covfac, covfac2;
@@ -1521,16 +1292,6 @@ void StressGrid::Write ( )
             fwrite(&sum_grid_elcovar[0], sizeof(matrix6_out), 1, elcovar_outfile);
             fwrite(&sum_grid_elborn[0], sizeof(matrix6_out), 1, elborn_outfile);
             fwrite(&sum_grid_elkin[0], sizeof(matrix6_out), 1, elkin_outfile);
-        }
-
-        // append the volume data
-        if (this->settings.spatatom == mds_atom)
-        {
-            for ( int i = 0; i < this->state.nCells; i++ )
-            {
-                real_out sum_volume = (real_out)(this->alloc.sum_volume[i] / this->state.nframes);
-                fwrite(&sum_volume, sizeof(real_out), 1, outfile);
-            }
         }
 
         fclose(outfile);
@@ -1608,130 +1369,37 @@ void StressGrid::Write ( )
     }
 }
 
-//----------------------------------------------------------------------------------------
-// SetVoronoiRadius
-//
-// Adds a particle position to the voronoi container
-// Requires:
-// radius  -> radius of the atom
-// atomID  -> label of the atom
-void StressGrid::SetVoronoiRadius(real_ext radius, int atomID)
-{
-    std::lock_guard<std::mutex> lock(this->m_mutex_state);
-
-    // quick check if we have the correct number of atoms
-    this->state.ierr |= checkError(atomID > this->state.nCells,
-            "ERROR:: atomID is greater than number of cells");
-
-    if (MDS_OK == this->state.ierr)
-    {
-        // setup the molecule id
-        this->alloc.radii[atomID] = std::max(radius,realval_ext(0.001));
-    }
-}
-
-//----------------------------------------------------------------------------------------
-// AddVoronoiAtom
-//
-// Adds a particle position to the voronoi container
-// Requires:
-// px      -> position in the x dimension
-// py      -> position in the y dimension
-// pz      -> position in the z dimension
-// radius  -> radius of the atom
-// atomID  -> label of the atom
-// moleID  -> label of the molecule this atom belongs to
-void StressGrid::AddVoronoiAtom(real_ext px, real_ext py, real_ext pz, int atomID, int moleID)
-{
-    std::lock_guard<std::mutex> lock(this->m_mutex_state);
-
-    // quick check if we have the correct number of atoms
-    this->state.ierr |= checkError(atomID > this->state.nCells,
-            "ERROR:: atomID is greater than number of cells");
-
-    if (MDS_OK == this->state.ierr)
-    {
-        // set the positions
-        this->alloc.positions[3*atomID] = px;
-        this->alloc.positions[3*atomID+1] = py;
-        this->alloc.positions[3*atomID+2] = pz;
-
-        // set the molecular id
-        this->alloc.molecule_id[atomID] = moleID;
-    }
-}
-
-
 void StressGrid::DistributeInteraction(
         int nAtoms,
         const array3_ext *R,
         const array3_ext *F,
         const real_ext *phi,
-        const real_ext *kappa,
-        const int *atomIDs = nullptr)
+        const real_ext *kappa)
 {
     int batch_id = this->m_thread_map[std::this_thread::get_id()];
     
     if (MDS_OK == this->state.ierr)
     {
-        // If spatatom==mds_spat distribute the stress spatially following Noll's procedure
-        if (this->settings.spatatom == mds_spat)
-        {
-            //------------------------------------------------------------------------------------
-            matrix3_mds * stress_grid = this->alloc.current_grid+batch_id*this->state.nCells;
-            matrix6_mds * elast_grid = this->alloc.current_grid_elborn+batch_id*this->state.nCells;
+        //------------------------------------------------------------------------------------
+        matrix3_mds * stress_grid = this->alloc.current_grid+batch_id*this->state.nCells;
+        matrix6_mds * elast_grid = this->alloc.current_grid_elborn+batch_id*this->state.nCells;
 
-            // Call functions tailored for specific number of atoms
-            if (2 == nAtoms) {
-                const array3_mds Ra = {(real_mds)R[0][0], (real_mds)R[0][1], (real_mds)R[0][2]};
-                const array3_mds Rb = {(real_mds)R[1][0], (real_mds)R[1][1], (real_mds)R[1][2]};
-                const array3_mds Fa = {(real_mds)F[0][0], (real_mds)F[0][1], (real_mds)F[0][2]};
-                distribute_n2(this->settings, this->state, Ra, Rb, &Fa, stress_grid, &Ra, &Rb, phi, kappa, elast_grid);
-            } else if (3 == nAtoms) {
-                decompose_n3(this->settings, this->state, R, F, stress_grid, phi, kappa, elast_grid);
-            } else if (-3 == nAtoms) {
-                decompose_n3(this->settings, this->state, R, F, stress_grid, nullptr, nullptr, elast_grid);
-            } else if (4 == nAtoms) {
-                decompose_n4(this->settings, this->state, R, F, stress_grid);
-            } else if (5 == nAtoms) {
-                decompose_n5(this->settings, this->state, R, F, stress_grid);
-            } else {
-                decompose_nbody(this->settings, this->state, nAtoms, R, F, stress_grid);
-            }
-        } else if (this->settings.spatatom == mds_atom) {
-            // This is because SETTLE calls the function with nAtoms=-3
-            if (nAtoms < 0) nAtoms = -nAtoms;
-
-            if (atomIDs == nullptr) {
-                std::cout << "ERROR:: the atomIDs array is nullptr. Cannot calculate the stress/atom.";
-                return;
-            }
-
-            for (int n = 0; n < nAtoms; n++) {
-                if (atomIDs[n] >= this->settings.nAtoms) {
-                    std::cout << "ERROR:: the atom label" << atomIDs[n] << "is equal or larger than the total number of atoms" << this->settings.nAtoms;
-                    return;
-                }
-            }
-
-            // Initialize the value of the (local) stress to 0
-            matrix3_mds stress = {0};
-
-            // Calculate the stress
-            for(int n = 0; n < nAtoms; n++) {
-                for(int i = 0; i< mds_ndim; i++) {
-                    stress[i][i] += -(F[n][i] * R[n][i])/nAtoms;
-                    for(int j=i+1; j< mds_ndim; j++) {
-                        const real_mds temp = -(F[n][i] * R[n][j])/nAtoms;
-                        stress[i][j] += temp;
-                        stress[j][i] += temp;
-                    }
-                }
-            }
-
-            for (int n = 0; n < nAtoms; n++) {
-                summatrix3(this->alloc.current_grid[atomIDs[n]],stress,this->alloc.current_grid[atomIDs[n]]);
-            }
+        // Call functions tailored for specific number of atoms
+        if (2 == nAtoms) {
+            const array3_mds Ra = {(real_mds)R[0][0], (real_mds)R[0][1], (real_mds)R[0][2]};
+            const array3_mds Rb = {(real_mds)R[1][0], (real_mds)R[1][1], (real_mds)R[1][2]};
+            const array3_mds Fa = {(real_mds)F[0][0], (real_mds)F[0][1], (real_mds)F[0][2]};
+            distribute_n2(this->settings, this->state, Ra, Rb, &Fa, stress_grid, &Ra, &Rb, phi, kappa, elast_grid);
+        } else if (3 == nAtoms) {
+            decompose_n3(this->settings, this->state, R, F, stress_grid, phi, kappa, elast_grid);
+        } else if (-3 == nAtoms) {
+            decompose_n3(this->settings, this->state, R, F, stress_grid, nullptr, nullptr, elast_grid);
+        } else if (4 == nAtoms) {
+            decompose_n4(this->settings, this->state, R, F, stress_grid);
+        } else if (5 == nAtoms) {
+            decompose_n5(this->settings, this->state, R, F, stress_grid);
+        } else {
+            decompose_nbody(this->settings, this->state, nAtoms, R, F, stress_grid);
         }
     }
 }
@@ -1745,7 +1413,6 @@ void StressGrid::DistributeInteraction(
 // x          -> position of the atom
 // va         -> velocity of the particle at time t for Vel-verlet, or t-dt/2 for leapfrog integrators
 // vb         -> velocity of the particle at t+dt/2 (for leapfrog integrators only)
-// atomID     -> ID of the atom
 //
 // For leapfrog integrators we know va(t-dt/2) and vb(t+dt/2), but we want the contribution at v(t) which we don't know.
 // So we take the average kinetic contribution from the velocities at each half step -m*(va(t-dt/2)^2 + vb(t+dt/2)^2)/2
@@ -1756,8 +1423,7 @@ void StressGrid::DistributeKinetic(
         real_ext mass,
         array3_ext x,
         array3_ext va,
-        array3_ext vb = nullptr,
-        int atomID = -1)
+        array3_ext vb = nullptr)
 {
     matrix3_mds stress = {0};
     matrix6_mds elast = {0};
@@ -1832,69 +1498,52 @@ void StressGrid::DistributeKinetic(
             elast[4][5] = (real_mds)(mass)*((real_mds)(va[2])*(real_mds)(va[1]) + (real_mds)(vb[2])*(real_mds)(vb[1]))/realval_mds(2.0); //c_xzxy = c_0201
         }
 
-        // If spatatom==mds_spat distribute the stress spatially following Noll's procedure
-        if (this->settings.spatatom == mds_spat)
-        {
-            // Get the coordinates of the point in the grid
-            iarray i1 = {
-                int(this->settings.gridCells[0] * x[0] * this->state.invbox[0][0] - (x[0] < 0.0) ),
-                int(this->settings.gridCells[1] * x[1] * this->state.invbox[1][1] - (x[1] < 0.0) ),
-                int(this->settings.gridCells[2] * x[2] * this->state.invbox[2][2] - (x[2] < 0.0) )
-            };
-            
-            // and the index constants
-            const int iip1 = ((i1[0] + 1 + this->settings.gridCells[0]) % this->settings.gridCells[0])*this->settings.gridCells[1]*this->settings.gridCells[2];
-            const int jjp1 = ((i1[1] + 1 + this->settings.gridCells[1]) % this->settings.gridCells[1])*this->settings.gridCells[2];
-            const int kkp1 = ((i1[2] + 1 + this->settings.gridCells[2]) % this->settings.gridCells[2]);
-            const int iim1 = ((i1[0] + this->settings.gridCells[0]) % this->settings.gridCells[0])*this->settings.gridCells[1]*this->settings.gridCells[2];
-            const int jjm1 = ((i1[1] + this->settings.gridCells[1]) % this->settings.gridCells[1])*this->settings.gridCells[2];
-            const int kkm1 = ((i1[2] + this->settings.gridCells[2]) % this->settings.gridCells[2]);
-            
-            // xc = vector from the corner of the point to the corner of the cell
-            const array3_mds xc = {
-                (real_mds)(x[0])-this->state.gridsp[0]*i1[0],
-                (real_mds)(x[1])-this->state.gridsp[1]*i1[1],
-                (real_mds)(x[2])-this->state.gridsp[2]*i1[2]
-            };
-            const array3_mds xd = {
-                xc[0]-this->state.gridsp[0],
-                xc[1]-this->state.gridsp[1],
-                xc[2]-this->state.gridsp[2]
-            };
-            
-            // Spread it
-            const real_mds C = this->state.invgridsp * this->state.invgridsp;
-            scalesummatrix3( C*xc[0]*xc[1]*xc[2],stress,stress_grid[iip1+jjp1+kkp1]);
-            scalesummatrix3(-C*xc[0]*xc[1]*xd[2],stress,stress_grid[iip1+jjp1+kkm1]);
-            scalesummatrix3(-C*xc[0]*xd[1]*xc[2],stress,stress_grid[iip1+jjm1+kkp1]);
-            scalesummatrix3( C*xc[0]*xd[1]*xd[2],stress,stress_grid[iip1+jjm1+kkm1]);
-            scalesummatrix3(-C*xd[0]*xc[1]*xc[2],stress,stress_grid[iim1+jjp1+kkp1]);
-            scalesummatrix3( C*xd[0]*xc[1]*xd[2],stress,stress_grid[iim1+jjp1+kkm1]);
-            scalesummatrix3( C*xd[0]*xd[1]*xc[2],stress,stress_grid[iim1+jjm1+kkp1]);
-            scalesummatrix3(-C*xd[0]*xd[1]*xd[2],stress,stress_grid[iim1+jjm1+kkm1]);
-            
-            scalesummatrix6( C*xc[0]*xc[1]*xc[2],elast,elast_grid[iip1+jjp1+kkp1]);
-            scalesummatrix6(-C*xc[0]*xc[1]*xd[2],elast,elast_grid[iip1+jjp1+kkm1]);
-            scalesummatrix6(-C*xc[0]*xd[1]*xc[2],elast,elast_grid[iip1+jjm1+kkp1]);
-            scalesummatrix6( C*xc[0]*xd[1]*xd[2],elast,elast_grid[iip1+jjm1+kkm1]);
-            scalesummatrix6(-C*xd[0]*xc[1]*xc[2],elast,elast_grid[iim1+jjp1+kkp1]);
-            scalesummatrix6( C*xd[0]*xc[1]*xd[2],elast,elast_grid[iim1+jjp1+kkm1]);
-            scalesummatrix6( C*xd[0]*xd[1]*xc[2],elast,elast_grid[iim1+jjm1+kkp1]);
-            scalesummatrix6(-C*xd[0]*xd[1]*xd[2],elast,elast_grid[iim1+jjm1+kkm1]);
-        }
-        else if (this->settings.spatatom == mds_atom)
-        {
-            if (atomID == -1)
-            {
-                std::cout << "ERROR:: Unknown atomID for kinetic contribution. Cannot calculate the stress/atom.";
-                return;
-            }
-            else
-            {
-                summatrix3(this->alloc.current_grid[atomID],stress,this->alloc.current_grid[atomID]);
-                summatrix6(this->alloc.current_grid_elkin[atomID],elast,this->alloc.current_grid_elkin[atomID]);
-            }
-        }
+        // Get the coordinates of the point in the grid
+        iarray i1 = {
+            int(this->settings.gridCells[0] * x[0] * this->state.invbox[0][0] - (x[0] < 0.0) ),
+            int(this->settings.gridCells[1] * x[1] * this->state.invbox[1][1] - (x[1] < 0.0) ),
+            int(this->settings.gridCells[2] * x[2] * this->state.invbox[2][2] - (x[2] < 0.0) )
+        };
+        
+        // and the index constants
+        const int iip1 = ((i1[0] + 1 + this->settings.gridCells[0]) % this->settings.gridCells[0])*this->settings.gridCells[1]*this->settings.gridCells[2];
+        const int jjp1 = ((i1[1] + 1 + this->settings.gridCells[1]) % this->settings.gridCells[1])*this->settings.gridCells[2];
+        const int kkp1 = ((i1[2] + 1 + this->settings.gridCells[2]) % this->settings.gridCells[2]);
+        const int iim1 = ((i1[0] + this->settings.gridCells[0]) % this->settings.gridCells[0])*this->settings.gridCells[1]*this->settings.gridCells[2];
+        const int jjm1 = ((i1[1] + this->settings.gridCells[1]) % this->settings.gridCells[1])*this->settings.gridCells[2];
+        const int kkm1 = ((i1[2] + this->settings.gridCells[2]) % this->settings.gridCells[2]);
+        
+        // xc = vector from the corner of the point to the corner of the cell
+        const array3_mds xc = {
+            (real_mds)(x[0])-this->state.gridsp[0]*i1[0],
+            (real_mds)(x[1])-this->state.gridsp[1]*i1[1],
+            (real_mds)(x[2])-this->state.gridsp[2]*i1[2]
+        };
+        const array3_mds xd = {
+            xc[0]-this->state.gridsp[0],
+            xc[1]-this->state.gridsp[1],
+            xc[2]-this->state.gridsp[2]
+        };
+        
+        // Spread it
+        const real_mds C = this->state.invgridsp * this->state.invgridsp;
+        scalesummatrix3( C*xc[0]*xc[1]*xc[2],stress,stress_grid[iip1+jjp1+kkp1]);
+        scalesummatrix3(-C*xc[0]*xc[1]*xd[2],stress,stress_grid[iip1+jjp1+kkm1]);
+        scalesummatrix3(-C*xc[0]*xd[1]*xc[2],stress,stress_grid[iip1+jjm1+kkp1]);
+        scalesummatrix3( C*xc[0]*xd[1]*xd[2],stress,stress_grid[iip1+jjm1+kkm1]);
+        scalesummatrix3(-C*xd[0]*xc[1]*xc[2],stress,stress_grid[iim1+jjp1+kkp1]);
+        scalesummatrix3( C*xd[0]*xc[1]*xd[2],stress,stress_grid[iim1+jjp1+kkm1]);
+        scalesummatrix3( C*xd[0]*xd[1]*xc[2],stress,stress_grid[iim1+jjm1+kkp1]);
+        scalesummatrix3(-C*xd[0]*xd[1]*xd[2],stress,stress_grid[iim1+jjm1+kkm1]);
+        
+        scalesummatrix6( C*xc[0]*xc[1]*xc[2],elast,elast_grid[iip1+jjp1+kkp1]);
+        scalesummatrix6(-C*xc[0]*xc[1]*xd[2],elast,elast_grid[iip1+jjp1+kkm1]);
+        scalesummatrix6(-C*xc[0]*xd[1]*xc[2],elast,elast_grid[iip1+jjm1+kkp1]);
+        scalesummatrix6( C*xc[0]*xd[1]*xd[2],elast,elast_grid[iip1+jjm1+kkm1]);
+        scalesummatrix6(-C*xd[0]*xc[1]*xc[2],elast,elast_grid[iim1+jjp1+kkp1]);
+        scalesummatrix6( C*xd[0]*xc[1]*xd[2],elast,elast_grid[iim1+jjp1+kkm1]);
+        scalesummatrix6( C*xd[0]*xd[1]*xc[2],elast,elast_grid[iim1+jjm1+kkp1]);
+        scalesummatrix6(-C*xd[0]*xd[1]*xd[2],elast,elast_grid[iim1+jjm1+kkm1]);
     }
 }
 
@@ -1916,10 +1565,6 @@ void StressGrid::Clear() {
     if (this->alloc.sum_grid_elborn      != nullptr ) delete [] this->alloc.sum_grid_elborn;
     if (this->alloc.sum_grid_volcovar    != nullptr ) delete [] this->alloc.sum_grid_volcovar;
     if (this->alloc.sum_gridtot_volcovar != nullptr ) delete [] this->alloc.sum_gridtot_volcovar;
-    if (this->alloc.sum_volume           != nullptr ) delete [] this->alloc.sum_volume;
-    if (this->alloc.molecule_id          != nullptr ) delete [] this->alloc.molecule_id;
-    if (this->alloc.radii                != nullptr ) delete [] this->alloc.radii;
-    if (this->alloc.positions            != nullptr ) delete [] this->alloc.positions;
 
     // clear the  pointers
     memset(&this->alloc, 0, sizeof(alloc_t) );
