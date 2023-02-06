@@ -37,7 +37,7 @@
 using namespace mds;
 
 static inline void distribute_observables_3d(
-        const settings_t & settings,
+        const iarray & gridCells,
         const state_t & state,
         const array3_mds & xi,
         const array3_mds & xj,
@@ -50,15 +50,15 @@ static inline void distribute_observables_3d(
     //------------------------------------------------------------------------------------
     // calculate the grid coordinates (no pbc) for the extreme points
     iarray i1 = {
-        int(settings.gridCells[0] * xi[0] * state.invbox[0][0] - (xi[0] < 0.0) ),
-        int(settings.gridCells[1] * xi[1] * state.invbox[1][1] - (xi[1] < 0.0) ),
-        int(settings.gridCells[2] * xi[2] * state.invbox[2][2] - (xi[2] < 0.0) )
+        int(gridCells[0] * xi[0] * state.invbox[0][0] - (xi[0] < 0.0) ),
+        int(gridCells[1] * xi[1] * state.invbox[1][1] - (xi[1] < 0.0) ),
+        int(gridCells[2] * xi[2] * state.invbox[2][2] - (xi[2] < 0.0) )
     };
 
     const iarray i2 = {
-        int(settings.gridCells[0] * xj[0] * state.invbox[0][0] - (xj[0] < 0.0) ),
-        int(settings.gridCells[1] * xj[1] * state.invbox[1][1] - (xj[1] < 0.0) ),
-        int(settings.gridCells[2] * xj[2] * state.invbox[2][2] - (xj[2] < 0.0) ),
+        int(gridCells[0] * xj[0] * state.invbox[0][0] - (xj[0] < 0.0) ),
+        int(gridCells[1] * xj[1] * state.invbox[1][1] - (xj[1] < 0.0) ),
+        int(gridCells[2] * xj[2] * state.invbox[2][2] - (xj[2] < 0.0) ),
     };
     const array3_mds t_c1 = {
         xi[0] / (xi[0]-xj[0]),
@@ -132,12 +132,12 @@ static inline void distribute_observables_3d(
         const real_mds byz = d_cgrid[1]*d_cgrid[2];
         const real_mds bxyz = d_cgrid[0]*byz;
     
-        const int iip1 = ((i1[0] + 1 + settings.gridCells[0]) % settings.gridCells[0])*settings.gridCells[1]*settings.gridCells[2];
-        const int jjp1 = ((i1[1] + 1 + settings.gridCells[1]) % settings.gridCells[1])*settings.gridCells[2];
-        const int kkp1 = ((i1[2] + 1 + settings.gridCells[2]) % settings.gridCells[2]);
-        const int iim1 = ((i1[0] + settings.gridCells[0]) % settings.gridCells[0])*settings.gridCells[1]*settings.gridCells[2];
-        const int jjm1 = ((i1[1] + settings.gridCells[1]) % settings.gridCells[1])*settings.gridCells[2];
-        const int kkm1 = ((i1[2] + settings.gridCells[2]) % settings.gridCells[2]);
+        const int iip1 = ((i1[0] + 1 + gridCells[0]) % gridCells[0])*gridCells[1]*gridCells[2];
+        const int jjp1 = ((i1[1] + 1 + gridCells[1]) % gridCells[1])*gridCells[2];
+        const int kkp1 = ((i1[2] + 1 + gridCells[2]) % gridCells[2]);
+        const int iim1 = ((i1[0] + gridCells[0]) % gridCells[0])*gridCells[1]*gridCells[2];
+        const int jjm1 = ((i1[1] + gridCells[1]) % gridCells[1])*gridCells[2];
+        const int kkm1 = ((i1[2] + gridCells[2]) % gridCells[2]);
 
         // the composite constants in terms of i, j, k
         const real_mds D[8] = {
@@ -204,7 +204,7 @@ static inline void distribute_observables_3d(
 }
 
 static inline void distribute_observables_1d(
-        const settings_t & settings,
+        const iarray & gridCells,
         const state_t & state,
         const array3_mds & xi,
         const array3_mds & xj,
@@ -215,8 +215,8 @@ static inline void distribute_observables_1d(
         matrix6_mds * elast_grid)
 {
     // calculate the grid coordinates (no pbc) for the extreme points
-    int i1 = settings.gridCells[state.gridDims] * xi[state.gridDims] * state.invbox[state.gridDims][state.gridDims] - (xi[state.gridDims] < 0.0);
-    const int i2 = settings.gridCells[state.gridDims] * xj[state.gridDims] * state.invbox[state.gridDims][state.gridDims] - (xj[state.gridDims] < 0.0);
+    int i1 = gridCells[state.gridDims] * xi[state.gridDims] * state.invbox[state.gridDims][state.gridDims] - (xi[state.gridDims] < 0.0);
+    const int i2 = gridCells[state.gridDims] * xj[state.gridDims] * state.invbox[state.gridDims][state.gridDims] - (xj[state.gridDims] < 0.0);
     const int c = (i2>i1)-(i1>i2);
     const real_mds t_c1 = xi[state.gridDims] / (xi[state.gridDims]-xj[state.gridDims]);
     const real_mds t_c2 = state.gridsp[state.gridDims] / (xi[state.gridDims]-xj[state.gridDims]);
@@ -240,8 +240,8 @@ static inline void distribute_observables_1d(
         const real_mds dt1 = newt - oldt;
         const real_mds dt2 = t22 - t12;
 
-        const int p1 = ((i1 + 1 + settings.gridCells[state.gridDims]) % settings.gridCells[state.gridDims]);
-        const int m1 = ((i1 + settings.gridCells[state.gridDims]) % settings.gridCells[state.gridDims]);
+        const int p1 = ((i1 + 1 + gridCells[state.gridDims]) % gridCells[state.gridDims]);
+        const int m1 = ((i1 + gridCells[state.gridDims]) % gridCells[state.gridDims]);
 
         // the composite constants in terms of i, j, k
         const real_mds D1 = state.gridsp[5-state.gridDims]*(realval_mds(2.0)*d_cgrid*dt1+diff[state.gridDims]*dt2);
@@ -301,8 +301,10 @@ static inline void distribute_n2(
         stress[2][0] = F[0][2]*xij[0];
         stress[2][1] = F[0][2]*xij[1];
         stress[2][2] = F[0][2]*xij[2];
+    } else {
+        stress_grid = nullptr;
     }
-
+    
     matrix6_mds elast = {0};
     if (nullptr != phi && nullptr != phi &&
             (realval_ext(0.0) != phi[0] || realval_ext(0.0) != kappa[1])) {
@@ -315,11 +317,13 @@ static inline void distribute_n2(
         // (                yzyz yzxz yzxy ) = (          33 34 35 ) = [                1212 1202 1201 ]
         // (                     xzxz xzxy ) = (             44 45 ) = [                     0202 0201 ]
         // (                          xyxy ) = (                55 ) = [                          0101 ]
+
         array3_mds xkl;
         diffarray3( *xl, *xk, xkl, state.box, settings.periodic);
 
         const real_mds xij_norm = normarray3(xij);
         const real_mds xkl_norm = normarray3(xkl);
+
         const real_mds rinv = realval_mds(1.0)/xij_norm;
         const real_mds rinv2 = real_mds(kappa[0])*rinv/xkl_norm;
         const real_mds rinv3 = real_mds(phi[0])*rinv*rinv*rinv;
@@ -372,9 +376,9 @@ static inline void distribute_n2(
     
     if (nullptr != stress_grid || nullptr != elast_grid) {
         if (state.gridDims == mds_griddim_xyz) {
-            distribute_observables_3d(settings, state, xi, xj, xij, &stress, &elast, stress_grid, elast_grid);
+            distribute_observables_3d(settings.gridCells, state, xi, xj, xij, &stress, &elast, stress_grid, elast_grid);
         } else {
-            distribute_observables_1d(settings, state, xi, xj, xij, &stress, &elast, stress_grid, elast_grid);
+            distribute_observables_1d(settings.gridCells, state, xi, xj, xij, &stress, &elast, stress_grid, elast_grid);
         }
     }
 }
@@ -392,10 +396,10 @@ static void decompose_n3(
 {
     const array3_mds Ra = {(real_mds)R[0][0], (real_mds)R[0][1], (real_mds)R[0][2]};
     const array3_mds Rb = {(real_mds)R[1][0], (real_mds)R[1][1], (real_mds)R[1][2]};
+    const array3_mds Rc = {(real_mds)R[2][0], (real_mds)R[2][1], (real_mds)R[2][2]};
     const array3_mds Fa = {(real_mds)F[0][0], (real_mds)F[0][1], (real_mds)F[0][2]};
-    const array3_mds Rc =  {(real_mds)R[2][0], (real_mds)R[2][1], (real_mds)R[2][2]};
-    const array3_mds Fb  = {(real_mds)F[1][0], (real_mds)F[1][1], (real_mds)F[1][2]};
-    const array3_mds Fc  = {(real_mds)F[2][0], (real_mds)F[2][1], (real_mds)F[2][2]};
+    const array3_mds Fb = {(real_mds)F[1][0], (real_mds)F[1][1], (real_mds)F[1][2]};
+    const array3_mds Fc = {(real_mds)F[2][0], (real_mds)F[2][1], (real_mds)F[2][2]};
 
     if (settings.fdecomp == mds_ccfd || settings.fdecomp == mds_ncfd) {
         // Vectors between particles

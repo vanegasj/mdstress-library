@@ -13,10 +13,10 @@ set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG -ffast-math -march=native" CACHE STRIN
 #    "Flags used by the compiler during release builds." FORCE)
 
 # aarch64 has a fuse-multiply-add (fmadd) which does not match x86_64 fmadd,
-# so we have to disable fmadd on these systems to get comparable results
-if (CMAKE_HOST_SYSTEM_PROCESSOR STREQUAL "aarch64")
-    set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -ffp-contract=off")
-endif(CMAKE_HOST_SYSTEM_PROCESSOR STREQUAL "aarch64")
+# so we may have to disable fmadd on these systems to get comparable results
+#if (CMAKE_HOST_SYSTEM_PROCESSOR STREQUAL "aarch64")
+#    set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -ffp-contract=off")
+#endif(CMAKE_HOST_SYSTEM_PROCESSOR STREQUAL "aarch64")
 
 # set default build type
 if(NOT CMAKE_BUILD_TYPE)
