@@ -938,7 +938,7 @@ void StressGrid::Init()
         std::cout << "STRESSLIB: Output Floating Points Precision - " << sizeof(real_out) << " Bytes" << std::endl;
 
         // we have successfully initialized
-        this->state.initialized = true;
+        this->settings.initialized = true;
     }
 }
 
@@ -1258,7 +1258,7 @@ void StressGrid::Write ( )
         covfac = -realval_mds(mds_units)*realval_mds(mds_units)*this->state.avg_boxvol/(this->settings.temperature*realval_mds(KBfac)*this->state.nframes);
         //covfac /= this->state.nCells; // uncomment this for for local-vs-local fluctuations
         covfac2 = realval_mds(0.0);
-        if (this->state.pcoupl == true && this->state.nframes > 1)
+        if (this->settings.pcoupl == true && this->state.nframes > 1)
             covfac2 = realval_mds(mds_units)*realval_mds(mds_units)*this->state.avg_boxvol/(this->settings.temperature*realval_mds(KBfac)*this->state.var_boxvol*this->state.nframes);
 
         // need to store matrices in double precision
@@ -1279,7 +1279,7 @@ void StressGrid::Write ( )
             scalematrix6(this->alloc.sum_grid_elborn[i], stressfac/this->state.nframes, this->alloc.sum_grid_elborn[i]);
             scalematrix6(this->alloc.sum_grid_elkin[i], stressfac/this->state.nframes, this->alloc.sum_grid_elkin[i]);
 
-            if (this->state.pcoupl == true && this->state.nframes > 1)
+            if (this->settings.pcoupl == true && this->state.nframes > 1)
             {
                 matrixouterprod6(this->alloc.sum_grid_volcovar[i], this->alloc.sum_gridtot_volcovar[0], npt_covar_corr[0]); // Cov(sigma_local_ij,V)*Cov(sigma_total_kl,V)
                 scalematrix6(npt_covar_corr[0], covfac2, npt_covar_corr[0]); // scale the term above by <V>/kT*Var(V)
@@ -1577,8 +1577,8 @@ void StressGrid::Clear() {
     this->state.avg_boxvol = real_mds(0.0);
     this->state.var_boxvol = real_mds(0.0);
 
-    if (this->state.initialized)
-        this->state.initialized = false;
+    if (this->settings.initialized)
+        this->settings.initialized = false;
     
 #ifdef CUSTRESS_ENABLE
     if (this->settings.cuda)

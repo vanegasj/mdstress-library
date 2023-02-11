@@ -32,33 +32,32 @@
 // counters and runtime parameters
 namespace mds {
     typedef struct {
-        bool        nodispcor;
-        bool        cuda;
+        iarray      gridCells;
+        real_mds    gridSpacing;
+        barray      periodic;
         int         fdecomp;
         int         contrib;
         real_mds    mindihangle;
-        barray      periodic;
-        iarray      gridCells;
-        real_mds    gridSpacing;
         real_mds    temperature;
+        bool        pcoupl;
+        bool        nodispcor;
+        bool        cuda;
+        bool        initialized;
     } settings_t;
 
     typedef struct {
-        bool        initialized;
-        long        nCells;
         int         gridDims;
-        bool        pcoupl;
+        real_mds    gridsp[7];
+        real_mds    invgridsp;
+        matrix3_mds invbox;
+        long        nCells;
         int         ierr;
         int         nframes;
         int         nreset;
         matrix3_mds box;
         matrix3_mds sumbox;
-        matrix3_mds invbox;
         real_mds    avg_boxvol;
         real_mds    var_boxvol;
-        real_mds    gridsp[7];
-        real_mds    invgridsp;
-        char        filename[128];
     } state_t;
 
     // allocations
@@ -85,7 +84,7 @@ class  mds::StressGrid
         {   return "StressGrid";    }
 
         bool CheckInit()
-        {   return this->state.initialized;    }
+        {   return this->settings.initialized;    }
 
         void SetThreadIDs(int thread_id, int max_threads)
         {
@@ -132,7 +131,7 @@ class  mds::StressGrid
         void SetBox(matrix3_ext box, int epc) {
             std::lock_guard<std::mutex> lock(m_mutex_state);
             if (epc != 0)
-                this->state.pcoupl = true;
+                this->settings.pcoupl = true;
             for (int i = 0; i < mds_ndim; i++ )
                 for (int j = 0; j < mds_ndim; j++)
                     this->state.box[i][j] = (real_mds)box[i][j];
@@ -182,6 +181,7 @@ class  mds::StressGrid
         ~StressGrid();
 
         // settings are public, since they may be read
+        // by the application itself
         settings_t settings;
     private:
         state_t state;
