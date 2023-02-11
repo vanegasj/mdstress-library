@@ -31,50 +31,6 @@
 
 // counters and runtime parameters
 namespace mds {
-    typedef struct {
-        iarray      gridCells;
-        real_mds    gridSpacing;
-        barray      periodic;
-        int         fdecomp;
-        int         contrib;
-        real_mds    mindihangle;
-        real_mds    temperature;
-        bool        pcoupl;
-        bool        nodispcor;
-        bool        cuda;
-        bool        initialized;
-    } settings_t;
-
-    typedef struct {
-        int         gridDims;
-        real_mds    gridsp[7];
-        real_mds    invgridsp;
-        matrix3_mds invbox;
-        long        nCells;
-        int         ierr;
-        int         nframes;
-        int         nreset;
-        matrix3_mds box;
-        matrix3_mds sumbox;
-        real_mds    avg_boxvol;
-        real_mds    var_boxvol;
-    } state_t;
-
-    // allocations
-    typedef struct {
-        matrix3_mds *current_grid;
-        matrix3_mds *current_gridtot;
-        matrix6_mds *current_grid_elborn;
-        matrix6_mds *current_grid_elkin;
-        matrix3_mds *sum_grid;
-        matrix3_mds *avg_grid;
-        matrix3_mds *avg_gridtot;
-        matrix6_mds *sum_grid_elcovar;
-        matrix6_mds *sum_grid_elkin;
-        matrix6_mds *sum_grid_elborn;
-        matrix3_mds *sum_grid_volcovar;
-        matrix3_mds *sum_gridtot_volcovar;
-    } alloc_t;
 }
 
 class  mds::StressGrid

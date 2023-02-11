@@ -36,6 +36,9 @@
 
 using namespace mds;
 
+/**
+ * STATIC INLINE FUNCTIONS
+ */
 static inline void distribute_observables_3d(
         const iarray & gridCells,
         const state_t & state,
@@ -401,83 +404,81 @@ static void decompose_n3(
     const array3_mds Fb = {(real_mds)F[1][0], (real_mds)F[1][1], (real_mds)F[1][2]};
     const array3_mds Fc = {(real_mds)F[2][0], (real_mds)F[2][1], (real_mds)F[2][2]};
 
-    if (settings.fdecomp == mds_ccfd || settings.fdecomp == mds_ncfd) {
-        // Vectors between particles
-        array3_mds AB, AC, BC;
-        diffarray3(Rb, Ra, AB, state.box, settings.periodic);
-        diffarray3(Rc, Ra, AC, state.box, settings.periodic);
-        diffarray3(Rc, Rb, BC, state.box, settings.periodic);
+    // Vectors between particles
+    array3_mds AB, AC, BC;
+    diffarray3(Rb, Ra, AB, state.box, settings.periodic);
+    diffarray3(Rc, Ra, AC, state.box, settings.periodic);
+    diffarray3(Rc, Rb, BC, state.box, settings.periodic);
 
-        /// We want to solve M*x = b
-        const Eigen::Matrix<double,9,3> M_eig{
-            { (double)AB[0], (double)AC[0], 0.0          },
-            { (double)AB[1], (double)AC[1], 0.0          },
-            { (double)AB[2], (double)AC[2], 0.0          },
-            {-(double)AB[0], 0.0          , (double)BC[0]},
-            {-(double)AB[1], 0.0          , (double)BC[1]},
-            {-(double)AB[2], 0.0          , (double)BC[2]},
-            { 0.0          ,-(double)AC[0],-(double)BC[0]},
-            { 0.0          ,-(double)AC[1],-(double)BC[1]},
-            { 0.0          ,-(double)AC[2],-(double)BC[2]}
-        };
+    /// We want to solve M*x = b
+    const Eigen::Matrix<double,9,3> M_eig{
+        { (double)AB[0], (double)AC[0], 0.0          },
+        { (double)AB[1], (double)AC[1], 0.0          },
+        { (double)AB[2], (double)AC[2], 0.0          },
+        {-(double)AB[0], 0.0          , (double)BC[0]},
+        {-(double)AB[1], 0.0          , (double)BC[1]},
+        {-(double)AB[2], 0.0          , (double)BC[2]},
+        { 0.0          ,-(double)AC[0],-(double)BC[0]},
+        { 0.0          ,-(double)AC[1],-(double)BC[1]},
+        { 0.0          ,-(double)AC[2],-(double)BC[2]}
+    };
 
-        const Eigen::Matrix<double,9,1> b_eig{
-            {(double)Fa[0]},
-            {(double)Fa[1]},
-            {(double)Fa[2]},
-            {(double)Fb[0]},
-            {(double)Fb[1]},
-            {(double)Fb[2]},
-            {(double)Fc[0]},
-            {(double)Fc[1]},
-            {(double)Fc[2]}
-        };
+    const Eigen::Matrix<double,9,1> b_eig{
+        {(double)Fa[0]},
+        {(double)Fa[1]},
+        {(double)Fa[2]},
+        {(double)Fb[0]},
+        {(double)Fb[1]},
+        {(double)Fb[2]},
+        {(double)Fc[0]},
+        {(double)Fc[1]},
+        {(double)Fc[2]}
+    };
 
-        Eigen::JacobiSVD<Eigen::Matrix<double,9,3>> svd;
-        svd.compute(M_eig, Eigen::ComputeThinU | Eigen::ComputeThinV);
-        const Eigen::Matrix<double,3,1> x = svd.solve(b_eig);
+    Eigen::JacobiSVD<Eigen::Matrix<double,9,3>> svd;
+    svd.compute(M_eig, Eigen::ComputeThinU | Eigen::ComputeThinV);
+    const Eigen::Matrix<double,3,1> x = svd.solve(b_eig);
 
-        const real_mds lab = (real_mds)x(0,0);
-        const real_mds lac = (real_mds)x(1,0);
-        const real_mds lbc = (real_mds)x(2,0);
+    const real_mds lab = (real_mds)x(0,0);
+    const real_mds lac = (real_mds)x(1,0);
+    const real_mds lbc = (real_mds)x(2,0);
 
-        const array3_mds Fij1 = {lab * AB[0], lab * AB[1], lab * AB[2]};
-        const array3_mds Fij2 = {lac * AC[0], lac * AC[1], lac * AC[2]};
-        const array3_mds Fij3 = {lbc * BC[0], lbc * BC[1], lbc * BC[2]};
+    const array3_mds Fij1 = {lab * AB[0], lab * AB[1], lab * AB[2]};
+    const array3_mds Fij2 = {lac * AC[0], lac * AC[1], lac * AC[2]};
+    const array3_mds Fij3 = {lbc * BC[0], lbc * BC[1], lbc * BC[2]};
 
-        if (nullptr == phi && nullptr == kappa && nullptr != elast_grid) {
-            // settle specialization
-            const real_mds normAB = normarray3(AB);
-            const real_mds normAC = normarray3(AC);
-            const real_mds normBC = normarray3(BC);
+    if (nullptr == phi && nullptr == kappa && nullptr != elast_grid) {
+        // settle specialization
+        const real_mds normAB = normarray3(AB);
+        const real_mds normAC = normarray3(AC);
+        const real_mds normBC = normarray3(BC);
 
-            const real_ext phi_kappa1[2] = {real_ext(lab*normAB), realval_ext(0.0)};
-            const real_ext phi_kappa2[2] = {real_ext(lac*normAC), realval_ext(0.0)};
-            const real_ext phi_kappa3[2] = {real_ext(lbc*normBC), realval_ext(0.0)};
-            distribute_n2(settings, state, Ra, Rb, &Fij1, stress_grid, &Ra, &Rb, phi_kappa1, phi_kappa1+1, elast_grid);
-            distribute_n2(settings, state, Ra, Rc, &Fij2, stress_grid, &Ra, &Rc, phi_kappa2, phi_kappa2+1, elast_grid);
-            distribute_n2(settings, state, Rb, Rc, &Fij3, stress_grid, &Rb, &Rc, phi_kappa3, phi_kappa3+1, elast_grid);
-        } else if (nullptr != phi && nullptr != kappa && nullptr != elast_grid) {
-            // calculate the diagonal terms
-            distribute_n2(settings, state, Ra, Rb, &Fij1, stress_grid, &Ra, &Rb, phi+0, kappa+0, elast_grid);
-            distribute_n2(settings, state, Ra, Rc, &Fij2, stress_grid, &Ra, &Rc, phi+1, kappa+4, elast_grid);
-            distribute_n2(settings, state, Rb, Rc, &Fij3, stress_grid, &Rb, &Rc, phi+2, kappa+8, elast_grid);
+        const real_ext phi_kappa1[2] = {real_ext(lab*normAB), realval_ext(0.0)};
+        const real_ext phi_kappa2[2] = {real_ext(lac*normAC), realval_ext(0.0)};
+        const real_ext phi_kappa3[2] = {real_ext(lbc*normBC), realval_ext(0.0)};
+        distribute_n2(settings, state, Ra, Rb, &Fij1, stress_grid, &Ra, &Rb, phi_kappa1, phi_kappa1+1, elast_grid);
+        distribute_n2(settings, state, Ra, Rc, &Fij2, stress_grid, &Ra, &Rc, phi_kappa2, phi_kappa2+1, elast_grid);
+        distribute_n2(settings, state, Rb, Rc, &Fij3, stress_grid, &Rb, &Rc, phi_kappa3, phi_kappa3+1, elast_grid);
+    } else if (nullptr != phi && nullptr != kappa && nullptr != elast_grid) {
+        // calculate the diagonal terms
+        distribute_n2(settings, state, Ra, Rb, &Fij1, stress_grid, &Ra, &Rb, phi+0, kappa+0, elast_grid);
+        distribute_n2(settings, state, Ra, Rc, &Fij2, stress_grid, &Ra, &Rc, phi+1, kappa+4, elast_grid);
+        distribute_n2(settings, state, Rb, Rc, &Fij3, stress_grid, &Rb, &Rc, phi+2, kappa+8, elast_grid);
 
-            // and the off diagonal
-            const real_ext phi [] = {realval_mds(0.0)};
-            distribute_n2(settings, state, Ra, Rb, nullptr, nullptr, &Ra, &Rc, phi, kappa+1, elast_grid);
-            distribute_n2(settings, state, Ra, Rb, nullptr, nullptr, &Rb, &Rc, phi, kappa+2, elast_grid);
-            distribute_n2(settings, state, Ra, Rc, nullptr, nullptr, &Ra, &Rb, phi, kappa+3, elast_grid);
-            distribute_n2(settings, state, Ra, Rc, nullptr, nullptr, &Rb, &Rc, phi, kappa+5, elast_grid);
-            distribute_n2(settings, state, Rb, Rc, nullptr, nullptr, &Ra, &Rb, phi, kappa+6, elast_grid);
-            distribute_n2(settings, state, Rb, Rc, nullptr, nullptr, &Ra, &Rc, phi, kappa+7, elast_grid);
-        } else {
-            // general stress only case
-            distribute_n2(settings, state, Ra, Rb, &Fij1, stress_grid, nullptr, nullptr, nullptr, nullptr, nullptr);
-            distribute_n2(settings, state, Ra, Rc, &Fij2, stress_grid, nullptr, nullptr, nullptr, nullptr, nullptr);
-            distribute_n2(settings, state, Rb, Rc, &Fij3, stress_grid, nullptr, nullptr, nullptr, nullptr, nullptr);
-        }
-    } 
+        // and the off diagonal
+        const real_ext phi [] = {realval_mds(0.0)};
+        distribute_n2(settings, state, Ra, Rb, nullptr, nullptr, &Ra, &Rc, phi, kappa+1, elast_grid);
+        distribute_n2(settings, state, Ra, Rb, nullptr, nullptr, &Rb, &Rc, phi, kappa+2, elast_grid);
+        distribute_n2(settings, state, Ra, Rc, nullptr, nullptr, &Ra, &Rb, phi, kappa+3, elast_grid);
+        distribute_n2(settings, state, Ra, Rc, nullptr, nullptr, &Rb, &Rc, phi, kappa+5, elast_grid);
+        distribute_n2(settings, state, Rb, Rc, nullptr, nullptr, &Ra, &Rb, phi, kappa+6, elast_grid);
+        distribute_n2(settings, state, Rb, Rc, nullptr, nullptr, &Ra, &Rc, phi, kappa+7, elast_grid);
+    } else {
+        // general stress only case
+        distribute_n2(settings, state, Ra, Rb, &Fij1, stress_grid, nullptr, nullptr, nullptr, nullptr, nullptr);
+        distribute_n2(settings, state, Ra, Rc, &Fij2, stress_grid, nullptr, nullptr, nullptr, nullptr, nullptr);
+        distribute_n2(settings, state, Rb, Rc, &Fij3, stress_grid, nullptr, nullptr, nullptr, nullptr, nullptr);
+    }
 }
 
 static void decompose_n4(
@@ -496,75 +497,73 @@ static void decompose_n4(
     const array3_mds Rd = {(real_mds)R[3][0], (real_mds)R[3][1], (real_mds)R[3][2]};
     const array3_mds Fd = {(real_mds)F[3][0], (real_mds)F[3][1], (real_mds)F[3][2]};
 
-    if(settings.fdecomp == mds_ccfd || settings.fdecomp == mds_ncfd) {
-        array3_mds AB, AC, AD, BC, BD, CD;
-        diffarray3(Rb, Ra, AB, state.box, settings.periodic);
-        diffarray3(Rc, Ra, AC, state.box, settings.periodic);
-        diffarray3(Rd, Ra, AD, state.box, settings.periodic);
-        diffarray3(Rc, Rb, BC, state.box, settings.periodic);
-        diffarray3(Rd, Rb, BD, state.box, settings.periodic);
-        diffarray3(Rd, Rc, CD, state.box, settings.periodic);
+    array3_mds AB, AC, AD, BC, BD, CD;
+    diffarray3(Rb, Ra, AB, state.box, settings.periodic);
+    diffarray3(Rc, Ra, AC, state.box, settings.periodic);
+    diffarray3(Rd, Ra, AD, state.box, settings.periodic);
+    diffarray3(Rc, Rb, BC, state.box, settings.periodic);
+    diffarray3(Rd, Rb, BD, state.box, settings.periodic);
+    diffarray3(Rd, Rc, CD, state.box, settings.periodic);
 
-        const Eigen::Matrix<double, 12, 6> M_eig{
-            { (double)AB[0],  (double)AC[0],  (double)AD[0],  0.0          ,  0.0          ,  0.0          }, 
-            { (double)AB[1],  (double)AC[1],  (double)AD[1],  0.0          ,  0.0          ,  0.0          }, 
-            { (double)AB[2],  (double)AC[2],  (double)AD[2],  0.0          ,  0.0          ,  0.0          }, 
-            {-(double)AB[0],  0.0          ,  0.0          ,  (double)BC[0],  (double)BD[0],  0.0          }, 
-            {-(double)AB[1],  0.0          ,  0.0          ,  (double)BC[1],  (double)BD[1],  0.0          }, 
-            {-(double)AB[2],  0.0          ,  0.0          ,  (double)BC[2],  (double)BD[2],  0.0          }, 
-            { 0.0          , -(double)AC[0],  0.0          , -(double)BC[0],  0.0          ,  (double)CD[0]}, 
-            { 0.0          , -(double)AC[1],  0.0          , -(double)BC[1],  0.0          ,  (double)CD[1]}, 
-            { 0.0          , -(double)AC[2],  0.0          , -(double)BC[2],  0.0          ,  (double)CD[2]}, 
-            { 0.0          ,  0.0          , -(double)AD[0],  0.0          , -(double)BD[0], -(double)CD[0]}, 
-            { 0.0          ,  0.0          , -(double)AD[1],  0.0          , -(double)BD[1], -(double)CD[1]}, 
-            { 0.0          ,  0.0          , -(double)AD[2],  0.0          , -(double)BD[2], -(double)CD[2]},
-        };
+    const Eigen::Matrix<double, 12, 6> M_eig{
+        { (double)AB[0],  (double)AC[0],  (double)AD[0],  0.0          ,  0.0          ,  0.0          }, 
+        { (double)AB[1],  (double)AC[1],  (double)AD[1],  0.0          ,  0.0          ,  0.0          }, 
+        { (double)AB[2],  (double)AC[2],  (double)AD[2],  0.0          ,  0.0          ,  0.0          }, 
+        {-(double)AB[0],  0.0          ,  0.0          ,  (double)BC[0],  (double)BD[0],  0.0          }, 
+        {-(double)AB[1],  0.0          ,  0.0          ,  (double)BC[1],  (double)BD[1],  0.0          }, 
+        {-(double)AB[2],  0.0          ,  0.0          ,  (double)BC[2],  (double)BD[2],  0.0          }, 
+        { 0.0          , -(double)AC[0],  0.0          , -(double)BC[0],  0.0          ,  (double)CD[0]}, 
+        { 0.0          , -(double)AC[1],  0.0          , -(double)BC[1],  0.0          ,  (double)CD[1]}, 
+        { 0.0          , -(double)AC[2],  0.0          , -(double)BC[2],  0.0          ,  (double)CD[2]}, 
+        { 0.0          ,  0.0          , -(double)AD[0],  0.0          , -(double)BD[0], -(double)CD[0]}, 
+        { 0.0          ,  0.0          , -(double)AD[1],  0.0          , -(double)BD[1], -(double)CD[1]}, 
+        { 0.0          ,  0.0          , -(double)AD[2],  0.0          , -(double)BD[2], -(double)CD[2]},
+    };
 
-        const Eigen::Matrix<double, 12, 1> b_eig{
-            {(double)Fa[0]},
-            {(double)Fa[1]},
-            {(double)Fa[2]},
-            {(double)Fb[0]},
-            {(double)Fb[1]},
-            {(double)Fb[2]},
-            {(double)Fc[0]},
-            {(double)Fc[1]},
-            {(double)Fc[2]},
-            {(double)Fd[0]},
-            {(double)Fd[1]},
-            {(double)Fd[2]},
-        };
-        
-        Eigen::JacobiSVD<Eigen::Matrix<double,12,6>> svd;
-        svd.compute(M_eig, Eigen::ComputeThinU | Eigen::ComputeThinV);
-        const Eigen::Matrix<double,6,1> x = svd.solve(b_eig);
+    const Eigen::Matrix<double, 12, 1> b_eig{
+        {(double)Fa[0]},
+        {(double)Fa[1]},
+        {(double)Fa[2]},
+        {(double)Fb[0]},
+        {(double)Fb[1]},
+        {(double)Fb[2]},
+        {(double)Fc[0]},
+        {(double)Fc[1]},
+        {(double)Fc[2]},
+        {(double)Fd[0]},
+        {(double)Fd[1]},
+        {(double)Fd[2]},
+    };
+    
+    Eigen::JacobiSVD<Eigen::Matrix<double,12,6>> svd;
+    svd.compute(M_eig, Eigen::ComputeThinU | Eigen::ComputeThinV);
+    const Eigen::Matrix<double,6,1> x = svd.solve(b_eig);
 
-        // Sum the 6 contributions to the stress
-        const real_mds lab = (real_mds)x(0,0);
-        const real_mds lac = (real_mds)x(1,0);
-        const real_mds lad = (real_mds)x(2,0);
-        const real_mds lbc = (real_mds)x(3,0);
-        const real_mds lbd = (real_mds)x(4,0);
-        const real_mds lcd = (real_mds)x(5,0);
+    // Sum the 6 contributions to the stress
+    const real_mds lab = (real_mds)x(0,0);
+    const real_mds lac = (real_mds)x(1,0);
+    const real_mds lad = (real_mds)x(2,0);
+    const real_mds lbc = (real_mds)x(3,0);
+    const real_mds lbd = (real_mds)x(4,0);
+    const real_mds lcd = (real_mds)x(5,0);
 
-        const array3_mds Fij1 = {lab * AB[0], lab * AB[1], lab * AB[2]};
-        distribute_n2(settings, state, Ra, Rb, &Fij1, grid, nullptr, nullptr, nullptr, nullptr, nullptr);
+    const array3_mds Fij1 = {lab * AB[0], lab * AB[1], lab * AB[2]};
+    distribute_n2(settings, state, Ra, Rb, &Fij1, grid, nullptr, nullptr, nullptr, nullptr, nullptr);
 
-        const array3_mds Fij2 = {lac * AC[0], lac * AC[1], lac * AC[2]};
-        distribute_n2(settings, state, Ra, Rc, &Fij2, grid, nullptr, nullptr, nullptr, nullptr, nullptr);
+    const array3_mds Fij2 = {lac * AC[0], lac * AC[1], lac * AC[2]};
+    distribute_n2(settings, state, Ra, Rc, &Fij2, grid, nullptr, nullptr, nullptr, nullptr, nullptr);
 
-        const array3_mds Fij3 = {lad * AD[0], lad * AD[1], lad * AD[2]};
-        distribute_n2(settings, state, Ra, Rd, &Fij3, grid, nullptr, nullptr, nullptr, nullptr, nullptr);
+    const array3_mds Fij3 = {lad * AD[0], lad * AD[1], lad * AD[2]};
+    distribute_n2(settings, state, Ra, Rd, &Fij3, grid, nullptr, nullptr, nullptr, nullptr, nullptr);
 
-        const array3_mds Fij4 = {lbc * BC[0], lbc * BC[1], lbc * BC[2]};
-        distribute_n2(settings, state, Rb, Rc, &Fij4, grid, nullptr, nullptr, nullptr, nullptr, nullptr);
+    const array3_mds Fij4 = {lbc * BC[0], lbc * BC[1], lbc * BC[2]};
+    distribute_n2(settings, state, Rb, Rc, &Fij4, grid, nullptr, nullptr, nullptr, nullptr, nullptr);
 
-        const array3_mds Fij5 = {lbd * BD[0], lbd * BD[1], lbd * BD[2]};
-        distribute_n2(settings, state, Rb, Rd, &Fij5, grid, nullptr, nullptr, nullptr, nullptr, nullptr);
+    const array3_mds Fij5 = {lbd * BD[0], lbd * BD[1], lbd * BD[2]};
+    distribute_n2(settings, state, Rb, Rd, &Fij5, grid, nullptr, nullptr, nullptr, nullptr, nullptr);
 
-        const array3_mds Fij6 = {lcd * CD[0], lcd * CD[1], lcd * CD[2]};
-        distribute_n2(settings, state, Rc, Rd, &Fij6, grid, nullptr, nullptr, nullptr, nullptr, nullptr);
-    }
+    const array3_mds Fij6 = {lcd * CD[0], lcd * CD[1], lcd * CD[2]};
+    distribute_n2(settings, state, Rc, Rd, &Fij6, grid, nullptr, nullptr, nullptr, nullptr, nullptr);
 }
 
 // Decompose 5-body potentials (CMAP)
@@ -590,141 +589,139 @@ static void decompose_n5(
     // Matrix of the system (15 equations x 10 unknowns)
     // Vector, we want to solve M*x = b
     // Scalar product of the Normal and the initial CFD
-    if(settings.fdecomp == mds_ccfd || settings.fdecomp == mds_ncfd) {
-        array3_mds AB, AC, AD, AE, BC, BD, BE, CD, CE, DE;
-        diffarray3(Rb, Ra, AB, state.box, settings.periodic);
-        diffarray3(Rc, Ra, AC, state.box, settings.periodic);
-        diffarray3(Rd, Ra, AD, state.box, settings.periodic);
-        diffarray3(Re, Ra, AE, state.box, settings.periodic);
-        diffarray3(Rc, Rb, BC, state.box, settings.periodic);
-        diffarray3(Rd, Rb, BD, state.box, settings.periodic);
-        diffarray3(Re, Rb, BE, state.box, settings.periodic);
-        diffarray3(Rd, Rc, CD, state.box, settings.periodic);
-        diffarray3(Re, Rc, CE, state.box, settings.periodic);
-        diffarray3(Re, Rd, DE, state.box, settings.periodic);
+    array3_mds AB, AC, AD, AE, BC, BD, BE, CD, CE, DE;
+    diffarray3(Rb, Ra, AB, state.box, settings.periodic);
+    diffarray3(Rc, Ra, AC, state.box, settings.periodic);
+    diffarray3(Rd, Ra, AD, state.box, settings.periodic);
+    diffarray3(Re, Ra, AE, state.box, settings.periodic);
+    diffarray3(Rc, Rb, BC, state.box, settings.periodic);
+    diffarray3(Rd, Rb, BD, state.box, settings.periodic);
+    diffarray3(Re, Rb, BE, state.box, settings.periodic);
+    diffarray3(Rd, Rc, CD, state.box, settings.periodic);
+    diffarray3(Re, Rc, CE, state.box, settings.periodic);
+    diffarray3(Re, Rd, DE, state.box, settings.periodic);
 
-        const real_mds normAB=normarray3(AB);
-        const real_mds normAC=normarray3(AC);
-        const real_mds normAD=normarray3(AD);
-        const real_mds normAE=normarray3(AE);
-        const real_mds normBC=normarray3(BC);
-        const real_mds normBD=normarray3(BD);
-        const real_mds normBE=normarray3(BE);
-        const real_mds normCD=normarray3(CD);
-        const real_mds normCE=normarray3(CE);
-        const real_mds normDE=normarray3(DE);
+    const real_mds normAB=normarray3(AB);
+    const real_mds normAC=normarray3(AC);
+    const real_mds normAD=normarray3(AD);
+    const real_mds normAE=normarray3(AE);
+    const real_mds normBC=normarray3(BC);
+    const real_mds normBD=normarray3(BD);
+    const real_mds normBE=normarray3(BE);
+    const real_mds normCD=normarray3(CD);
+    const real_mds normCE=normarray3(CE);
+    const real_mds normDE=normarray3(DE);
 
-        for(int i = 0; i < 3; i++) {
-            if(normAB > mds_eps) AB[i]/=normAB;
-            if(normAC > mds_eps) AC[i]/=normAC;
-            if(normAD > mds_eps) AD[i]/=normAD;
-            if(normAE > mds_eps) AE[i]/=normAE;
-            if(normBC > mds_eps) BC[i]/=normBC;
-            if(normBD > mds_eps) BD[i]/=normBD;
-            if(normBE > mds_eps) BE[i]/=normBE;
-            if(normCD > mds_eps) CD[i]/=normCD;
-            if(normCE > mds_eps) CE[i]/=normCE;
-            if(normDE > mds_eps) DE[i]/=normDE;
-        }
-
-        const Eigen::Matrix<double,15,10> M_eig{
-            { (double)AB[0],  (double)AC[0],  (double)AD[0],  (double)AE[0],  0.0          ,  0.0          ,  0.0          ,  0.0          ,  0.0          ,  0.0          },
-            { (double)AB[1],  (double)AC[1],  (double)AD[1],  (double)AE[1],  0.0          ,  0.0          ,  0.0          ,  0.0          ,  0.0          ,  0.0          },
-            { (double)AB[2],  (double)AC[2],  (double)AD[2],  (double)AE[2],  0.0          ,  0.0          ,  0.0          ,  0.0          ,  0.0          ,  0.0          },
-            {-(double)AB[0],  0.0          ,  0.0          ,  0.0          ,  (double)BC[0],  (double)BD[0],  (double)BE[0],  0.0          ,  0.0          ,  0.0          },
-            {-(double)AB[1],  0.0          ,  0.0          ,  0.0          ,  (double)BC[1],  (double)BD[1],  (double)BE[1],  0.0          ,  0.0          ,  0.0          },
-            {-(double)AB[2],  0.0          ,  0.0          ,  0.0          ,  (double)BC[2],  (double)BD[2],  (double)BE[2],  0.0          ,  0.0          ,  0.0          },
-            { 0.0          , -(double)AC[0],  0.0          ,  0.0          , -(double)BC[0],  0.0          ,  0.0          ,  (double)CD[0],  (double)CE[0],  0.0          },
-            { 0.0          , -(double)AC[1],  0.0          ,  0.0          , -(double)BC[1],  0.0          ,  0.0          ,  (double)CD[1],  (double)CE[1],  0.0          },
-            { 0.0          , -(double)AC[2],  0.0          ,  0.0          , -(double)BC[2],  0.0          ,  0.0          ,  (double)CD[2],  (double)CE[2],  0.0          },
-            { 0.0          ,  0.0          , -(double)AD[0],  0.0          ,  0.0          , -(double)BD[0],  0.0          , -(double)CD[0],  0.0          ,  (double)DE[0]},
-            { 0.0          ,  0.0          , -(double)AD[1],  0.0          ,  0.0          , -(double)BD[1],  0.0          , -(double)CD[1],  0.0          ,  (double)DE[1]},
-            { 0.0          ,  0.0          , -(double)AD[2],  0.0          ,  0.0          , -(double)BD[2],  0.0          , -(double)CD[2],  0.0          ,  (double)DE[2]},
-            { 0.0          ,  0.0          ,  0.0          , -(double)AE[0],  0.0          ,  0.0          , -(double)BE[0],  0.0          , -(double)CE[0], -(double)DE[0]},
-            { 0.0          ,  0.0          ,  0.0          , -(double)AE[1],  0.0          ,  0.0          , -(double)BE[1],  0.0          , -(double)CE[1], -(double)DE[1]},
-            { 0.0          ,  0.0          ,  0.0          , -(double)AE[2],  0.0          ,  0.0          , -(double)BE[2],  0.0          , -(double)CE[2], -(double)DE[2]}
-        };
-
-        const Eigen::Matrix<double,15,1> b_eig{
-            {(double)Fa[0]},
-            {(double)Fa[1]},
-            {(double)Fa[2]},
-            {(double)Fb[0]},
-            {(double)Fb[1]},
-            {(double)Fb[2]},
-            {(double)Fc[0]},
-            {(double)Fc[1]},
-            {(double)Fc[2]},
-            {(double)Fd[0]},
-            {(double)Fd[1]},
-            {(double)Fd[2]},
-            {(double)Fe[0]},
-            {(double)Fe[1]},
-            {(double)Fe[2]},
-        };
-        
-        Eigen::JacobiSVD<Eigen::Matrix<double,15,10>> svd;
-        svd.compute(M_eig, Eigen::ComputeThinU | Eigen::ComputeThinV);
-        Eigen::Matrix<double,10,1> x = svd.solve(b_eig);
-
-        // If cCFD project the least squares CFD to the shape space
-        if(settings.fdecomp == mds_ccfd) {
-            // Calculate the normal to the Shape Space
-            real_mds CaleyMengerNormal[15] = {0};
-            ShapeSpace5Normal(normAB,normAC,normAD,normAE,normBC,normBD,normBE,normCD,normCE,normDE,CaleyMengerNormal);
-            
-            // Covariant derivative
-            real_mds prod = realval_mds(0.0);
-            for (int i = 0; i < 15; i++ ) {
-                prod +=(real_mds)x(i,0)*CaleyMengerNormal[i];
-            }
-
-            for (int i = 0; i < 15; i++ ) {
-                x(i,0) = (real_mds)x(i,0) - prod * CaleyMengerNormal[i];
-            }
-        }
-
-        const real_mds lab = (real_mds)x(0,0);
-        const real_mds lac = (real_mds)x(1,0);
-        const real_mds lad = (real_mds)x(2,0);
-        const real_mds lae = (real_mds)x(3,0);
-        const real_mds lbc = (real_mds)x(4,0);
-        const real_mds lbd = (real_mds)x(5,0);
-        const real_mds lbe = (real_mds)x(6,0);
-        const real_mds lcd = (real_mds)x(7,0);
-        const real_mds lce = (real_mds)x(8,0);
-        const real_mds lde = (real_mds)x(9,0);
-
-        const array3_mds Fij1 = {lab * AB[0], lab * AB[1], lab * AB[2]};
-        distribute_n2(settings, state, Ra, Rb, &Fij1, grid, nullptr, nullptr, nullptr, nullptr, nullptr);
-
-        const array3_mds Fij2 = {lac * AC[0], lac * AC[1], lac * AC[2]};
-        distribute_n2(settings, state, Ra, Rc, &Fij2, grid, nullptr, nullptr, nullptr, nullptr, nullptr);
-
-        const array3_mds Fij3 = {lad * AD[0], lad * AD[1], lad * AD[2]};
-        distribute_n2(settings, state, Ra, Rd, &Fij3, grid, nullptr, nullptr, nullptr, nullptr, nullptr);
-
-        const array3_mds Fij4 = {lae * AE[0], lae * AE[1], lae * AE[2]};
-        distribute_n2(settings, state, Ra, Re, &Fij4, grid, nullptr, nullptr, nullptr, nullptr, nullptr);
-
-        const array3_mds Fij5 = {lbc * BC[0], lbc * BC[1], lbc * BC[2]};
-        distribute_n2(settings, state, Rb, Rc, &Fij5, grid, nullptr, nullptr, nullptr, nullptr, nullptr);
-
-        const array3_mds Fij6 = {lbd * BD[0], lbd * BD[1], lbd * BD[2]};
-        distribute_n2(settings, state, Rb, Rd, &Fij6, grid, nullptr, nullptr, nullptr, nullptr, nullptr);
-
-        const array3_mds Fij7 = {lbe * BE[0], lbe * BE[1], lbe * BE[2]};
-        distribute_n2(settings, state, Rb, Re, &Fij7, grid, nullptr, nullptr, nullptr, nullptr, nullptr);
-
-        const array3_mds Fij8 = {lcd * CD[0], lcd * CD[1], lcd * CD[2]};
-        distribute_n2(settings, state, Rc, Rd, &Fij8, grid, nullptr, nullptr, nullptr, nullptr, nullptr);
-
-        const array3_mds Fij9 = {lce * CE[0], lce * CE[1], lce * CE[2]};
-        distribute_n2(settings, state, Rc, Re, &Fij9, grid, nullptr, nullptr, nullptr, nullptr, nullptr);
-
-        const array3_mds Fij10= {lde * DE[0], lde * DE[1], lde * DE[2]};
-        distribute_n2(settings, state, Rd, Re, &Fij10, grid, nullptr, nullptr, nullptr, nullptr, nullptr);
+    for(int i = 0; i < 3; i++) {
+        if(normAB > mds_eps) AB[i]/=normAB;
+        if(normAC > mds_eps) AC[i]/=normAC;
+        if(normAD > mds_eps) AD[i]/=normAD;
+        if(normAE > mds_eps) AE[i]/=normAE;
+        if(normBC > mds_eps) BC[i]/=normBC;
+        if(normBD > mds_eps) BD[i]/=normBD;
+        if(normBE > mds_eps) BE[i]/=normBE;
+        if(normCD > mds_eps) CD[i]/=normCD;
+        if(normCE > mds_eps) CE[i]/=normCE;
+        if(normDE > mds_eps) DE[i]/=normDE;
     }
+
+    const Eigen::Matrix<double,15,10> M_eig{
+        { (double)AB[0],  (double)AC[0],  (double)AD[0],  (double)AE[0],  0.0          ,  0.0          ,  0.0          ,  0.0          ,  0.0          ,  0.0          },
+        { (double)AB[1],  (double)AC[1],  (double)AD[1],  (double)AE[1],  0.0          ,  0.0          ,  0.0          ,  0.0          ,  0.0          ,  0.0          },
+        { (double)AB[2],  (double)AC[2],  (double)AD[2],  (double)AE[2],  0.0          ,  0.0          ,  0.0          ,  0.0          ,  0.0          ,  0.0          },
+        {-(double)AB[0],  0.0          ,  0.0          ,  0.0          ,  (double)BC[0],  (double)BD[0],  (double)BE[0],  0.0          ,  0.0          ,  0.0          },
+        {-(double)AB[1],  0.0          ,  0.0          ,  0.0          ,  (double)BC[1],  (double)BD[1],  (double)BE[1],  0.0          ,  0.0          ,  0.0          },
+        {-(double)AB[2],  0.0          ,  0.0          ,  0.0          ,  (double)BC[2],  (double)BD[2],  (double)BE[2],  0.0          ,  0.0          ,  0.0          },
+        { 0.0          , -(double)AC[0],  0.0          ,  0.0          , -(double)BC[0],  0.0          ,  0.0          ,  (double)CD[0],  (double)CE[0],  0.0          },
+        { 0.0          , -(double)AC[1],  0.0          ,  0.0          , -(double)BC[1],  0.0          ,  0.0          ,  (double)CD[1],  (double)CE[1],  0.0          },
+        { 0.0          , -(double)AC[2],  0.0          ,  0.0          , -(double)BC[2],  0.0          ,  0.0          ,  (double)CD[2],  (double)CE[2],  0.0          },
+        { 0.0          ,  0.0          , -(double)AD[0],  0.0          ,  0.0          , -(double)BD[0],  0.0          , -(double)CD[0],  0.0          ,  (double)DE[0]},
+        { 0.0          ,  0.0          , -(double)AD[1],  0.0          ,  0.0          , -(double)BD[1],  0.0          , -(double)CD[1],  0.0          ,  (double)DE[1]},
+        { 0.0          ,  0.0          , -(double)AD[2],  0.0          ,  0.0          , -(double)BD[2],  0.0          , -(double)CD[2],  0.0          ,  (double)DE[2]},
+        { 0.0          ,  0.0          ,  0.0          , -(double)AE[0],  0.0          ,  0.0          , -(double)BE[0],  0.0          , -(double)CE[0], -(double)DE[0]},
+        { 0.0          ,  0.0          ,  0.0          , -(double)AE[1],  0.0          ,  0.0          , -(double)BE[1],  0.0          , -(double)CE[1], -(double)DE[1]},
+        { 0.0          ,  0.0          ,  0.0          , -(double)AE[2],  0.0          ,  0.0          , -(double)BE[2],  0.0          , -(double)CE[2], -(double)DE[2]}
+    };
+
+    const Eigen::Matrix<double,15,1> b_eig{
+        {(double)Fa[0]},
+        {(double)Fa[1]},
+        {(double)Fa[2]},
+        {(double)Fb[0]},
+        {(double)Fb[1]},
+        {(double)Fb[2]},
+        {(double)Fc[0]},
+        {(double)Fc[1]},
+        {(double)Fc[2]},
+        {(double)Fd[0]},
+        {(double)Fd[1]},
+        {(double)Fd[2]},
+        {(double)Fe[0]},
+        {(double)Fe[1]},
+        {(double)Fe[2]},
+    };
+    
+    Eigen::JacobiSVD<Eigen::Matrix<double,15,10>> svd;
+    svd.compute(M_eig, Eigen::ComputeThinU | Eigen::ComputeThinV);
+    Eigen::Matrix<double,10,1> x = svd.solve(b_eig);
+
+    // If cCFD project the least squares CFD to the shape space
+    if(settings.fdecomp == mds_ccfd) {
+        // Calculate the normal to the Shape Space
+        real_mds CaleyMengerNormal[15] = {0};
+        ShapeSpace5Normal(normAB,normAC,normAD,normAE,normBC,normBD,normBE,normCD,normCE,normDE,CaleyMengerNormal);
+        
+        // Covariant derivative
+        real_mds prod = realval_mds(0.0);
+        for (int i = 0; i < 15; i++ ) {
+            prod +=(real_mds)x(i,0)*CaleyMengerNormal[i];
+        }
+
+        for (int i = 0; i < 15; i++ ) {
+            x(i,0) = (real_mds)x(i,0) - prod * CaleyMengerNormal[i];
+        }
+    }
+
+    const real_mds lab = (real_mds)x(0,0);
+    const real_mds lac = (real_mds)x(1,0);
+    const real_mds lad = (real_mds)x(2,0);
+    const real_mds lae = (real_mds)x(3,0);
+    const real_mds lbc = (real_mds)x(4,0);
+    const real_mds lbd = (real_mds)x(5,0);
+    const real_mds lbe = (real_mds)x(6,0);
+    const real_mds lcd = (real_mds)x(7,0);
+    const real_mds lce = (real_mds)x(8,0);
+    const real_mds lde = (real_mds)x(9,0);
+
+    const array3_mds Fij1 = {lab * AB[0], lab * AB[1], lab * AB[2]};
+    distribute_n2(settings, state, Ra, Rb, &Fij1, grid, nullptr, nullptr, nullptr, nullptr, nullptr);
+
+    const array3_mds Fij2 = {lac * AC[0], lac * AC[1], lac * AC[2]};
+    distribute_n2(settings, state, Ra, Rc, &Fij2, grid, nullptr, nullptr, nullptr, nullptr, nullptr);
+
+    const array3_mds Fij3 = {lad * AD[0], lad * AD[1], lad * AD[2]};
+    distribute_n2(settings, state, Ra, Rd, &Fij3, grid, nullptr, nullptr, nullptr, nullptr, nullptr);
+
+    const array3_mds Fij4 = {lae * AE[0], lae * AE[1], lae * AE[2]};
+    distribute_n2(settings, state, Ra, Re, &Fij4, grid, nullptr, nullptr, nullptr, nullptr, nullptr);
+
+    const array3_mds Fij5 = {lbc * BC[0], lbc * BC[1], lbc * BC[2]};
+    distribute_n2(settings, state, Rb, Rc, &Fij5, grid, nullptr, nullptr, nullptr, nullptr, nullptr);
+
+    const array3_mds Fij6 = {lbd * BD[0], lbd * BD[1], lbd * BD[2]};
+    distribute_n2(settings, state, Rb, Rd, &Fij6, grid, nullptr, nullptr, nullptr, nullptr, nullptr);
+
+    const array3_mds Fij7 = {lbe * BE[0], lbe * BE[1], lbe * BE[2]};
+    distribute_n2(settings, state, Rb, Re, &Fij7, grid, nullptr, nullptr, nullptr, nullptr, nullptr);
+
+    const array3_mds Fij8 = {lcd * CD[0], lcd * CD[1], lcd * CD[2]};
+    distribute_n2(settings, state, Rc, Rd, &Fij8, grid, nullptr, nullptr, nullptr, nullptr, nullptr);
+
+    const array3_mds Fij9 = {lce * CE[0], lce * CE[1], lce * CE[2]};
+    distribute_n2(settings, state, Rc, Re, &Fij9, grid, nullptr, nullptr, nullptr, nullptr, nullptr);
+
+    const array3_mds Fij10= {lde * DE[0], lde * DE[1], lde * DE[2]};
+    distribute_n2(settings, state, Rd, Re, &Fij10, grid, nullptr, nullptr, nullptr, nullptr, nullptr);
 }
 
 static void decompose_nbody(
@@ -740,76 +737,76 @@ static void decompose_nbody(
     const int n_cols = (nAtoms*(nAtoms-1))/2;
 
     // fill matrix M
-    if(settings.fdecomp == mds_ccfd || settings.fdecomp == mds_ncfd) {
-        Eigen::MatrixXd M_eig = Eigen::MatrixXd::Zero(m_rows, n_cols);
+    Eigen::MatrixXd M_eig = Eigen::MatrixXd::Zero(m_rows, n_cols);
 
-        int col = 0;
-        for (int ai = 0; ai < nAtoms; ++ai) {
-            const double Ra[3] = {R[ai][0], R[ai][1], R[ai][2]};
-            for (int bi = ai+1; bi < nAtoms; ++bi) {
-                double Rb[3] = {R[bi][0], R[bi][1], R[bi][2]};
+    int col = 0;
+    for (int ai = 0; ai < nAtoms; ++ai) {
+        const double Ra[3] = {R[ai][0], R[ai][1], R[ai][2]};
+        for (int bi = ai+1; bi < nAtoms; ++bi) {
+            double Rb[3] = {R[bi][0], R[bi][1], R[bi][2]};
 
-                double AB[3] = {0};
-                diffarray3(Rb, Ra, AB, state.box, settings.periodic);
-                
-                int rowPos = ai*3;
-                M_eig(rowPos+0, col) = AB[0];
-                M_eig(rowPos+1, col) = AB[1];
-                M_eig(rowPos+2, col) = AB[2];
-                
-                int rowNeg = bi*3;
-                M_eig(rowNeg+0, col) = -AB[0];
-                M_eig(rowNeg+1, col) = -AB[1];
-                M_eig(rowNeg+2, col) = -AB[2];
+            double AB[3] = {0};
+            diffarray3(Rb, Ra, AB, state.box, settings.periodic);
+            
+            int rowPos = ai*3;
+            M_eig(rowPos+0, col) = AB[0];
+            M_eig(rowPos+1, col) = AB[1];
+            M_eig(rowPos+2, col) = AB[2];
+            
+            int rowNeg = bi*3;
+            M_eig(rowNeg+0, col) = -AB[0];
+            M_eig(rowNeg+1, col) = -AB[1];
+            M_eig(rowNeg+2, col) = -AB[2];
 
-                col += 1;
-            }
+            col += 1;
         }
+    }
 
-        // fill in vector b
-        Eigen::MatrixXd b_eig = Eigen::MatrixXd::Zero(m_rows, 1);
+    // fill in vector b
+    Eigen::MatrixXd b_eig = Eigen::MatrixXd::Zero(m_rows, 1);
 
-        for (int i = 0; i < nAtoms; ++i) {
-            b_eig(3*i+0, 0) = F[i][0];
-            b_eig(3*i+1, 0) = F[i][1];
-            b_eig(3*i+2, 0) = F[i][2];
-        }
-        
-        // solve for coefficients
-        Eigen::JacobiSVD<Eigen::MatrixXd> svd;
-        svd.compute(M_eig, Eigen::FullPivHouseholderQRPreconditioner | Eigen::ComputeFullU | Eigen::ComputeFullV);
-        Eigen::MatrixXd x = Eigen::MatrixXd::Zero(n_cols,1);
-        x = svd.solve(b_eig);
+    for (int i = 0; i < nAtoms; ++i) {
+        b_eig(3*i+0, 0) = F[i][0];
+        b_eig(3*i+1, 0) = F[i][1];
+        b_eig(3*i+2, 0) = F[i][2];
+    }
+    
+    // solve for coefficients
+    Eigen::JacobiSVD<Eigen::MatrixXd> svd;
+    svd.compute(M_eig, Eigen::FullPivHouseholderQRPreconditioner | Eigen::ComputeFullU | Eigen::ComputeFullV);
+    Eigen::MatrixXd x = Eigen::MatrixXd::Zero(n_cols,1);
+    x = svd.solve(b_eig);
 
-        // TODO: need to eliminate components in NULL space:
-        // AtA x = At b
-        // (QR)t(QR) x = (QR)t b
-        // RtR x = RtQt b
-        // R x = Qt b
-        // QR x = QQt b
-        // b^{hat} = QQt b   (b^{hat} here replaces b)
+    // TODO: need to eliminate components in NULL space:
+    // AtA x = At b
+    // (QR)t(QR) x = (QR)t b
+    // RtR x = RtQt b
+    // R x = Qt b
+    // QR x = QQt b
+    // b^{hat} = QQt b   (b^{hat} here replaces b)
 
-        // distribute the stress
-        col = 0;
-        for (int ai = 0; ai < nAtoms; ++ai) {
-            array3_mds Ra = {R[ai][0], R[ai][1], R[ai][2]};
-            for (int bi = ai+1; bi < nAtoms; ++bi) {
-                array3_mds Rb = {R[bi][0], R[bi][1], R[bi][2]};
-                
-                array3_mds AB = {0};
-                diffarray3(Rb, Ra, AB, state.box, settings.periodic);
+    // distribute the stress
+    col = 0;
+    for (int ai = 0; ai < nAtoms; ++ai) {
+        array3_mds Ra = {R[ai][0], R[ai][1], R[ai][2]};
+        for (int bi = ai+1; bi < nAtoms; ++bi) {
+            array3_mds Rb = {R[bi][0], R[bi][1], R[bi][2]};
+            
+            array3_mds AB = {0};
+            diffarray3(Rb, Ra, AB, state.box, settings.periodic);
 
-                const real_mds lab = x(col, 0);
-                const array3_mds Fab = {lab*AB[0], lab*AB[1], lab*AB[2]};
-                distribute_n2(settings, state, Ra, Rb, &Fab, stress_grid, nullptr, nullptr, nullptr, nullptr, nullptr);
+            const real_mds lab = x(col, 0);
+            const array3_mds Fab = {lab*AB[0], lab*AB[1], lab*AB[2]};
+            distribute_n2(settings, state, Ra, Rb, &Fab, stress_grid, nullptr, nullptr, nullptr, nullptr, nullptr);
 
-                col += 1;
-            }
+            col += 1;
         }
     }
 }
 
-//Constructor
+/**
+ * PUBLIC CLASS FUNCTIONS
+ */
 StressGrid::StressGrid() :
     settings({0}),
     state({0}),
@@ -822,14 +819,11 @@ StressGrid::StressGrid() :
     this->state.gridDims = mds_griddim_xyz;
 }
 
-//Destructor
 StressGrid::~StressGrid()
 {
     this->Clear();
 }
 
-//This function initialize the grid depending on the settings. If the settings are incorrect, 
-//it throws an error
 void StressGrid::Init()
 {
     std::lock_guard<std::mutex> lock(this->m_mutex_state);
@@ -957,7 +951,6 @@ void StressGrid::SetPeriodicBoundaries(bool x, bool y, bool z, bool enforce)
     this->settings.periodic[3] = enforce;
 }
 
-// This function updates the box, invbox and computes the new spacings.
 void StressGrid::UpdateBoxSpacings ( matrix3_ext box )
 {
     if (MDS_OK == this->state.ierr) {
@@ -982,8 +975,184 @@ void StressGrid::UpdateBoxSpacings ( matrix3_ext box )
     }
 }
 
-// This function sums the current grid to sum_grid and sets current_grid
-// to zero.
+void StressGrid::DispersionCorrection (real_ext shift)
+{
+    if (this->settings.nodispcor == false) {
+        // select the correct grid
+        int batch_id = this->m_thread_map[std::this_thread::get_id()];
+        matrix3_mds * grid = this->alloc.current_grid+batch_id*this->state.nCells;
+
+        // add shift to grid
+        for(int i = 0; i < this->state.nCells; i++) {
+            for(int m = 0; m < 3; m++)
+                grid[i][m][m] += shift;
+        }
+    }
+}
+
+void StressGrid::DistributeInteraction(
+        int nAtoms,
+        const array3_ext *R,
+        const array3_ext *F,
+        const real_ext *phi,
+        const real_ext *kappa)
+{
+    int batch_id = this->m_thread_map[std::this_thread::get_id()];
+    
+    if (MDS_OK == this->state.ierr)
+    {
+        //------------------------------------------------------------------------------------
+        matrix3_mds * stress_grid = this->alloc.current_grid+batch_id*this->state.nCells;
+        matrix6_mds * elast_grid = this->alloc.current_grid_elborn+batch_id*this->state.nCells;
+
+        // Call functions tailored for specific number of atoms
+        if (2 == nAtoms) {
+            const array3_mds Ra = {(real_mds)R[0][0], (real_mds)R[0][1], (real_mds)R[0][2]};
+            const array3_mds Rb = {(real_mds)R[1][0], (real_mds)R[1][1], (real_mds)R[1][2]};
+            const array3_mds Fa = {(real_mds)F[0][0], (real_mds)F[0][1], (real_mds)F[0][2]};
+            distribute_n2(this->settings, this->state, Ra, Rb, &Fa, stress_grid, &Ra, &Rb, phi, kappa, elast_grid);
+        } else if (3 == nAtoms) {
+            decompose_n3(this->settings, this->state, R, F, stress_grid, phi, kappa, elast_grid);
+        } else if (-3 == nAtoms) {
+            decompose_n3(this->settings, this->state, R, F, stress_grid, nullptr, nullptr, elast_grid);
+        } else if (4 == nAtoms) {
+            decompose_n4(this->settings, this->state, R, F, stress_grid);
+        } else if (5 == nAtoms) {
+            decompose_n5(this->settings, this->state, R, F, stress_grid);
+        } else {
+            decompose_nbody(this->settings, this->state, nAtoms, R, F, stress_grid);
+        }
+    }
+}
+
+void StressGrid::DistributeKinetic(
+        real_ext mass,
+        array3_ext x,
+        array3_ext va,
+        array3_ext vb = nullptr)
+{
+    matrix3_mds stress = {0};
+    matrix6_mds elast = {0};
+
+    if (MDS_OK == this->state.ierr)
+    {
+        // get the batch id
+        int batch_id = this->m_thread_map[std::this_thread::get_id()];
+        
+        // select grid based on batch index
+        matrix6_mds * elast_grid = this->alloc.current_grid_elkin+batch_id*this->state.nCells;
+        matrix3_mds * stress_grid = this->alloc.current_grid+batch_id*this->state.nCells;
+            
+        if (vb == nullptr)
+        {
+            stress[0][0] = (real_mds)(-mass)*(real_mds)(va[0])*(real_mds)(va[0]);
+            stress[0][1] = (real_mds)(-mass)*(real_mds)(va[0])*(real_mds)(va[1]);
+            stress[0][2] = (real_mds)(-mass)*(real_mds)(va[0])*(real_mds)(va[2]);
+            stress[1][0] = (real_mds)(-mass)*(real_mds)(va[1])*(real_mds)(va[0]);
+            stress[1][1] = (real_mds)(-mass)*(real_mds)(va[1])*(real_mds)(va[1]);
+            stress[1][2] = (real_mds)(-mass)*(real_mds)(va[1])*(real_mds)(va[2]);
+            stress[2][0] = (real_mds)(-mass)*(real_mds)(va[2])*(real_mds)(va[0]);
+            stress[2][1] = (real_mds)(-mass)*(real_mds)(va[2])*(real_mds)(va[1]);
+            stress[2][2] = (real_mds)(-mass)*(real_mds)(va[2])*(real_mds)(va[2]);
+            
+            elast[0][0] = (real_mds)(mass)*realval_mds(4.0)*(real_mds)(va[0])*(real_mds)(va[0]); //c_xxxx = c_0000
+            elast[1][1] = (real_mds)(mass)*realval_mds(4.0)*(real_mds)(va[1])*(real_mds)(va[1]); //c_yyyy = c_1111
+            elast[2][2] = (real_mds)(mass)*realval_mds(4.0)*(real_mds)(va[2])*(real_mds)(va[2]); //c_zzzz = c_2222
+
+            elast[0][4] = (real_mds)(mass)*((real_mds)(va[0])*(real_mds)(va[2]) + (real_mds)(va[0])*(real_mds)(va[2])); //c_xxxz = c_0002
+            elast[0][5] = (real_mds)(mass)*((real_mds)(va[0])*(real_mds)(va[1]) + (real_mds)(va[0])*(real_mds)(va[1])); //c_xxxy = c_0001
+            elast[1][3] = (real_mds)(mass)*((real_mds)(va[1])*(real_mds)(va[2]) + (real_mds)(va[1])*(real_mds)(va[2])); //c_yyyz = c_1112
+            elast[1][5] = (real_mds)(mass)*((real_mds)(va[1])*(real_mds)(va[0]) + (real_mds)(va[1])*(real_mds)(va[0])); //c_yyxy = c_1101
+            elast[2][3] = (real_mds)(mass)*((real_mds)(va[2])*(real_mds)(va[1]) + (real_mds)(va[2])*(real_mds)(va[1])); //c_zzyz = c_2212
+            elast[2][4] = (real_mds)(mass)*((real_mds)(va[2])*(real_mds)(va[0]) + (real_mds)(va[2])*(real_mds)(va[0])); //c_zzxz = c_2202
+            elast[4][4] = (real_mds)(mass)*((real_mds)(va[0])*(real_mds)(va[0]) + (real_mds)(va[2])*(real_mds)(va[2])); //c_xzxz = c_0202
+            elast[5][5] = (real_mds)(mass)*((real_mds)(va[0])*(real_mds)(va[0]) + (real_mds)(va[1])*(real_mds)(va[1])); //c_xyxy = c_0101
+            elast[3][3] = (real_mds)(mass)*((real_mds)(va[1])*(real_mds)(va[1]) + (real_mds)(va[2])*(real_mds)(va[2])); //c_yzyz = c_1212
+
+            elast[3][4] = (real_mds)(mass)*(real_mds)(va[1])*(real_mds)(va[0]); //c_yzxz = c_1202
+            elast[3][5] = (real_mds)(mass)*(real_mds)(va[2])*(real_mds)(va[0]); //c_yzxy = c_1201
+            elast[4][5] = (real_mds)(mass)*(real_mds)(va[2])*(real_mds)(va[1]); //c_xzxy = c_0201
+        }
+        else
+        {
+            stress[0][0] = (real_mds)(-mass)*((real_mds)(va[0])*(real_mds)(va[0]) + (real_mds)(vb[0])*(real_mds)(vb[0]))/realval_mds(2.0);
+            stress[0][1] = (real_mds)(-mass)*((real_mds)(va[0])*(real_mds)(va[1]) + (real_mds)(vb[0])*(real_mds)(vb[1]))/realval_mds(2.0);
+            stress[0][2] = (real_mds)(-mass)*((real_mds)(va[0])*(real_mds)(va[2]) + (real_mds)(vb[0])*(real_mds)(vb[2]))/realval_mds(2.0);
+            stress[1][0] = (real_mds)(-mass)*((real_mds)(va[1])*(real_mds)(va[0]) + (real_mds)(vb[1])*(real_mds)(vb[0]))/realval_mds(2.0);
+            stress[1][1] = (real_mds)(-mass)*((real_mds)(va[1])*(real_mds)(va[1]) + (real_mds)(vb[1])*(real_mds)(vb[1]))/realval_mds(2.0);
+            stress[1][2] = (real_mds)(-mass)*((real_mds)(va[1])*(real_mds)(va[2]) + (real_mds)(vb[1])*(real_mds)(vb[2]))/realval_mds(2.0);
+            stress[2][0] = (real_mds)(-mass)*((real_mds)(va[2])*(real_mds)(va[0]) + (real_mds)(vb[2])*(real_mds)(vb[0]))/realval_mds(2.0);
+            stress[2][1] = (real_mds)(-mass)*((real_mds)(va[2])*(real_mds)(va[1]) + (real_mds)(vb[2])*(real_mds)(vb[1]))/realval_mds(2.0);
+            stress[2][2] = (real_mds)(-mass)*((real_mds)(va[2])*(real_mds)(va[2]) + (real_mds)(vb[2])*(real_mds)(vb[2]))/realval_mds(2.0);
+            
+            elast[0][0] = (real_mds)(mass)*realval_mds(4.0)*((real_mds)(va[0])*(real_mds)(va[0]) + (real_mds)(vb[0])*(real_mds)(vb[0]))/realval_mds(2.0); //c_xxxx = c_0000
+            elast[1][1] = (real_mds)(mass)*realval_mds(4.0)*((real_mds)(va[1])*(real_mds)(va[1]) + (real_mds)(vb[1])*(real_mds)(vb[1]))/realval_mds(2.0); //c_yyyy = c_1111
+            elast[2][2] = (real_mds)(mass)*realval_mds(4.0)*((real_mds)(va[2])*(real_mds)(va[2]) + (real_mds)(vb[2])*(real_mds)(vb[2]))/realval_mds(2.0); //c_zzzz = c_2222
+
+            elast[0][4] = (real_mds)(mass)*((real_mds)(va[0])*(real_mds)(va[2]) + (real_mds)(va[0])*(real_mds)(va[2]) + (real_mds)(vb[0])*(real_mds)(vb[2]) + (real_mds)(vb[0])*(real_mds)(vb[2]))/realval_mds(2.0); //c_xxxz = c_0002
+            elast[0][5] = (real_mds)(mass)*((real_mds)(va[0])*(real_mds)(va[1]) + (real_mds)(va[0])*(real_mds)(va[1]) + (real_mds)(vb[0])*(real_mds)(vb[1]) + (real_mds)(vb[0])*(real_mds)(vb[1]))/realval_mds(2.0); //c_xxxy = c_0001
+            elast[1][3] = (real_mds)(mass)*((real_mds)(va[1])*(real_mds)(va[2]) + (real_mds)(va[1])*(real_mds)(va[2]) + (real_mds)(vb[1])*(real_mds)(vb[2]) + (real_mds)(vb[1])*(real_mds)(vb[2]))/realval_mds(2.0); //c_yyyz = c_1112
+            elast[1][5] = (real_mds)(mass)*((real_mds)(va[1])*(real_mds)(va[0]) + (real_mds)(va[1])*(real_mds)(va[0]) + (real_mds)(vb[1])*(real_mds)(vb[0]) + (real_mds)(vb[1])*(real_mds)(vb[0]))/realval_mds(2.0); //c_yyxy = c_1101
+            elast[2][3] = (real_mds)(mass)*((real_mds)(va[2])*(real_mds)(va[1]) + (real_mds)(va[2])*(real_mds)(va[1]) + (real_mds)(vb[2])*(real_mds)(vb[1]) + (real_mds)(vb[2])*(real_mds)(vb[1]))/realval_mds(2.0); //c_zzyz = c_2212
+            elast[2][4] = (real_mds)(mass)*((real_mds)(va[2])*(real_mds)(va[0]) + (real_mds)(va[2])*(real_mds)(va[0]) + (real_mds)(vb[2])*(real_mds)(vb[0]) + (real_mds)(vb[2])*(real_mds)(vb[0]))/realval_mds(2.0); //c_zzxz = c_2202
+            elast[3][3] = (real_mds)(mass)*((real_mds)(va[1])*(real_mds)(va[1]) + (real_mds)(va[2])*(real_mds)(va[2]) + (real_mds)(vb[1])*(real_mds)(vb[1]) + (real_mds)(vb[2])*(real_mds)(vb[2]))/realval_mds(2.0); //c_yzyz = c_1212
+            elast[4][4] = (real_mds)(mass)*((real_mds)(va[0])*(real_mds)(va[0]) + (real_mds)(va[2])*(real_mds)(va[2]) + (real_mds)(vb[0])*(real_mds)(vb[0]) + (real_mds)(vb[2])*(real_mds)(vb[2]))/realval_mds(2.0); //c_xzxz = c_0202
+            elast[5][5] = (real_mds)(mass)*((real_mds)(va[0])*(real_mds)(va[0]) + (real_mds)(va[1])*(real_mds)(va[1]) + (real_mds)(vb[0])*(real_mds)(vb[0]) + (real_mds)(vb[1])*(real_mds)(vb[1]))/realval_mds(2.0); //c_xyxy = c_0101
+
+            elast[3][4] = (real_mds)(mass)*((real_mds)(va[1])*(real_mds)(va[0]) + (real_mds)(vb[1])*(real_mds)(vb[0]))/realval_mds(2.0); //c_yzxz = c_1202
+            elast[3][5] = (real_mds)(mass)*((real_mds)(va[2])*(real_mds)(va[0]) + (real_mds)(vb[2])*(real_mds)(vb[0]))/realval_mds(2.0); //c_yzxy = c_1201
+            elast[4][5] = (real_mds)(mass)*((real_mds)(va[2])*(real_mds)(va[1]) + (real_mds)(vb[2])*(real_mds)(vb[1]))/realval_mds(2.0); //c_xzxy = c_0201
+        }
+
+        // Get the coordinates of the point in the grid
+        iarray i1 = {
+            int(this->settings.gridCells[0] * x[0] * this->state.invbox[0][0] - (x[0] < 0.0) ),
+            int(this->settings.gridCells[1] * x[1] * this->state.invbox[1][1] - (x[1] < 0.0) ),
+            int(this->settings.gridCells[2] * x[2] * this->state.invbox[2][2] - (x[2] < 0.0) )
+        };
+        
+        // and the index constants
+        const int iip1 = ((i1[0] + 1 + this->settings.gridCells[0]) % this->settings.gridCells[0])*this->settings.gridCells[1]*this->settings.gridCells[2];
+        const int jjp1 = ((i1[1] + 1 + this->settings.gridCells[1]) % this->settings.gridCells[1])*this->settings.gridCells[2];
+        const int kkp1 = ((i1[2] + 1 + this->settings.gridCells[2]) % this->settings.gridCells[2]);
+        const int iim1 = ((i1[0] + this->settings.gridCells[0]) % this->settings.gridCells[0])*this->settings.gridCells[1]*this->settings.gridCells[2];
+        const int jjm1 = ((i1[1] + this->settings.gridCells[1]) % this->settings.gridCells[1])*this->settings.gridCells[2];
+        const int kkm1 = ((i1[2] + this->settings.gridCells[2]) % this->settings.gridCells[2]);
+        
+        // xc = vector from the corner of the point to the corner of the cell
+        const array3_mds xc = {
+            (real_mds)(x[0])-this->state.gridsp[0]*i1[0],
+            (real_mds)(x[1])-this->state.gridsp[1]*i1[1],
+            (real_mds)(x[2])-this->state.gridsp[2]*i1[2]
+        };
+        const array3_mds xd = {
+            xc[0]-this->state.gridsp[0],
+            xc[1]-this->state.gridsp[1],
+            xc[2]-this->state.gridsp[2]
+        };
+        
+        // Spread it
+        const real_mds C = this->state.invgridsp * this->state.invgridsp;
+        scalesummatrix3( C*xc[0]*xc[1]*xc[2],stress,stress_grid[iip1+jjp1+kkp1]);
+        scalesummatrix3(-C*xc[0]*xc[1]*xd[2],stress,stress_grid[iip1+jjp1+kkm1]);
+        scalesummatrix3(-C*xc[0]*xd[1]*xc[2],stress,stress_grid[iip1+jjm1+kkp1]);
+        scalesummatrix3( C*xc[0]*xd[1]*xd[2],stress,stress_grid[iip1+jjm1+kkm1]);
+        scalesummatrix3(-C*xd[0]*xc[1]*xc[2],stress,stress_grid[iim1+jjp1+kkp1]);
+        scalesummatrix3( C*xd[0]*xc[1]*xd[2],stress,stress_grid[iim1+jjp1+kkm1]);
+        scalesummatrix3( C*xd[0]*xd[1]*xc[2],stress,stress_grid[iim1+jjm1+kkp1]);
+        scalesummatrix3(-C*xd[0]*xd[1]*xd[2],stress,stress_grid[iim1+jjm1+kkm1]);
+        
+        scalesummatrix6( C*xc[0]*xc[1]*xc[2],elast,elast_grid[iip1+jjp1+kkp1]);
+        scalesummatrix6(-C*xc[0]*xc[1]*xd[2],elast,elast_grid[iip1+jjp1+kkm1]);
+        scalesummatrix6(-C*xc[0]*xd[1]*xc[2],elast,elast_grid[iip1+jjm1+kkp1]);
+        scalesummatrix6( C*xc[0]*xd[1]*xd[2],elast,elast_grid[iip1+jjm1+kkm1]);
+        scalesummatrix6(-C*xd[0]*xc[1]*xc[2],elast,elast_grid[iim1+jjp1+kkp1]);
+        scalesummatrix6( C*xd[0]*xc[1]*xd[2],elast,elast_grid[iim1+jjp1+kkm1]);
+        scalesummatrix6( C*xd[0]*xd[1]*xc[2],elast,elast_grid[iim1+jjm1+kkp1]);
+        scalesummatrix6(-C*xd[0]*xd[1]*xd[2],elast,elast_grid[iim1+jjm1+kkm1]);
+    }
+}
+
 void StressGrid::SumGrid ( )
 {
     if (MDS_OK == this->state.ierr)
@@ -1107,23 +1276,6 @@ void StressGrid::SumGrid ( )
     }
 }
 
-void StressGrid::DispersionCorrection (real_ext shift)
-{
-    if (this->settings.nodispcor == false) {
-        // select the correct grid
-        int batch_id = this->m_thread_map[std::this_thread::get_id()];
-        matrix3_mds * grid = this->alloc.current_grid+batch_id*this->state.nCells;
-
-        // add shift to grid
-        for(int i = 0; i < this->state.nCells; i++) {
-            for(int m = 0; m < 3; m++)
-                grid[i][m][m] += shift;
-        }
-    }
-}
-
-//Set both sum_grid and current_grid to zero. Sum the number of resets (this is used for 
-//printing files) and set the number of frames to zero
 void StressGrid::Reset ( )
 {
     if (MDS_OK == this->state.ierr)
@@ -1167,8 +1319,6 @@ void StressGrid::Reset ( )
     }
 }
 
-
-//Writes file with average stress to grid using the filename set by the user
 void StressGrid::Write ( )
 {
     if (MDS_OK == this->state.ierr) {
@@ -1189,7 +1339,7 @@ void StressGrid::Write ( )
         //Change output format if the user specifies a filename with a .dat extension
         outname = this->m_filename + outnumber.str();
         if (outname.find(".dat") == std::string::npos)
-            outname = outname + "." + mds_fileext;
+            outname = outname + ".mds";
 
         elcovar_outname = rawname + "_elcovar.dat" + outnumber.str();
         elkin_outname = rawname + "_elkin.dat" + outnumber.str();
@@ -1373,188 +1523,10 @@ void StressGrid::Write ( )
     }
 }
 
-void StressGrid::DistributeInteraction(
-        int nAtoms,
-        const array3_ext *R,
-        const array3_ext *F,
-        const real_ext *phi,
-        const real_ext *kappa)
-{
-    int batch_id = this->m_thread_map[std::this_thread::get_id()];
-    
-    if (MDS_OK == this->state.ierr)
-    {
-        //------------------------------------------------------------------------------------
-        matrix3_mds * stress_grid = this->alloc.current_grid+batch_id*this->state.nCells;
-        matrix6_mds * elast_grid = this->alloc.current_grid_elborn+batch_id*this->state.nCells;
-
-        // Call functions tailored for specific number of atoms
-        if (2 == nAtoms) {
-            const array3_mds Ra = {(real_mds)R[0][0], (real_mds)R[0][1], (real_mds)R[0][2]};
-            const array3_mds Rb = {(real_mds)R[1][0], (real_mds)R[1][1], (real_mds)R[1][2]};
-            const array3_mds Fa = {(real_mds)F[0][0], (real_mds)F[0][1], (real_mds)F[0][2]};
-            distribute_n2(this->settings, this->state, Ra, Rb, &Fa, stress_grid, &Ra, &Rb, phi, kappa, elast_grid);
-        } else if (3 == nAtoms) {
-            decompose_n3(this->settings, this->state, R, F, stress_grid, phi, kappa, elast_grid);
-        } else if (-3 == nAtoms) {
-            decompose_n3(this->settings, this->state, R, F, stress_grid, nullptr, nullptr, elast_grid);
-        } else if (4 == nAtoms) {
-            decompose_n4(this->settings, this->state, R, F, stress_grid);
-        } else if (5 == nAtoms) {
-            decompose_n5(this->settings, this->state, R, F, stress_grid);
-        } else {
-            decompose_nbody(this->settings, this->state, nAtoms, R, F, stress_grid);
-        }
-    }
-}
-
-//----------------------------------------------------------------------------------------
-// DistributeKinetic
-//
-// Distributes kinetic contributions onto the grid
-// Requires:
-// mass       -> mass of the particle
-// x          -> position of the atom
-// va         -> velocity of the particle at time t for Vel-verlet, or t-dt/2 for leapfrog integrators
-// vb         -> velocity of the particle at t+dt/2 (for leapfrog integrators only)
-//
-// For leapfrog integrators we know va(t-dt/2) and vb(t+dt/2), but we want the contribution at v(t) which we don't know.
-// So we take the average kinetic contribution from the velocities at each half step -m*(va(t-dt/2)^2 + vb(t+dt/2)^2)/2
-// Warning! this is not the same as simply taking the average of the half-step velocities, which would be incorrect.
-//
-// For velocity-verlet integrators we know v at the same time step, t, as the positions so the contribution is -m*va(t)*va(t)
-void StressGrid::DistributeKinetic(
-        real_ext mass,
-        array3_ext x,
-        array3_ext va,
-        array3_ext vb = nullptr)
-{
-    matrix3_mds stress = {0};
-    matrix6_mds elast = {0};
-
-    if (MDS_OK == this->state.ierr)
-    {
-        // get the batch id
-        int batch_id = this->m_thread_map[std::this_thread::get_id()];
-        
-        // select grid based on batch index
-        matrix6_mds * elast_grid = this->alloc.current_grid_elkin+batch_id*this->state.nCells;
-        matrix3_mds * stress_grid = this->alloc.current_grid+batch_id*this->state.nCells;
-            
-        if (vb == nullptr)
-        {
-            stress[0][0] = (real_mds)(-mass)*(real_mds)(va[0])*(real_mds)(va[0]);
-            stress[0][1] = (real_mds)(-mass)*(real_mds)(va[0])*(real_mds)(va[1]);
-            stress[0][2] = (real_mds)(-mass)*(real_mds)(va[0])*(real_mds)(va[2]);
-            stress[1][0] = (real_mds)(-mass)*(real_mds)(va[1])*(real_mds)(va[0]);
-            stress[1][1] = (real_mds)(-mass)*(real_mds)(va[1])*(real_mds)(va[1]);
-            stress[1][2] = (real_mds)(-mass)*(real_mds)(va[1])*(real_mds)(va[2]);
-            stress[2][0] = (real_mds)(-mass)*(real_mds)(va[2])*(real_mds)(va[0]);
-            stress[2][1] = (real_mds)(-mass)*(real_mds)(va[2])*(real_mds)(va[1]);
-            stress[2][2] = (real_mds)(-mass)*(real_mds)(va[2])*(real_mds)(va[2]);
-            
-            elast[0][0] = (real_mds)(mass)*realval_mds(4.0)*(real_mds)(va[0])*(real_mds)(va[0]); //c_xxxx = c_0000
-            elast[1][1] = (real_mds)(mass)*realval_mds(4.0)*(real_mds)(va[1])*(real_mds)(va[1]); //c_yyyy = c_1111
-            elast[2][2] = (real_mds)(mass)*realval_mds(4.0)*(real_mds)(va[2])*(real_mds)(va[2]); //c_zzzz = c_2222
-
-            elast[0][4] = (real_mds)(mass)*((real_mds)(va[0])*(real_mds)(va[2]) + (real_mds)(va[0])*(real_mds)(va[2])); //c_xxxz = c_0002
-            elast[0][5] = (real_mds)(mass)*((real_mds)(va[0])*(real_mds)(va[1]) + (real_mds)(va[0])*(real_mds)(va[1])); //c_xxxy = c_0001
-            elast[1][3] = (real_mds)(mass)*((real_mds)(va[1])*(real_mds)(va[2]) + (real_mds)(va[1])*(real_mds)(va[2])); //c_yyyz = c_1112
-            elast[1][5] = (real_mds)(mass)*((real_mds)(va[1])*(real_mds)(va[0]) + (real_mds)(va[1])*(real_mds)(va[0])); //c_yyxy = c_1101
-            elast[2][3] = (real_mds)(mass)*((real_mds)(va[2])*(real_mds)(va[1]) + (real_mds)(va[2])*(real_mds)(va[1])); //c_zzyz = c_2212
-            elast[2][4] = (real_mds)(mass)*((real_mds)(va[2])*(real_mds)(va[0]) + (real_mds)(va[2])*(real_mds)(va[0])); //c_zzxz = c_2202
-            elast[4][4] = (real_mds)(mass)*((real_mds)(va[0])*(real_mds)(va[0]) + (real_mds)(va[2])*(real_mds)(va[2])); //c_xzxz = c_0202
-            elast[5][5] = (real_mds)(mass)*((real_mds)(va[0])*(real_mds)(va[0]) + (real_mds)(va[1])*(real_mds)(va[1])); //c_xyxy = c_0101
-            elast[3][3] = (real_mds)(mass)*((real_mds)(va[1])*(real_mds)(va[1]) + (real_mds)(va[2])*(real_mds)(va[2])); //c_yzyz = c_1212
-
-            elast[3][4] = (real_mds)(mass)*(real_mds)(va[1])*(real_mds)(va[0]); //c_yzxz = c_1202
-            elast[3][5] = (real_mds)(mass)*(real_mds)(va[2])*(real_mds)(va[0]); //c_yzxy = c_1201
-            elast[4][5] = (real_mds)(mass)*(real_mds)(va[2])*(real_mds)(va[1]); //c_xzxy = c_0201
-        }
-        else
-        {
-            stress[0][0] = (real_mds)(-mass)*((real_mds)(va[0])*(real_mds)(va[0]) + (real_mds)(vb[0])*(real_mds)(vb[0]))/realval_mds(2.0);
-            stress[0][1] = (real_mds)(-mass)*((real_mds)(va[0])*(real_mds)(va[1]) + (real_mds)(vb[0])*(real_mds)(vb[1]))/realval_mds(2.0);
-            stress[0][2] = (real_mds)(-mass)*((real_mds)(va[0])*(real_mds)(va[2]) + (real_mds)(vb[0])*(real_mds)(vb[2]))/realval_mds(2.0);
-            stress[1][0] = (real_mds)(-mass)*((real_mds)(va[1])*(real_mds)(va[0]) + (real_mds)(vb[1])*(real_mds)(vb[0]))/realval_mds(2.0);
-            stress[1][1] = (real_mds)(-mass)*((real_mds)(va[1])*(real_mds)(va[1]) + (real_mds)(vb[1])*(real_mds)(vb[1]))/realval_mds(2.0);
-            stress[1][2] = (real_mds)(-mass)*((real_mds)(va[1])*(real_mds)(va[2]) + (real_mds)(vb[1])*(real_mds)(vb[2]))/realval_mds(2.0);
-            stress[2][0] = (real_mds)(-mass)*((real_mds)(va[2])*(real_mds)(va[0]) + (real_mds)(vb[2])*(real_mds)(vb[0]))/realval_mds(2.0);
-            stress[2][1] = (real_mds)(-mass)*((real_mds)(va[2])*(real_mds)(va[1]) + (real_mds)(vb[2])*(real_mds)(vb[1]))/realval_mds(2.0);
-            stress[2][2] = (real_mds)(-mass)*((real_mds)(va[2])*(real_mds)(va[2]) + (real_mds)(vb[2])*(real_mds)(vb[2]))/realval_mds(2.0);
-            
-            elast[0][0] = (real_mds)(mass)*realval_mds(4.0)*((real_mds)(va[0])*(real_mds)(va[0]) + (real_mds)(vb[0])*(real_mds)(vb[0]))/realval_mds(2.0); //c_xxxx = c_0000
-            elast[1][1] = (real_mds)(mass)*realval_mds(4.0)*((real_mds)(va[1])*(real_mds)(va[1]) + (real_mds)(vb[1])*(real_mds)(vb[1]))/realval_mds(2.0); //c_yyyy = c_1111
-            elast[2][2] = (real_mds)(mass)*realval_mds(4.0)*((real_mds)(va[2])*(real_mds)(va[2]) + (real_mds)(vb[2])*(real_mds)(vb[2]))/realval_mds(2.0); //c_zzzz = c_2222
-
-            elast[0][4] = (real_mds)(mass)*((real_mds)(va[0])*(real_mds)(va[2]) + (real_mds)(va[0])*(real_mds)(va[2]) + (real_mds)(vb[0])*(real_mds)(vb[2]) + (real_mds)(vb[0])*(real_mds)(vb[2]))/realval_mds(2.0); //c_xxxz = c_0002
-            elast[0][5] = (real_mds)(mass)*((real_mds)(va[0])*(real_mds)(va[1]) + (real_mds)(va[0])*(real_mds)(va[1]) + (real_mds)(vb[0])*(real_mds)(vb[1]) + (real_mds)(vb[0])*(real_mds)(vb[1]))/realval_mds(2.0); //c_xxxy = c_0001
-            elast[1][3] = (real_mds)(mass)*((real_mds)(va[1])*(real_mds)(va[2]) + (real_mds)(va[1])*(real_mds)(va[2]) + (real_mds)(vb[1])*(real_mds)(vb[2]) + (real_mds)(vb[1])*(real_mds)(vb[2]))/realval_mds(2.0); //c_yyyz = c_1112
-            elast[1][5] = (real_mds)(mass)*((real_mds)(va[1])*(real_mds)(va[0]) + (real_mds)(va[1])*(real_mds)(va[0]) + (real_mds)(vb[1])*(real_mds)(vb[0]) + (real_mds)(vb[1])*(real_mds)(vb[0]))/realval_mds(2.0); //c_yyxy = c_1101
-            elast[2][3] = (real_mds)(mass)*((real_mds)(va[2])*(real_mds)(va[1]) + (real_mds)(va[2])*(real_mds)(va[1]) + (real_mds)(vb[2])*(real_mds)(vb[1]) + (real_mds)(vb[2])*(real_mds)(vb[1]))/realval_mds(2.0); //c_zzyz = c_2212
-            elast[2][4] = (real_mds)(mass)*((real_mds)(va[2])*(real_mds)(va[0]) + (real_mds)(va[2])*(real_mds)(va[0]) + (real_mds)(vb[2])*(real_mds)(vb[0]) + (real_mds)(vb[2])*(real_mds)(vb[0]))/realval_mds(2.0); //c_zzxz = c_2202
-            elast[3][3] = (real_mds)(mass)*((real_mds)(va[1])*(real_mds)(va[1]) + (real_mds)(va[2])*(real_mds)(va[2]) + (real_mds)(vb[1])*(real_mds)(vb[1]) + (real_mds)(vb[2])*(real_mds)(vb[2]))/realval_mds(2.0); //c_yzyz = c_1212
-            elast[4][4] = (real_mds)(mass)*((real_mds)(va[0])*(real_mds)(va[0]) + (real_mds)(va[2])*(real_mds)(va[2]) + (real_mds)(vb[0])*(real_mds)(vb[0]) + (real_mds)(vb[2])*(real_mds)(vb[2]))/realval_mds(2.0); //c_xzxz = c_0202
-            elast[5][5] = (real_mds)(mass)*((real_mds)(va[0])*(real_mds)(va[0]) + (real_mds)(va[1])*(real_mds)(va[1]) + (real_mds)(vb[0])*(real_mds)(vb[0]) + (real_mds)(vb[1])*(real_mds)(vb[1]))/realval_mds(2.0); //c_xyxy = c_0101
-
-            elast[3][4] = (real_mds)(mass)*((real_mds)(va[1])*(real_mds)(va[0]) + (real_mds)(vb[1])*(real_mds)(vb[0]))/realval_mds(2.0); //c_yzxz = c_1202
-            elast[3][5] = (real_mds)(mass)*((real_mds)(va[2])*(real_mds)(va[0]) + (real_mds)(vb[2])*(real_mds)(vb[0]))/realval_mds(2.0); //c_yzxy = c_1201
-            elast[4][5] = (real_mds)(mass)*((real_mds)(va[2])*(real_mds)(va[1]) + (real_mds)(vb[2])*(real_mds)(vb[1]))/realval_mds(2.0); //c_xzxy = c_0201
-        }
-
-        // Get the coordinates of the point in the grid
-        iarray i1 = {
-            int(this->settings.gridCells[0] * x[0] * this->state.invbox[0][0] - (x[0] < 0.0) ),
-            int(this->settings.gridCells[1] * x[1] * this->state.invbox[1][1] - (x[1] < 0.0) ),
-            int(this->settings.gridCells[2] * x[2] * this->state.invbox[2][2] - (x[2] < 0.0) )
-        };
-        
-        // and the index constants
-        const int iip1 = ((i1[0] + 1 + this->settings.gridCells[0]) % this->settings.gridCells[0])*this->settings.gridCells[1]*this->settings.gridCells[2];
-        const int jjp1 = ((i1[1] + 1 + this->settings.gridCells[1]) % this->settings.gridCells[1])*this->settings.gridCells[2];
-        const int kkp1 = ((i1[2] + 1 + this->settings.gridCells[2]) % this->settings.gridCells[2]);
-        const int iim1 = ((i1[0] + this->settings.gridCells[0]) % this->settings.gridCells[0])*this->settings.gridCells[1]*this->settings.gridCells[2];
-        const int jjm1 = ((i1[1] + this->settings.gridCells[1]) % this->settings.gridCells[1])*this->settings.gridCells[2];
-        const int kkm1 = ((i1[2] + this->settings.gridCells[2]) % this->settings.gridCells[2]);
-        
-        // xc = vector from the corner of the point to the corner of the cell
-        const array3_mds xc = {
-            (real_mds)(x[0])-this->state.gridsp[0]*i1[0],
-            (real_mds)(x[1])-this->state.gridsp[1]*i1[1],
-            (real_mds)(x[2])-this->state.gridsp[2]*i1[2]
-        };
-        const array3_mds xd = {
-            xc[0]-this->state.gridsp[0],
-            xc[1]-this->state.gridsp[1],
-            xc[2]-this->state.gridsp[2]
-        };
-        
-        // Spread it
-        const real_mds C = this->state.invgridsp * this->state.invgridsp;
-        scalesummatrix3( C*xc[0]*xc[1]*xc[2],stress,stress_grid[iip1+jjp1+kkp1]);
-        scalesummatrix3(-C*xc[0]*xc[1]*xd[2],stress,stress_grid[iip1+jjp1+kkm1]);
-        scalesummatrix3(-C*xc[0]*xd[1]*xc[2],stress,stress_grid[iip1+jjm1+kkp1]);
-        scalesummatrix3( C*xc[0]*xd[1]*xd[2],stress,stress_grid[iip1+jjm1+kkm1]);
-        scalesummatrix3(-C*xd[0]*xc[1]*xc[2],stress,stress_grid[iim1+jjp1+kkp1]);
-        scalesummatrix3( C*xd[0]*xc[1]*xd[2],stress,stress_grid[iim1+jjp1+kkm1]);
-        scalesummatrix3( C*xd[0]*xd[1]*xc[2],stress,stress_grid[iim1+jjm1+kkp1]);
-        scalesummatrix3(-C*xd[0]*xd[1]*xd[2],stress,stress_grid[iim1+jjm1+kkm1]);
-        
-        scalesummatrix6( C*xc[0]*xc[1]*xc[2],elast,elast_grid[iip1+jjp1+kkp1]);
-        scalesummatrix6(-C*xc[0]*xc[1]*xd[2],elast,elast_grid[iip1+jjp1+kkm1]);
-        scalesummatrix6(-C*xc[0]*xd[1]*xc[2],elast,elast_grid[iip1+jjm1+kkp1]);
-        scalesummatrix6( C*xc[0]*xd[1]*xd[2],elast,elast_grid[iip1+jjm1+kkm1]);
-        scalesummatrix6(-C*xd[0]*xc[1]*xc[2],elast,elast_grid[iim1+jjp1+kkp1]);
-        scalesummatrix6( C*xd[0]*xc[1]*xd[2],elast,elast_grid[iim1+jjp1+kkm1]);
-        scalesummatrix6( C*xd[0]*xd[1]*xc[2],elast,elast_grid[iim1+jjm1+kkp1]);
-        scalesummatrix6(-C*xd[0]*xd[1]*xd[2],elast,elast_grid[iim1+jjm1+kkm1]);
-    }
-}
 
 /**
  * PRIVATE CLASS FUNCTIONS
  */
-// Method to delete the preallocated member variables
 void StressGrid::Clear() {
     // free any allocated memory
     if (this->alloc.current_grid         != nullptr ) delete [] this->alloc.current_grid;
@@ -1585,4 +1557,3 @@ void StressGrid::Clear() {
         custress_clear();
 #endif//CUSTRESS_ENABLE
 }
-

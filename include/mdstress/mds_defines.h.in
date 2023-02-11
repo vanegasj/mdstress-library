@@ -28,23 +28,12 @@
 #define @MDS_PRECISION@
 
 namespace mds
-{   
-    #define mds_max(a,b) \
-   ({ __typeof__ (a) _a = (a); \
-       __typeof__ (b) _b = (b); \
-     _a > _b ? _a : _b; })
-    #define mds_min(a,b) \
-   ({ __typeof__ (a) _a = (a); \
-       __typeof__ (b) _b = (b); \
-     _a < _b ? _a : _b; })
-     
-    
+{
+    #define mds_eps     1.0e-10
     #define mds_ndim    3
-    #define mds_maxpart 200
-    #define mds_nlvl    10 //This is very big!
-    
     #define mds_units   16.6054
 
+    // force decompositions
     #define mds_ccfd    0
     #define mds_ncfd    1
 
@@ -67,34 +56,12 @@ namespace mds
     #define mds_dio     0x4000
     #define mds_all     0x7FFF
     
-    // gridc type
-    #define mds_gridc_off  0x0000
-    #define mds_gridc_near 0x0001
-    #define mds_gridc_far  0x0002
-    #define mds_gridc_full 0x0003
-
-    #define mds_eps      1.0e-10
-
-    #define mds_fileext "mds"
-
+    // grid dimension types
     #define mds_griddim_xxx 0
     #define mds_griddim_yyy 1
     #define mds_griddim_zzz 2
     #define mds_griddim_xyz 3
     
-    #define mds_success              0x000u
-    #define mds_invalid_stress_type  0x001u
-    #define mds_invalid_grid_cells_x 0x002u
-    #define mds_invalid_grid_cells_y 0x004u
-    #define mds_invalid_grid_cells_z 0x008u
-    #define mds_invalid_grid_spacing 0x010u
-    #define mds_invalid_md_box_size  0x020u
-    #define mds_invalid_force_decomp 0x040u
-    #define mds_invalid_num_atoms    0x080u
-    #define mds_invalid_filename     0x100u
-    #define mds_invalid_max_cluster  0x200u
-    #define mds_invalid_error_max    0x400u
-
     typedef bool    barray[4];
     typedef int     iarray[3];
     
@@ -119,7 +86,7 @@ namespace mds
     typedef real_ext matrix3_ext[3][3];
     typedef real_ext matrix6_ext[6][6];
     
-    // used for internal calculations
+    // used for internal mdstresslib calculations
 #if defined(MDS_FLOAT)
     #define realval_mds(x) (x ## f)
     typedef float       real_mds;
@@ -135,7 +102,54 @@ namespace mds
     typedef real_mds matrix3_mds[3][3];
     typedef real_mds matrix6_mds[6][6];
 
-    class  StressGrid;
-    class  StressGridPython;
+    // public settings for the StressGrid class
+    typedef struct {
+        iarray      gridCells;
+        real_mds    gridSpacing;
+        barray      periodic;
+        int         fdecomp;
+        int         contrib;
+        real_mds    mindihangle;
+        real_mds    temperature;
+        bool        pcoupl;
+        bool        nodispcor;
+        bool        cuda;
+        bool        initialized;
+    } settings_t;
+
+    // private state for the StressGrid class
+    typedef struct {
+        int         gridDims;
+        real_mds    gridsp[7];
+        real_mds    invgridsp;
+        matrix3_mds invbox;
+        long        nCells;
+        int         ierr;
+        int         nframes;
+        int         nreset;
+        matrix3_mds box;
+        matrix3_mds sumbox;
+        real_mds    avg_boxvol;
+        real_mds    var_boxvol;
+    } state_t;
+
+    // private allocations for the StressGrid class
+    typedef struct {
+        matrix3_mds *current_grid;
+        matrix3_mds *current_gridtot;
+        matrix6_mds *current_grid_elborn;
+        matrix6_mds *current_grid_elkin;
+        matrix3_mds *sum_grid;
+        matrix3_mds *avg_grid;
+        matrix3_mds *avg_gridtot;
+        matrix6_mds *sum_grid_elcovar;
+        matrix6_mds *sum_grid_elkin;
+        matrix6_mds *sum_grid_elborn;
+        matrix3_mds *sum_grid_volcovar;
+        matrix3_mds *sum_gridtot_volcovar;
+    } alloc_t;
+    
+    class StressGrid;
+    class StressGridPython;
 }
 #endif // mds_defines_h
