@@ -104,9 +104,7 @@ namespace mds
 
     // public settings for the StressGrid class
     typedef struct {
-        iarray      gridCells;
         real_mds    gridSpacing;
-        barray      periodic;
         int         fdecomp;
         int         contrib;
         real_mds    mindihangle;
@@ -119,6 +117,8 @@ namespace mds
 
     // private state for the StressGrid class
     typedef struct {
+        barray      periodic;
+        iarray      gridCells;
         int         gridDims;
         real_mds    gridsp[7];
         real_mds    invgridsp;

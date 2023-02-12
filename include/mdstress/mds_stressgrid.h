@@ -29,10 +29,6 @@
 #include "mds_basicops.h"
 #include "mds_cmenger.h"
 
-// counters and runtime parameters
-namespace mds {
-}
-
 class  mds::StressGrid
 {
     public :
@@ -49,19 +45,32 @@ class  mds::StressGrid
             this->m_max_threads = max_threads;
         }
 
-        void SetPeriodicBoundaries(bool x, bool y, bool z, bool enforce);
+        void SetPeriodicBoundaries(bool x, bool y, bool z, bool enforce)
+        { 
+            std::lock_guard<std::mutex> lock(m_mutex_state);
+
+            #ifdef CUSTRESS_ENABLE
+            if (this->settings.cuda)
+                custress_set_periodic(x, y, z, enforce);
+            #endif//CUSTRESS_ENABLE
+
+            this->state.periodic[0] = x;
+            this->state.periodic[1] = y;
+            this->state.periodic[2] = z;
+            this->state.periodic[3] = enforce;
+        }
 
         void SetNumberOfGridCellsX(int nx) {
             std::lock_guard<std::mutex> lock(m_mutex_state);
-            this->settings.gridCells[0] = nx;
+            this->state.gridCells[0] = nx;
         }
         void SetNumberOfGridCellsY(int ny) {
             std::lock_guard<std::mutex> lock(m_mutex_state);
-            this->settings.gridCells[1] = ny;
+            this->state.gridCells[1] = ny;
         }
         void SetNumberOfGridCellsZ(int nz) {
             std::lock_guard<std::mutex> lock(m_mutex_state);
-            this->settings.gridCells[2] = nz;
+            this->state.gridCells[2] = nz;
         }
 
         void SetSpacing(real_ext d) {
