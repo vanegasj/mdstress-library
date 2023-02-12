@@ -6,17 +6,14 @@ project(mdstress_test LANGUAGES CXX )
 # set the C++11 standard
 set(CMAKE_CXX_STANDARD 17)
 
-# set fast math etc
-set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG -ffast-math -march=native" CACHE STRING
+# compiling for native, however not using fast math
+set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG -march=native" CACHE STRING
     "Flags used by the compiler during release builds." FORCE)
 #set(CMAKE_CUDA_FLAGS_RELEASE "-O3 -DNDEBUG -Wno-deprecated-gpu-targets -use_fast_math -restrict -Xptxas -O3,-v -Xcompiler -O3 -arch=sm_61" CACHE STRING
 #    "Flags used by the compiler during release builds." FORCE)
 
-# aarch64 has a fuse-multiply-add (fmadd) which does not match x86_64 fmadd,
-# so we may have to disable fmadd on these systems to get comparable results
-#if (CMAKE_HOST_SYSTEM_PROCESSOR STREQUAL "aarch64")
-#    set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -ffp-contract=off")
-#endif(CMAKE_HOST_SYSTEM_PROCESSOR STREQUAL "aarch64")
+# disabling fused multiply add, since it actually hurts performance on x86_64
+set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -ffp-contract=off")
 
 # set default build type
 if(NOT CMAKE_BUILD_TYPE)

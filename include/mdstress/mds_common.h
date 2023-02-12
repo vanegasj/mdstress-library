@@ -20,8 +20,8 @@
      juan.m.vanegas@gmail.com
 =========================================================================*/
 
-#ifndef mds_common_h
-#define mds_common_h
+#ifndef MDS_COMMON_H
+#define MDS_COMMON_H
 
 #include <iostream>
 #include <fstream>
@@ -35,4 +35,4 @@
 #include <string.h>
 #include <assert.h>
 
-#endif // mds_common_h
+#endif // MDS_COMMON_H

@@ -26,8 +26,11 @@
 #include "mds_barrier.h"
 #include "mds_error.h"
 
-// using Eigen to do nbody force decompositions
+// disable warning for eigen
+#pragma GCC diagnostic push 
+#pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
 #include <Eigen/Dense>
+#pragma GCC diagnostic pop
 
 //#define CUSTRESS_ENABLE
 //#ifdef CUSTRESS_ENABLE
@@ -857,7 +860,7 @@ void StressGrid::Init()
     this->state.ierr |= checkError(
             mds_ccfd != this->settings.fdecomp &&
             mds_ncfd != this->settings.fdecomp,
-            "SetForceDecomposition(type) - type must be mds_{ccfd, ncfd or gld}");
+            "SetForceDecomposition(type) - type must be mds_{ccfd or ncfd}");
 
     // parameters unrelated to stress algorithm and md
     this->state.ierr |= checkError(
@@ -977,15 +980,16 @@ void StressGrid::UpdateBoxSpacings ( matrix3_ext box )
 
 void StressGrid::DispersionCorrection (real_ext shift)
 {
-    if (this->settings.nodispcor == false) {
-        // select the correct grid
+    if (false == this->settings.nodispcor) {
+        // only the 0th batch id adds the shift, so that it only gets added once
         int batch_id = this->m_thread_map[std::this_thread::get_id()];
-        matrix3_mds * grid = this->alloc.current_grid+batch_id*this->state.nCells;
-
-        // add shift to grid
-        for(int i = 0; i < this->state.nCells; i++) {
-            for(int m = 0; m < 3; m++)
-                grid[i][m][m] += shift;
+        if (0 == batch_id) {
+            // add shift to grid: note this is the 0th grid
+            for(int i = 0; i < this->state.nCells; i++) {
+                this->alloc.current_grid[i][0][0] += realval_mds(shift);
+                this->alloc.current_grid[i][1][1] += realval_mds(shift);
+                this->alloc.current_grid[i][2][2] += realval_mds(shift);
+            }
         }
     }
 }
@@ -1546,8 +1550,9 @@ void StressGrid::Clear() {
     memset(&this->alloc, 0, sizeof(alloc_t) );
 
     // clear portions of the state
-    this->state.avg_boxvol = real_mds(0.0);
-    this->state.var_boxvol = real_mds(0.0);
+    this->state.nframes = 0;
+    this->state.avg_boxvol = realval_mds(0.0);
+    this->state.var_boxvol = realval_mds(0.0);
 
     if (this->settings.initialized)
         this->settings.initialized = false;
