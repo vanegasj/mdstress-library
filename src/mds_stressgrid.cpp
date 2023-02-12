@@ -309,7 +309,7 @@ static inline void distribute_n2(
     }
     
     matrix6_mds elast = {0};
-    if (nullptr != phi && nullptr != phi &&
+    if (nullptr != phi &&
             (realval_ext(0.0) != phi[0] || realval_ext(0.0) != kappa[1])) {
         // Construct the stiffness matrix in Voigt notation
         // 0 = xx; 1 = yy; 2 = zz; 3 = yz or zy; 4 = xz or zx; 5 = xy or yx
@@ -352,27 +352,27 @@ static inline void distribute_n2(
         const real_mds xkl02r = xkl[0]*xkl[2]*rinv2;
         const real_mds xkl12r = xkl[1]*xkl[2]*rinv2;
 
-        elast[0][0] = xij00*xkl00r - xij00*xij00r;
-        elast[0][1] = xij00*xkl11r - xij00*xij11r;
-        elast[0][2] = xij00*xkl22r - xij00*xij22r;
-        elast[0][3] = xij00*xkl12r - xij00*xij12r;
-        elast[0][4] = xij00*xkl02r - xij00*xij02r;
-        elast[0][5] = xij00*xkl01r - xij00*xij01r;
-        elast[1][1] = xij11*xkl11r - xij11*xij11r;
-        elast[1][2] = xij11*xkl22r - xij11*xij22r;
-        elast[1][3] = xij11*xkl12r - xij11*xij12r;
-        elast[1][4] = xij11*xkl02r - xij11*xij02r;
-        elast[1][5] = xij11*xkl01r - xij11*xij01r;
-        elast[2][2] = xij22*xkl22r - xij22*xij22r;
-        elast[2][3] = xij22*xkl12r - xij22*xij12r;
-        elast[2][4] = xij22*xkl02r - xij22*xij02r;
-        elast[2][5] = xij22*xkl01r - xij22*xij01r;
-        elast[3][3] = xij12*xkl12r - xij12*xij12r;
-        elast[3][4] = xij12*xkl02r - xij12*xij02r;
-        elast[3][5] = xij12*xkl01r - xij12*xij01r;
-        elast[4][4] = xij02*xkl02r - xij02*xij02r;
-        elast[4][5] = xij02*xkl01r - xij02*xij01r;
-        elast[5][5] = xij01*xkl01r - xij01*xij01r;
+        elast[0][0] = xij00*(xkl00r - xij00r);
+        elast[0][1] = xij00*(xkl11r - xij11r);
+        elast[0][2] = xij00*(xkl22r - xij22r);
+        elast[0][3] = xij00*(xkl12r - xij12r);
+        elast[0][4] = xij00*(xkl02r - xij02r);
+        elast[0][5] = xij00*(xkl01r - xij01r);
+        elast[1][1] = xij11*(xkl11r - xij11r);
+        elast[1][2] = xij11*(xkl22r - xij22r);
+        elast[1][3] = xij11*(xkl12r - xij12r);
+        elast[1][4] = xij11*(xkl02r - xij02r);
+        elast[1][5] = xij11*(xkl01r - xij01r);
+        elast[2][2] = xij22*(xkl22r - xij22r);
+        elast[2][3] = xij22*(xkl12r - xij12r);
+        elast[2][4] = xij22*(xkl02r - xij02r);
+        elast[2][5] = xij22*(xkl01r - xij01r);
+        elast[3][3] = xij12*(xkl12r - xij12r);
+        elast[3][4] = xij12*(xkl02r - xij02r);
+        elast[3][5] = xij12*(xkl01r - xij01r);
+        elast[4][4] = xij02*(xkl02r - xij02r);
+        elast[4][5] = xij02*(xkl01r - xij01r);
+        elast[5][5] = xij01*(xkl01r - xij01r);
     } else {
         elast_grid = nullptr;
     }
@@ -446,32 +446,32 @@ static void decompose_n3(
     const array3_mds Fij2 = {lac * AC[0], lac * AC[1], lac * AC[2]};
     const array3_mds Fij3 = {lbc * BC[0], lbc * BC[1], lbc * BC[2]};
 
-    if (nullptr == phi && nullptr == kappa && nullptr != elast_grid) {
-        // settle specialization
-        const real_mds normAB = normarray3(AB);
-        const real_mds normAC = normarray3(AC);
-        const real_mds normBC = normarray3(BC);
+    if (nullptr != elast_grid) {
+        const real_ext zero = realval_mds(0.0);
 
-        const real_ext phi_kappa1[2] = {real_ext(lab*normAB), realval_ext(0.0)};
-        const real_ext phi_kappa2[2] = {real_ext(lac*normAC), realval_ext(0.0)};
-        const real_ext phi_kappa3[2] = {real_ext(lbc*normBC), realval_ext(0.0)};
-        distribute_n2(state, Ra, Rb, &Fij1, stress_grid, &Ra, &Rb, phi_kappa1, phi_kappa1+1, elast_grid);
-        distribute_n2(state, Ra, Rc, &Fij2, stress_grid, &Ra, &Rc, phi_kappa2, phi_kappa2+1, elast_grid);
-        distribute_n2(state, Rb, Rc, &Fij3, stress_grid, &Rb, &Rc, phi_kappa3, phi_kappa3+1, elast_grid);
-    } else if (nullptr != phi && nullptr != kappa && nullptr != elast_grid) {
-        // calculate the diagonal terms
-        distribute_n2(state, Ra, Rb, &Fij1, stress_grid, &Ra, &Rb, phi+0, kappa+0, elast_grid);
-        distribute_n2(state, Ra, Rc, &Fij2, stress_grid, &Ra, &Rc, phi+1, kappa+4, elast_grid);
-        distribute_n2(state, Rb, Rc, &Fij3, stress_grid, &Rb, &Rc, phi+2, kappa+8, elast_grid);
+        if (nullptr == phi) {
+            // settle specialization
+            const real_ext phiNormAB = real_ext(lab*normarray3(AB) );
+            const real_ext phiNormAC = real_ext(lac*normarray3(AC) );
+            const real_ext phiNormBC = real_ext(lbc*normarray3(BC) );
 
-        // and the off diagonal
-        const real_ext phi [] = {realval_mds(0.0)};
-        distribute_n2(state, Ra, Rb, nullptr, nullptr, &Ra, &Rc, phi, kappa+1, elast_grid);
-        distribute_n2(state, Ra, Rb, nullptr, nullptr, &Rb, &Rc, phi, kappa+2, elast_grid);
-        distribute_n2(state, Ra, Rc, nullptr, nullptr, &Ra, &Rb, phi, kappa+3, elast_grid);
-        distribute_n2(state, Ra, Rc, nullptr, nullptr, &Rb, &Rc, phi, kappa+5, elast_grid);
-        distribute_n2(state, Rb, Rc, nullptr, nullptr, &Ra, &Rb, phi, kappa+6, elast_grid);
-        distribute_n2(state, Rb, Rc, nullptr, nullptr, &Ra, &Rc, phi, kappa+7, elast_grid);
+            distribute_n2(state, Ra, Rb, &Fij1, stress_grid, &Ra, &Rb, &phiNormAB, &zero, elast_grid);
+            distribute_n2(state, Ra, Rc, &Fij2, stress_grid, &Ra, &Rc, &phiNormAC, &zero, elast_grid);
+            distribute_n2(state, Rb, Rc, &Fij3, stress_grid, &Rb, &Rc, &phiNormBC, &zero, elast_grid);
+        } else {
+            // calculate the diagonal terms
+            distribute_n2(state, Ra, Rb, &Fij1, stress_grid, &Ra, &Rb, phi+0, kappa+0, elast_grid);
+            distribute_n2(state, Ra, Rc, &Fij2, stress_grid, &Ra, &Rc, phi+1, kappa+4, elast_grid);
+            distribute_n2(state, Rb, Rc, &Fij3, stress_grid, &Rb, &Rc, phi+2, kappa+8, elast_grid);
+
+            // and the off diagonal
+            distribute_n2(state, Ra, Rb, nullptr, nullptr, &Ra, &Rc, &zero, kappa+1, elast_grid);
+            distribute_n2(state, Ra, Rb, nullptr, nullptr, &Rb, &Rc, &zero, kappa+2, elast_grid);
+            distribute_n2(state, Ra, Rc, nullptr, nullptr, &Ra, &Rb, &zero, kappa+3, elast_grid);
+            distribute_n2(state, Ra, Rc, nullptr, nullptr, &Rb, &Rc, &zero, kappa+5, elast_grid);
+            distribute_n2(state, Rb, Rc, nullptr, nullptr, &Ra, &Rb, &zero, kappa+6, elast_grid);
+            distribute_n2(state, Rb, Rc, nullptr, nullptr, &Ra, &Rc, &zero, kappa+7, elast_grid);
+        }
     } else {
         // general stress only case
         distribute_n2(state, Ra, Rb, &Fij1, stress_grid, nullptr, nullptr, nullptr, nullptr, nullptr);
