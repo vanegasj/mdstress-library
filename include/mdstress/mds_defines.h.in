@@ -131,22 +131,30 @@ namespace mds
         matrix3_mds sumbox;
         real_mds    avg_boxvol;
         real_mds    var_boxvol;
+
+        // moved these here
+        matrix3_mds sum_gridtot_volcovar;
+        matrix3_mds avg_gridtot;
+        matrix3_mds current_gridtot;
     } state_t;
 
     // private allocations for the StressGrid class
     typedef struct {
-        matrix3_mds *current_grid;
-        matrix3_mds *current_gridtot;
-        matrix6_mds *current_grid_elborn;
-        matrix6_mds *current_grid_elkin;
+        // smallest - cells*9
         matrix3_mds *sum_grid;
         matrix3_mds *avg_grid;
-        matrix3_mds *avg_gridtot;
+        matrix3_mds *sum_grid_volcovar;
+
+        // small - cells*36
         matrix6_mds *sum_grid_elcovar;
         matrix6_mds *sum_grid_elkin;
         matrix6_mds *sum_grid_elborn;
-        matrix3_mds *sum_grid_volcovar;
-        matrix3_mds *sum_gridtot_volcovar;
+
+        // big - threads*cells*9
+        matrix3_mds *current_grid;
+
+        // biggest - threads*cells*36
+        matrix6_mds *current_grid_elborn;
     } alloc_t;
     
     class StressGrid;

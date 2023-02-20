@@ -888,16 +888,12 @@ void StressGrid::Init()
         // Allocate all space necessary for grids
         this->alloc.sum_grid             = new matrix3_mds [this->state.nCells]();
         this->alloc.avg_grid             = new matrix3_mds [this->state.nCells]();
-        this->alloc.avg_gridtot          = new matrix3_mds [1]();
         this->alloc.sum_grid_elcovar     = new matrix6_mds [this->state.nCells]();
         this->alloc.sum_grid_elkin       = new matrix6_mds [this->state.nCells]();
         this->alloc.sum_grid_elborn      = new matrix6_mds [this->state.nCells]();
         this->alloc.sum_grid_volcovar    = new matrix3_mds [this->state.nCells]();
-        this->alloc.sum_gridtot_volcovar = new matrix3_mds [1]();
-        this->alloc.current_grid_elkin   = new matrix6_mds [this->state.nCells*this->m_max_threads]();
-        this->alloc.current_grid_elborn  = new matrix6_mds [this->state.nCells*this->m_max_threads]();
         this->alloc.current_grid         = new matrix3_mds [this->state.nCells*this->m_max_threads]();
-        this->alloc.current_gridtot      = new matrix3_mds [1]();
+        this->alloc.current_grid_elborn  = new matrix6_mds [this->state.nCells*this->m_max_threads]();
 
         // Zero all allocated buffers and counters
         this->state.nframes = 0;
@@ -1019,12 +1015,9 @@ void StressGrid::DistributeKinetic(
 
     if (MDS_OK == this->state.ierr)
     {
-        // get the batch id
-        int batch_id = this->m_thread_map[std::this_thread::get_id()];
-        
         // select grid based on batch index
-        matrix6_mds * elast_grid = this->alloc.current_grid_elkin+batch_id*this->state.nCells;
-        matrix3_mds * stress_grid = this->alloc.current_grid+batch_id*this->state.nCells;
+        matrix6_mds * elast_grid = this->alloc.sum_grid_elkin;
+        matrix3_mds * stress_grid = this->alloc.current_grid;
             
         if (vb == nullptr)
         {
@@ -1114,25 +1107,30 @@ void StressGrid::DistributeKinetic(
             xc[2]-this->state.gridsp[2]
         };
         
-        // Spread it
         const real_mds C = this->state.invgridsp * this->state.invgridsp;
-        scalesummatrix3( C*xc[0]*xc[1]*xc[2],stress,stress_grid[iip1+jjp1+kkp1]);
-        scalesummatrix3(-C*xc[0]*xc[1]*xd[2],stress,stress_grid[iip1+jjp1+kkm1]);
-        scalesummatrix3(-C*xc[0]*xd[1]*xc[2],stress,stress_grid[iip1+jjm1+kkp1]);
-        scalesummatrix3( C*xc[0]*xd[1]*xd[2],stress,stress_grid[iip1+jjm1+kkm1]);
-        scalesummatrix3(-C*xd[0]*xc[1]*xc[2],stress,stress_grid[iim1+jjp1+kkp1]);
-        scalesummatrix3( C*xd[0]*xc[1]*xd[2],stress,stress_grid[iim1+jjp1+kkm1]);
-        scalesummatrix3( C*xd[0]*xd[1]*xc[2],stress,stress_grid[iim1+jjm1+kkp1]);
-        scalesummatrix3(-C*xd[0]*xd[1]*xd[2],stress,stress_grid[iim1+jjm1+kkm1]);
-        
-        scalesummatrix6( C*xc[0]*xc[1]*xc[2],elast,elast_grid[iip1+jjp1+kkp1]);
-        scalesummatrix6(-C*xc[0]*xc[1]*xd[2],elast,elast_grid[iip1+jjp1+kkm1]);
-        scalesummatrix6(-C*xc[0]*xd[1]*xc[2],elast,elast_grid[iip1+jjm1+kkp1]);
-        scalesummatrix6( C*xc[0]*xd[1]*xd[2],elast,elast_grid[iip1+jjm1+kkm1]);
-        scalesummatrix6(-C*xd[0]*xc[1]*xc[2],elast,elast_grid[iim1+jjp1+kkp1]);
-        scalesummatrix6( C*xd[0]*xc[1]*xd[2],elast,elast_grid[iim1+jjp1+kkm1]);
-        scalesummatrix6( C*xd[0]*xd[1]*xc[2],elast,elast_grid[iim1+jjm1+kkp1]);
-        scalesummatrix6(-C*xd[0]*xd[1]*xd[2],elast,elast_grid[iim1+jjm1+kkm1]);
+        {
+            // serialize access to stress and elast grid
+            std::lock_guard<std::mutex> lock(this->m_mutex_state);
+
+            // Spread the elasticity and stress
+            scalesummatrix3( C*xc[0]*xc[1]*xc[2],stress,stress_grid[iip1+jjp1+kkp1]);
+            scalesummatrix3(-C*xc[0]*xc[1]*xd[2],stress,stress_grid[iip1+jjp1+kkm1]);
+            scalesummatrix3(-C*xc[0]*xd[1]*xc[2],stress,stress_grid[iip1+jjm1+kkp1]);
+            scalesummatrix3( C*xc[0]*xd[1]*xd[2],stress,stress_grid[iip1+jjm1+kkm1]);
+            scalesummatrix3(-C*xd[0]*xc[1]*xc[2],stress,stress_grid[iim1+jjp1+kkp1]);
+            scalesummatrix3( C*xd[0]*xc[1]*xd[2],stress,stress_grid[iim1+jjp1+kkm1]);
+            scalesummatrix3( C*xd[0]*xd[1]*xc[2],stress,stress_grid[iim1+jjm1+kkp1]);
+            scalesummatrix3(-C*xd[0]*xd[1]*xd[2],stress,stress_grid[iim1+jjm1+kkm1]);
+            
+            scalesummatrix6( C*xc[0]*xc[1]*xc[2],elast,elast_grid[iip1+jjp1+kkp1]);
+            scalesummatrix6(-C*xc[0]*xc[1]*xd[2],elast,elast_grid[iip1+jjp1+kkm1]);
+            scalesummatrix6(-C*xc[0]*xd[1]*xc[2],elast,elast_grid[iip1+jjm1+kkp1]);
+            scalesummatrix6( C*xc[0]*xd[1]*xd[2],elast,elast_grid[iip1+jjm1+kkm1]);
+            scalesummatrix6(-C*xd[0]*xc[1]*xc[2],elast,elast_grid[iim1+jjp1+kkp1]);
+            scalesummatrix6( C*xd[0]*xc[1]*xd[2],elast,elast_grid[iim1+jjp1+kkm1]);
+            scalesummatrix6( C*xd[0]*xd[1]*xc[2],elast,elast_grid[iim1+jjm1+kkp1]);
+            scalesummatrix6(-C*xd[0]*xd[1]*xd[2],elast,elast_grid[iim1+jjm1+kkm1]);
+        }
     }
 }
 
@@ -1158,8 +1156,6 @@ void StressGrid::SumGrid ( )
                     zeromatrix3(this->alloc.current_grid[i+j*this->state.nCells]);
                     summatrix6(this->alloc.current_grid_elborn[i], this->alloc.current_grid_elborn[i+j*this->state.nCells], this->alloc.current_grid_elborn[i] );
                     zeromatrix6(this->alloc.current_grid_elborn[i+j*this->state.nCells]);
-                    summatrix6(this->alloc.current_grid_elkin[i], this->alloc.current_grid_elkin[i+j*this->state.nCells], this->alloc.current_grid_elkin[i] );
-                    zeromatrix6(this->alloc.current_grid_elkin[i+j*this->state.nCells]);
                 }
             }
         }
@@ -1222,34 +1218,32 @@ void StressGrid::SumGrid ( )
             deltaV2 = Vnew - this->state.avg_boxvol;
             this->state.var_boxvol += deltaV*deltaV2;
 
+            // TODO: shouldn't be be tracking volcovar per cell rather than the entire grid?
             for (int i = 0; i < this->state.nCells; i++)
-                summatrix3(this->alloc.current_gridtot[0], this->alloc.current_grid[i], this->alloc.current_gridtot[0]); // compute y = sigma_total_kl = sum(sigma_local_kl)/this->state.nCells
-
-            scalematrix3(this->alloc.current_gridtot[0], realval_mds(1.0)/this->state.nCells, this->alloc.current_gridtot[0]); // scale by this->state.nCells
-            scalesummatrix3(realval_mds(-1.0), this->alloc.avg_gridtot[0], this->alloc.current_gridtot[0]); // subtract meany from y and store back into y (which now becomes dy)
-            scalesummatrix3(realval_mds(1.0)/this->state.nframes, this->alloc.current_gridtot[0], this->alloc.avg_gridtot[0]); //compute meany
-            scalesummatrix3(deltaV, this->alloc.current_gridtot[0], this->alloc.sum_gridtot_volcovar[0]); // accumulate the covar(sigma_total_kl, Vol)
+                summatrix3(this->state.current_gridtot, this->alloc.current_grid[i], this->state.current_gridtot); // compute y = sigma_total_kl = sum(sigma_local_kl)/this->state.nCells
+            scalematrix3(this->state.current_gridtot, realval_mds(1.0)/this->state.nCells, this->state.current_gridtot); // scale by this->state.nCells
+            scalesummatrix3(realval_mds(-1.0), this->state.avg_gridtot, this->state.current_gridtot); // subtract meany from y and store back into y (which now becomes dy)
+            scalesummatrix3(realval_mds(1.0)/this->state.nframes, this->state.current_gridtot, this->state.avg_gridtot); //compute meany
+            scalesummatrix3(deltaV, this->state.current_gridtot, this->state.sum_gridtot_volcovar); // accumulate the covar(sigma_total_kl, Vol)
 
             matrix6_mds tmp_covar[1];
             matrix3_mds dx[1];
             for (int i = 0; i < this->state.nCells; i++) {
                 summatrix3( this->alloc.sum_grid[i], this->alloc.current_grid[i], this->alloc.sum_grid[i] );
                 summatrix6( this->alloc.sum_grid_elborn[i], this->alloc.current_grid_elborn[i], this->alloc.sum_grid_elborn[i] );
-                summatrix6( this->alloc.sum_grid_elkin[i], this->alloc.current_grid_elkin[i], this->alloc.sum_grid_elkin[i] );
                 scalematrix3(this->alloc.avg_grid[i], realval_mds(-1.0), dx[0]); // dx = -meanx
                 summatrix3(dx[0], this->alloc.current_grid[i], dx[0]); // dx += x
                 scalesummatrix3(realval_mds(1.0)/this->state.nframes, dx[0], this->alloc.avg_grid[i]); //compute meanx
                 scalesummatrix3(deltaV, dx[0], this->alloc.sum_grid_volcovar[i]); // accumulate covar(sigma_local_ij, Vol)
-                matrixouterprod6( dx[0], this->alloc.current_gridtot[0], tmp_covar[0]); // dx*dy - uncomment this line to do local-vs-total fluctuations
+                matrixouterprod6( dx[0], this->state.current_gridtot, tmp_covar[0]); // dx*dy - uncomment this line to do local-vs-total fluctuations
                 //matrixouterprod6( dx[0], dx[0], tmp_covar[0]); // dx*dy - uncomment this line to do local-vs-local fluctuations
                 summatrix6(this->alloc.sum_grid_elcovar[i], tmp_covar[0], this->alloc.sum_grid_elcovar[i]); //this accumulates the covar of sigma_local_ij*sigma_total_kl
             }
 
-            zeromatrix3(this->alloc.current_gridtot[0]);
+            zeromatrix3(this->state.current_gridtot);
             for(int i = 0; i < this->state.nCells; ++i) {
                 zeromatrix3(this->alloc.current_grid[i]);
                 zeromatrix6(this->alloc.current_grid_elborn[i]);
-                zeromatrix6(this->alloc.current_grid_elkin[i]);
             }
         }
 
@@ -1274,13 +1268,12 @@ void StressGrid::Reset ( )
         for( int i=0; i<this->state.nCells; i++ ) {
             zeromatrix3(this->alloc.current_grid[i+thread_id*this->m_max_threads]);
             zeromatrix6(this->alloc.current_grid_elborn[i+thread_id*this->m_max_threads]);
-            zeromatrix6(this->alloc.current_grid_elkin[i+thread_id*this->m_max_threads]);
         }
 
         if (thread_id == 0) {
             // thread 0 deals with the sum grid
-            zeromatrix3(this->alloc.current_gridtot[0]);
-            zeromatrix3(this->alloc.avg_gridtot[0]);
+            zeromatrix3(this->state.current_gridtot);
+            zeromatrix3(this->state.avg_gridtot);
             for( int i=0; i<this->state.nCells; i++ ) {
                 zeromatrix3( this->alloc.sum_grid[i] );
                 zeromatrix3( this->alloc.avg_grid[i] );
@@ -1300,6 +1293,126 @@ void StressGrid::Reset ( )
         static barrier reset_exit(this->m_max_threads);
         reset_exit.count_down_and_wait();
     }
+}
+
+bool StressGrid::SaveCheckpoint(const char * filename, const char * temp_filename)
+{
+    if (nullptr == filename)
+        return false;
+
+    // assign the c_str to a std::string so we can easily modify it
+    std::string temp_filename_str(temp_filename); temp_filename_str += ".mds";
+    std::string filename_str(filename); filename_str += ".mds";
+
+    int32_t filename_len = this->m_filename.size();
+    if (filename_len == 0)
+        return false;
+
+    printf("STRESSLIB: saving filename %s, after building temp filename %s\n", filename, temp_filename);
+
+    // sum into thread 0 grid and zero remaining grids
+    for( int j = 1; j < this->m_max_threads; ++j)
+    {
+        for( int i = 0; i<this->state.nCells; i++ )
+        {
+            summatrix3(this->alloc.current_grid[i], this->alloc.current_grid[i+j*this->state.nCells], this->alloc.current_grid[i] );
+            zeromatrix3(this->alloc.current_grid[i+j*this->state.nCells]);
+            summatrix6(this->alloc.current_grid_elborn[i], this->alloc.current_grid_elborn[i+j*this->state.nCells], this->alloc.current_grid_elborn[i] );
+            zeromatrix6(this->alloc.current_grid_elborn[i+j*this->state.nCells]);
+        }
+    }
+
+    // just like gromacs, we will write to the temp file and then copy it over previous
+    FILE* temp_outfile = fopen(temp_filename_str.c_str(), "wb" );
+
+    // write the state and settings
+    fwrite(&this->state, sizeof(state_t), 1, temp_outfile);
+    fwrite(&this->settings, sizeof(settings_t), 1, temp_outfile);
+    
+    // have to be a little more careful with the pointers
+    if (nullptr != this->alloc.sum_grid)             fwrite(this->alloc.sum_grid,            sizeof(matrix3_mds), this->state.nCells, temp_outfile);  
+    if (nullptr != this->alloc.avg_grid)             fwrite(this->alloc.avg_grid,            sizeof(matrix3_mds), this->state.nCells, temp_outfile);  
+    if (nullptr != this->alloc.sum_grid_elcovar)     fwrite(this->alloc.sum_grid_elcovar,    sizeof(matrix6_mds), this->state.nCells, temp_outfile);  
+    if (nullptr != this->alloc.sum_grid_elkin)       fwrite(this->alloc.sum_grid_elkin,      sizeof(matrix6_mds), this->state.nCells, temp_outfile);  
+    if (nullptr != this->alloc.sum_grid_elborn)      fwrite(this->alloc.sum_grid_elborn,     sizeof(matrix6_mds), this->state.nCells, temp_outfile);  
+    if (nullptr != this->alloc.sum_grid_volcovar)    fwrite(this->alloc.sum_grid_volcovar,   sizeof(matrix3_mds), this->state.nCells, temp_outfile);  
+    if (nullptr != this->alloc.current_grid)         fwrite(this->alloc.current_grid,        sizeof(matrix3_mds), this->state.nCells, temp_outfile);  
+    if (nullptr != this->alloc.current_grid_elborn)  fwrite(this->alloc.current_grid_elborn, sizeof(matrix6_mds), this->state.nCells, temp_outfile);  
+
+    // finally we will write the output filename
+    fwrite(&filename_len, sizeof(int), 1, temp_outfile);
+    fwrite(this->m_filename.data(), sizeof(char), filename_len, temp_outfile);
+    fclose(temp_outfile);
+
+    // copy temporary file over target file
+    FILE* source = fopen(temp_filename_str.c_str(), "rb");
+    FILE* dest = fopen(filename_str.c_str(), "wb");
+
+    size_t size = 0;
+    char buf[BUFSIZ];
+    while ( (size = fread(buf, 1, BUFSIZ, source) ) ) {
+        fwrite(buf, 1, size, dest);
+    }
+    fclose(source);
+    fclose(dest);
+
+    // then we delete the temporary file
+    remove(temp_filename_str.c_str());
+
+    return true;
+}
+
+bool StressGrid::LoadCheckpoint(const char * filename)
+{
+    // the main thread will have an actual file name, and it will lock the state
+    if (nullptr != filename)
+    {
+        // lock access to state, alloc and settings while waiting for load to complete
+        std::lock_guard<std::mutex> lock(m_mutex_state);
+
+        std::string load_filename = std::string(filename);
+        load_filename += ".mds";
+        printf("STRESSLIB: Trying to load filename %s\n", load_filename.c_str());
+        
+        // overwrite state and settings from loaded checkpoint
+        FILE* infile = fopen(load_filename.c_str(), "rb" );
+        fread(&this->state, sizeof(state_t), 1, infile);
+        fread(&this->settings, sizeof(settings_t), 1, infile);
+        fclose(infile);
+
+        // call init to allocate pointers
+        this->Init();
+
+        // overwrite state and settings once more
+        infile = fopen(load_filename.c_str(), "rb" );
+        fread(&this->state, sizeof(state_t), 1, infile);
+        fread(&this->settings, sizeof(settings_t), 1, infile);
+        
+        // copy all grid information from the file
+        if (nullptr != this->alloc.sum_grid)             fread(this->alloc.sum_grid,            sizeof(matrix3_mds),  this->state.nCells, infile);  
+        if (nullptr != this->alloc.avg_grid)             fread(this->alloc.avg_grid,            sizeof(matrix3_mds),  this->state.nCells, infile);  
+        if (nullptr != this->alloc.sum_grid_elcovar)     fread(this->alloc.sum_grid_elcovar,    sizeof(matrix6_mds),  this->state.nCells, infile);  
+        if (nullptr != this->alloc.sum_grid_elkin)       fread(this->alloc.sum_grid_elkin,      sizeof(matrix6_mds),  this->state.nCells, infile);  
+        if (nullptr != this->alloc.sum_grid_elborn)      fread(this->alloc.sum_grid_elborn,     sizeof(matrix6_mds),  this->state.nCells, infile);  
+        if (nullptr != this->alloc.sum_grid_volcovar)    fread(this->alloc.sum_grid_volcovar,   sizeof(matrix3_mds),  this->state.nCells, infile);  
+        if (nullptr != this->alloc.current_grid)         fread(this->alloc.current_grid,        sizeof(matrix3_mds),  this->state.nCells, infile);  
+        if (nullptr != this->alloc.current_grid_elborn)  fread(this->alloc.current_grid_elborn, sizeof(matrix6_mds),  this->state.nCells, infile);  
+
+        // finally we will read the output filename
+        int32_t filename_len;
+        fread(&filename_len, sizeof(int), 1, infile);
+        if (filename_len > 0)
+        {
+            char * buf = new char[filename_len+1];
+            buf[filename_len+1] = '\0';
+            fread(buf, sizeof(char), filename_len, infile);
+            this->m_filename = std::string(buf);
+            delete [] buf;
+        }
+        fclose(infile);
+    }
+
+    return true;
 }
 
 void StressGrid::Write ( )
@@ -1414,7 +1527,7 @@ void StressGrid::Write ( )
 
             if (this->settings.pcoupl == true && this->state.nframes > 1)
             {
-                matrixouterprod6(this->alloc.sum_grid_volcovar[i], this->alloc.sum_gridtot_volcovar[0], npt_covar_corr[0]); // Cov(sigma_local_ij,V)*Cov(sigma_total_kl,V)
+                matrixouterprod6(this->alloc.sum_grid_volcovar[i], this->state.sum_gridtot_volcovar, npt_covar_corr[0]); // Cov(sigma_local_ij,V)*Cov(sigma_total_kl,V)
                 scalematrix6(npt_covar_corr[0], covfac2, npt_covar_corr[0]); // scale the term above by <V>/kT*Var(V)
                 summatrix6(this->alloc.sum_grid_elcovar[i], npt_covar_corr[0], this->alloc.sum_grid_elcovar[i]);
             }
@@ -1512,18 +1625,14 @@ void StressGrid::Write ( )
  */
 void StressGrid::Clear() {
     // free any allocated memory
-    if (this->alloc.current_grid         != nullptr ) delete [] this->alloc.current_grid;
-    if (this->alloc.current_gridtot      != nullptr ) delete [] this->alloc.current_gridtot;
-    if (this->alloc.current_grid_elborn  != nullptr ) delete [] this->alloc.current_grid_elborn;
-    if (this->alloc.current_grid_elkin   != nullptr ) delete [] this->alloc.current_grid_elkin;
     if (this->alloc.sum_grid             != nullptr ) delete [] this->alloc.sum_grid;
     if (this->alloc.avg_grid             != nullptr ) delete [] this->alloc.avg_grid;
-    if (this->alloc.avg_gridtot          != nullptr ) delete [] this->alloc.avg_gridtot;
+    if (this->alloc.sum_grid_volcovar    != nullptr ) delete [] this->alloc.sum_grid_volcovar;
     if (this->alloc.sum_grid_elcovar     != nullptr ) delete [] this->alloc.sum_grid_elcovar;
     if (this->alloc.sum_grid_elkin       != nullptr ) delete [] this->alloc.sum_grid_elkin;
     if (this->alloc.sum_grid_elborn      != nullptr ) delete [] this->alloc.sum_grid_elborn;
-    if (this->alloc.sum_grid_volcovar    != nullptr ) delete [] this->alloc.sum_grid_volcovar;
-    if (this->alloc.sum_gridtot_volcovar != nullptr ) delete [] this->alloc.sum_gridtot_volcovar;
+    if (this->alloc.current_grid         != nullptr ) delete [] this->alloc.current_grid;
+    if (this->alloc.current_grid_elborn  != nullptr ) delete [] this->alloc.current_grid_elborn;
 
     // clear the  pointers
     memset(&this->alloc, 0, sizeof(alloc_t) );

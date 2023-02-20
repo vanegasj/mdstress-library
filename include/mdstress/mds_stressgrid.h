@@ -32,11 +32,8 @@
 class  mds::StressGrid
 {
     public :
-        const char *GetNameOfClass() const
-        {   return "StressGrid";    }
-
-        bool CheckInit()
-        {   return this->settings.initialized;    }
+        StressGrid();
+        ~StressGrid();
 
         void SetThreadIDs(int thread_id, int max_threads)
         {
@@ -60,20 +57,14 @@ class  mds::StressGrid
             this->state.periodic[3] = enforce;
         }
 
-        void SetNumberOfGridCellsX(int nx) {
+        void SetGridNCells( int nx, int ny, int nz) {
             std::lock_guard<std::mutex> lock(m_mutex_state);
             this->state.gridCells[0] = nx;
-        }
-        void SetNumberOfGridCellsY(int ny) {
-            std::lock_guard<std::mutex> lock(m_mutex_state);
             this->state.gridCells[1] = ny;
-        }
-        void SetNumberOfGridCellsZ(int nz) {
-            std::lock_guard<std::mutex> lock(m_mutex_state);
             this->state.gridCells[2] = nz;
         }
 
-        void SetSpacing(real_ext d) {
+        void SetGridSpacing(real_ext d) {
             std::lock_guard<std::mutex> lock(m_mutex_state);
             this->settings.gridSpacing = (real_mds)d;
         }
@@ -124,26 +115,30 @@ class  mds::StressGrid
         }
 
         void Init( );
-        void UpdateBoxSpacings ( matrix3_ext box );
-        void SumGrid( );
-        void DispersionCorrection(real_ext shift);
-        void Reset( );
-        void Write( );
-
+        
         void DistributeInteraction(
                 int nAtoms,
                 const array3_ext *R,
                 const array3_ext *F,
                 const real_ext *phi,
                 const real_ext *kappa);
+
         void DistributeKinetic(
                 real_ext mass,
                 array3_ext x,
                 array3_ext va,
                 array3_ext vb);
 
-        StressGrid();
-        ~StressGrid();
+        void UpdateBoxSpacings(matrix3_ext box);
+        void DispersionCorrection(real_ext shift);
+        void SumGrid( );
+        
+        // save stress state in line with gromacs checkpoints
+        bool SaveCheckpoint(const char * filename, const char * temp_filename);
+        bool LoadCheckpoint(const char * filename);
+        
+        void Reset( );
+        void Write( );
 
         // settings are public, since they may be read
         // by the application itself
@@ -152,7 +147,7 @@ class  mds::StressGrid
         state_t state;
         alloc_t alloc;
 
-        // objects
+        // filenames
         std::string m_filename;
 
         // threads
