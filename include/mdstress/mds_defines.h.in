@@ -136,6 +136,12 @@ namespace mds
         matrix3_mds sum_gridtot_volcovar;
         matrix3_mds avg_gridtot;
         matrix3_mds current_gridtot;
+
+        // need to track the last frame summed
+        int64_t last_frameId;
+        int64_t this_frameId;
+        int64_t last_measureId;
+        int64_t this_measureId;
     } state_t;
 
     // private allocations for the StressGrid class

@@ -35,11 +35,16 @@ class  mds::StressGrid
         StressGrid();
         ~StressGrid();
 
-        void SetThreadIDs(int thread_id, int max_threads)
+        void SetMaxThreads(int max_threads)
+        {
+            std::lock_guard<std::mutex> lock(m_mutex_state);
+            this->m_max_threads = max_threads;
+        }
+
+        void SetThreadIDs(int thread_id)
         {
             std::lock_guard<std::mutex> lock(m_mutex_state);
             this->m_thread_map[std::this_thread::get_id()] = thread_id;
-            this->m_max_threads = max_threads;
         }
 
         void SetPeriodicBoundaries(bool x, bool y, bool z, bool enforce)
@@ -103,6 +108,9 @@ class  mds::StressGrid
             this->settings.temperature = (real_mds)temperature;
         }
 
+        // returns the last measured frame while setting the current frame
+        int64_t SetFrameId(int64_t frameId, bool measure);
+
         void EnableCuda() {
             std::lock_guard<std::mutex> lock(m_mutex_state);
             this->settings.cuda = true;
@@ -149,6 +157,8 @@ class  mds::StressGrid
 
         // filenames
         std::string m_filename;
+        std::string m_filename_cpt;
+        std::string m_filename_cpt_temp;
 
         // threads
         int m_max_threads;

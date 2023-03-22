@@ -39,6 +39,13 @@
 
 using namespace mds;
 
+//#define DEBUG_CHECKPOINTS
+#ifdef DEBUG_CHECKPOINTS
+bool printed_interaction = false;
+bool printed_kinetic = false;
+bool printed_dispersion = false;
+#endif
+
 /**
  * STATIC INLINE FUNCTIONS
  */
@@ -809,11 +816,17 @@ StressGrid::StressGrid() :
     state({0}),
     alloc({0}),
     m_filename(),
+    m_filename_cpt(),
+    m_filename_cpt_temp(),
     m_max_threads(0),
     m_thread_map(),
     m_mutex_state()
 {
     this->state.gridDims = mds_griddim_xyz;
+    this->state.last_frameId = -2;
+    this->state.this_frameId = -1;
+    this->state.last_measureId = -2;
+    this->state.this_measureId = -1;
 }
 
 StressGrid::~StressGrid()
@@ -886,6 +899,7 @@ void StressGrid::Init()
         }
 
         // Allocate all space necessary for grids
+        printf("nCells for allocation: %lu, maxThreads for allocation %i\n", this->state.nCells, this->m_max_threads);
         this->alloc.sum_grid             = new matrix3_mds [this->state.nCells]();
         this->alloc.avg_grid             = new matrix3_mds [this->state.nCells]();
         this->alloc.sum_grid_elcovar     = new matrix6_mds [this->state.nCells]();
@@ -933,6 +947,9 @@ void StressGrid::UpdateBoxSpacings ( matrix3_ext box )
 {
     if (MDS_OK == this->state.ierr) {
         if (this->m_thread_map[std::this_thread::get_id()] == 0) {
+#ifdef DEBUG_CHECKPOINTS
+            printf("\rSTRESSLIB: UpdateBoxSpacings (before) %f %f %f\n",this->state.box[0][0], this->state.box[1][1], this->state.box[2][2]);
+#endif
             copymatrix3( box, this->state.box);
             inversematrix3( this->state.box, this->state.invbox );
 
@@ -944,6 +961,9 @@ void StressGrid::UpdateBoxSpacings ( matrix3_ext box )
             this->state.gridsp[5] = this->state.gridsp[1]*this->state.gridsp[2];
             this->state.gridsp[6] = this->state.gridsp[0]*this->state.gridsp[1]*this->state.gridsp[2];
             this->state.invgridsp =  realval_mds(1.0)/(this->state.gridsp[0]*this->state.gridsp[1]*this->state.gridsp[2]);
+#ifdef DEBUG_CHECKPOINTS
+            printf("\rSTRESSLIB: UpdateBoxSpacings (after) %f %f %f\n",this->state.box[0][0], this->state.box[1][1], this->state.box[2][2]);
+#endif
 
 #ifdef CUSTRESS_ENABLE
             if (this->settings.cuda)
@@ -953,12 +973,63 @@ void StressGrid::UpdateBoxSpacings ( matrix3_ext box )
     }
 }
 
+int64_t StressGrid::SetFrameId(int64_t frameId, bool measure) {
+    // store the last measured frame ID for later return
+    int64_t last_measureId = this->state.this_measureId;
+
+    // sync here to make sure every thread get the last measured frame Id
+    static barrier enter_set_frameid(this->m_max_threads);
+    enter_set_frameid.count_down_and_wait();
+
+    if (this->m_thread_map[std::this_thread::get_id()] == 0) {
+#ifdef DEBUG_CHECKPOINTS
+        printed_interaction = false;
+        printed_kinetic = false;
+        printed_dispersion = false;
+#endif
+
+        if (true == measure) {
+            this->state.last_measureId = this->state.this_measureId;
+            this->state.this_measureId = frameId;
+
+            // if this frame ID is a measurement frame, and it matches the last measured frame
+            // then we shut off measurements for this frame
+        }
+        
+        this->state.last_frameId = this->state.this_frameId;
+        this->state.this_frameId = frameId;
+    }
+
+    // sync here to make sure every thread is using an updated state
+    static barrier exit_set_frameid(this->m_max_threads);
+    exit_set_frameid.count_down_and_wait();
+
+    return last_measureId;
+}
+
 void StressGrid::DispersionCorrection (real_ext shift)
 {
+    /*if (this->settings.contrib == mds_none)
+        printf("\rSTRESSLIB: Called Dispersion Correction even though contrib is mds_none!\n");*/
+
     if (false == this->settings.nodispcor) {
+        /*if ( (this->state.this_measureId == this->state.last_measureId) ||
+                (this->state.this_measureId != this->state.this_frameId) ) {
+            return;
+        }*/
+
         // only the 0th batch id adds the shift, so that it only gets added once
         int batch_id = this->m_thread_map[std::this_thread::get_id()];
         if (0 == batch_id) {
+#ifdef DEBUG_CHECKPOINTS
+            if (printed_dispersion == false) {
+                printf("\nPerforming Disperision Correction frameId last %li this %li, measureId last %li this %li\n",
+                        this->state.last_frameId, this->state.this_frameId,
+                        this->state.last_measureId, this->state.this_measureId);
+                printed_dispersion = true;
+            }
+#endif
+
             // add shift to grid: note this is the 0th grid
             for(int i = 0; i < this->state.nCells; i++) {
                 this->alloc.current_grid[i][0][0] += realval_mds(shift);
@@ -976,7 +1047,25 @@ void StressGrid::DistributeInteraction(
         const real_ext *phi,
         const real_ext *kappa)
 {
+    // we are now setting contrib to zero, so we shouldn't need the second check below
+    // (lets confirm this with a print statement)
+    /*if (this->settings.contrib == mds_none) {
+        printf("\rDistributing stress even though we are on an analysis frame!\n");
+    }
+    // don't analyze the same frame twice, and only analyze on measurement frames
+    if ( (this->state.this_measureId == this->state.last_measureId) ||
+            (this->state.this_measureId != this->state.this_frameId) ) {
+        return;
+    }*/
+
     int batch_id = this->m_thread_map[std::this_thread::get_id()];
+#ifdef DEBUG_CHECKPOINTS
+    if (batch_id == 0 && printed_interaction == false) {
+        printf("\nDistributing Interaction frameId last %li this %li, measureId last %li this %li\n",
+                this->state.last_frameId, this->state.this_frameId,
+                this->state.last_measureId, this->state.this_measureId);
+    }
+#endif
     
     if (MDS_OK == this->state.ierr)
     {
@@ -1002,6 +1091,11 @@ void StressGrid::DistributeInteraction(
             decompose_nbody(this->state, nAtoms, R, F, stress_grid);
         }
     }
+    
+#ifdef DEBUG_CHECKPOINTS
+    if (batch_id == 0 && printed_interaction == false)
+        printed_interaction = true;
+#endif
 }
 
 void StressGrid::DistributeKinetic(
@@ -1010,6 +1104,22 @@ void StressGrid::DistributeKinetic(
         array3_ext va,
         array3_ext vb = nullptr)
 {
+    // don't analyze the same frame twice, and only analyze on measurement frames
+    /*if ( (this->state.this_measureId == this->state.last_measureId) ||
+            (this->state.this_measureId != this->state.this_frameId) ) {
+        return;
+    }*/
+
+#ifdef DEBUG_CHECKPOINTS
+    int batch_id = this->m_thread_map[std::this_thread::get_id()];
+    if (batch_id == 0 && printed_kinetic == false) {
+        printf("\nDistributing Kinetic frameId last %li this %li, measureId last %li this %li\n",
+                this->state.last_frameId, this->state.this_frameId,
+                this->state.last_measureId, this->state.this_measureId);
+        printed_kinetic = true;
+    }
+#endif
+
     matrix3_mds stress = {0};
     matrix6_mds elast = {0};
 
@@ -1136,6 +1246,12 @@ void StressGrid::DistributeKinetic(
 
 void StressGrid::SumGrid ( )
 {
+    // don't analyze the same frame twice, and only analyze on measurement frames
+    /*if ( (this->state.this_measureId == this->state.last_measureId) ||
+            (this->state.this_measureId != this->state.this_frameId) ) {
+        return;
+    }*/
+
     if (MDS_OK == this->state.ierr)
     {
         // get the thread id
@@ -1208,6 +1324,9 @@ void StressGrid::SumGrid ( )
             */
 
             this->state.nframes++;
+#ifdef DEBUG_CHECKPOINTS
+            printf("\rSumming the grid at frameId (nframes %i): last %li this %li\n", this->state.nframes, this->state.last_frameId, this->state.this_frameId);
+#endif
 
             summatrix3( this->state.box, this->state.sumbox, this->state.sumbox ); //Update the cummulative system box - only used for box dimensions in output, it does not change elasticity/stress values
 
@@ -1221,6 +1340,9 @@ void StressGrid::SumGrid ( )
             // TODO: shouldn't be be tracking volcovar per cell rather than the entire grid?
             for (int i = 0; i < this->state.nCells; i++)
                 summatrix3(this->state.current_gridtot, this->alloc.current_grid[i], this->state.current_gridtot); // compute y = sigma_total_kl = sum(sigma_local_kl)/this->state.nCells
+#ifdef DEBUG_CHECKPOINTS
+            printf("\rStress Diagonals at frameId %li: %f, %f, %f\n", this->state.this_frameId, this->state.current_gridtot[0][0], this->state.current_gridtot[1][1], this->state.current_gridtot[2][2]);
+#endif
             scalematrix3(this->state.current_gridtot, realval_mds(1.0)/this->state.nCells, this->state.current_gridtot); // scale by this->state.nCells
             scalesummatrix3(realval_mds(-1.0), this->state.avg_gridtot, this->state.current_gridtot); // subtract meany from y and store back into y (which now becomes dy)
             scalesummatrix3(realval_mds(1.0)/this->state.nframes, this->state.current_gridtot, this->state.avg_gridtot); //compute meany
@@ -1297,18 +1419,25 @@ void StressGrid::Reset ( )
 
 bool StressGrid::SaveCheckpoint(const char * filename, const char * temp_filename)
 {
-    if (nullptr == filename)
-        return false;
+    // caching the filenames and exit for later saving
+    if (this->m_filename_cpt.empty() && this->m_filename_cpt_temp.empty() ) {
+        if (nullptr != filename && nullptr != temp_filename) {
+            this->m_filename_cpt.assign(filename);
+            this->m_filename_cpt += ".mds";
+            this->m_filename_cpt_temp.assign(temp_filename);
+            this->m_filename_cpt_temp += ".mds";
+            printf("\rSTRESSLIB: signaling a save with filename %s, and temp filename %s\n", filename, temp_filename);
+            return true;
+        } else if (nullptr == filename && nullptr == temp_filename) {
+#ifdef DEBUG_CHECKPOINTS
+            //printf("\rSTRESSLIB: SaveCheckpoint called, but no filenames provided and no filenames cached so skipping\n");
+#endif
+            return false;
+        }
+    }
 
-    // assign the c_str to a std::string so we can easily modify it
-    std::string temp_filename_str(temp_filename); temp_filename_str += ".mds";
-    std::string filename_str(filename); filename_str += ".mds";
-
-    int32_t filename_len = this->m_filename.size();
-    if (filename_len == 0)
-        return false;
-
-    printf("STRESSLIB: saving filename %s, after building temp filename %s\n", filename, temp_filename);
+    // filenames already assigned, we are saving it here
+    printf("STRESSLIB: saving with filename %s, and temp filename %s\n", this->m_filename_cpt.c_str(), this->m_filename_cpt_temp.c_str());
 
     // sum into thread 0 grid and zero remaining grids
     for( int j = 1; j < this->m_max_threads; ++j)
@@ -1323,7 +1452,7 @@ bool StressGrid::SaveCheckpoint(const char * filename, const char * temp_filenam
     }
 
     // just like gromacs, we will write to the temp file and then copy it over previous
-    FILE* temp_outfile = fopen(temp_filename_str.c_str(), "wb" );
+    FILE* temp_outfile = fopen(this->m_filename_cpt_temp.c_str(), "wb" );
 
     // write the state and settings
     fwrite(&this->state, sizeof(state_t), 1, temp_outfile);
@@ -1340,13 +1469,14 @@ bool StressGrid::SaveCheckpoint(const char * filename, const char * temp_filenam
     if (nullptr != this->alloc.current_grid_elborn)  fwrite(this->alloc.current_grid_elborn, sizeof(matrix6_mds), this->state.nCells, temp_outfile);  
 
     // finally we will write the output filename
+    int32_t filename_len = this->m_filename.size();
     fwrite(&filename_len, sizeof(int), 1, temp_outfile);
     fwrite(this->m_filename.data(), sizeof(char), filename_len, temp_outfile);
     fclose(temp_outfile);
 
     // copy temporary file over target file
-    FILE* source = fopen(temp_filename_str.c_str(), "rb");
-    FILE* dest = fopen(filename_str.c_str(), "wb");
+    FILE* source = fopen(this->m_filename_cpt_temp.c_str(), "rb");
+    FILE* dest = fopen(this->m_filename_cpt.c_str(), "wb");
 
     size_t size = 0;
     char buf[BUFSIZ];
@@ -1357,18 +1487,25 @@ bool StressGrid::SaveCheckpoint(const char * filename, const char * temp_filenam
     fclose(dest);
 
     // then we delete the temporary file
-    remove(temp_filename_str.c_str());
+    remove(this->m_filename_cpt_temp.c_str());
 
+    // empty the checkpoint filename strings to signal it has been saved
+    this->m_filename_cpt.clear();
+    this->m_filename_cpt_temp.clear();
+    
     return true;
 }
 
 bool StressGrid::LoadCheckpoint(const char * filename)
 {
+    static barrier enter_load_checkpoint(this->m_max_threads);
+    enter_load_checkpoint.count_down_and_wait();
+
     // the main thread will have an actual file name, and it will lock the state
     if (nullptr != filename)
     {
         // lock access to state, alloc and settings while waiting for load to complete
-        std::lock_guard<std::mutex> lock(m_mutex_state);
+        //std::lock_guard<std::mutex> lock(m_mutex_state);
 
         std::string load_filename = std::string(filename);
         load_filename += ".mds";
@@ -1378,15 +1515,16 @@ bool StressGrid::LoadCheckpoint(const char * filename)
         FILE* infile = fopen(load_filename.c_str(), "rb" );
         fread(&this->state, sizeof(state_t), 1, infile);
         fread(&this->settings, sizeof(settings_t), 1, infile);
-        fclose(infile);
-
-        // call init to allocate pointers
-        this->Init();
-
-        // overwrite state and settings once more
-        infile = fopen(load_filename.c_str(), "rb" );
-        fread(&this->state, sizeof(state_t), 1, infile);
-        fread(&this->settings, sizeof(settings_t), 1, infile);
+        
+        // allocate buffers if necessary
+        if (nullptr == this->alloc.sum_grid)              this->alloc.sum_grid             = new matrix3_mds [this->state.nCells]();
+        if (nullptr == this->alloc.avg_grid)              this->alloc.avg_grid             = new matrix3_mds [this->state.nCells]();
+        if (nullptr == this->alloc.sum_grid_elcovar)      this->alloc.sum_grid_elcovar     = new matrix6_mds [this->state.nCells]();
+        if (nullptr == this->alloc.sum_grid_elkin)        this->alloc.sum_grid_elkin       = new matrix6_mds [this->state.nCells]();
+        if (nullptr == this->alloc.sum_grid_elborn)       this->alloc.sum_grid_elborn      = new matrix6_mds [this->state.nCells]();
+        if (nullptr == this->alloc.sum_grid_volcovar)     this->alloc.sum_grid_volcovar    = new matrix3_mds [this->state.nCells]();
+        if (nullptr == this->alloc.current_grid)          this->alloc.current_grid         = new matrix3_mds [this->state.nCells*this->m_max_threads]();
+        if (nullptr == this->alloc.current_grid_elborn)   this->alloc.current_grid_elborn  = new matrix6_mds [this->state.nCells*this->m_max_threads]();
         
         // copy all grid information from the file
         if (nullptr != this->alloc.sum_grid)             fread(this->alloc.sum_grid,            sizeof(matrix3_mds),  this->state.nCells, infile);  
@@ -1399,7 +1537,7 @@ bool StressGrid::LoadCheckpoint(const char * filename)
         if (nullptr != this->alloc.current_grid_elborn)  fread(this->alloc.current_grid_elborn, sizeof(matrix6_mds),  this->state.nCells, infile);  
 
         // finally we will read the output filename
-        int32_t filename_len;
+        int32_t filename_len = 0;
         fread(&filename_len, sizeof(int), 1, infile);
         if (filename_len > 0)
         {
@@ -1411,6 +1549,9 @@ bool StressGrid::LoadCheckpoint(const char * filename)
         }
         fclose(infile);
     }
+    
+    static barrier exit_load_checkpoint(this->m_max_threads);
+    exit_load_checkpoint.count_down_and_wait();
 
     return true;
 }
