@@ -485,7 +485,7 @@ class LStensor:
         elif (self.order == 2):
             fp.write("%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\n" % ("Sxx","Sxy","Sxz","Syx","Syy","Syz","Szx","Szy","Szz") )
         elif (self.order == 6):
-            fp.write("%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s%15s\t%15s\t%15s\n" % ("Cxxxx","Cxxyy","Cxxzz","Cxxyz","Cxxxz","Cxxxy","Cyyyy","Cyyzz","Cyyyz","Cyyxz","Cyyxy","Czzzz","Czzyz","Czzxz","Czzxy","Cyzyz","Cyzxz","Cyzxy","Cxzxz","Cxzxy","Cxyxy"))
+            fp.write("%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\n" % ("Cxxxx","Cxxyy","Cxxzz","Cxxyz","Cxxxz","Cxxxy","Cyyxx","Cyyyy","Cyyzz","Cyyyz","Cyyxz","Cyyxy","Czzxx","Czzyy","Czzzz","Czzyz","Czzxz","Czzxy","Cyzxx","Cyzyy","Cyzzz","Cyzyz","Cyzxz","Cyzxy","Cxzxx","Cxzyy","Cxzzz","Cxzyz","Cxzxz","Cxzxy","Cxyxx","Cxyyy","Cxyzz","Cxyyz","Cxyxz","Cxyxy"))
 
         if(self.verbose):
             print("Writing data on grid in txt format to {0}...".format(outputfile))
@@ -500,7 +500,7 @@ class LStensor:
                             fp.write(("%15.8f" % (j*self.dy))+'\t')
                         if(self.nz > 1):
                             fp.write(("%15.8f" % (k*self.dz))+'\t')
-                        for d in [0,1,2,3,4,5,7,8,9,10,11,14,15,16,17,21,22,23,28,29,35]:
+                        for d in [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35]:
                             temp = self.data_grid[i*self.ny*self.nz+j*self.nz+k,d]
                             fp.write(("%15.8e" % temp)+'\t')
                         fp.write('\n')
@@ -542,11 +542,11 @@ class LStensor:
             ax.append(0)
             shift.append(trans[0])
 
-        if (transax[1] != 0):
+        if (trans[1] != 0):
             ax.append(1)
             shift.append(trans[1])
 
-        if (transax[2] != 0):
+        if (trans[2] != 0):
             ax.append(2)
             shift.append(trans[2])
 
@@ -657,39 +657,39 @@ class LStensor:
             elvoigt[0,4] = self.data_grid[i,4]
             elvoigt[0,5] = self.data_grid[i,5]
 
-            elvoigt[1,0] = self.data_grid[i,1]
+            elvoigt[1,0] = self.data_grid[i,6] #1 = 6
             elvoigt[1,1] = self.data_grid[i,7]
             elvoigt[1,2] = self.data_grid[i,8]
             elvoigt[1,3] = self.data_grid[i,9]
             elvoigt[1,4] = self.data_grid[i,10]
             elvoigt[1,5] = self.data_grid[i,11]
 
-            elvoigt[2,0] = self.data_grid[i,2]
-            elvoigt[2,1] = self.data_grid[i,8]
+            elvoigt[2,0] = self.data_grid[i,12] #2 = 12
+            elvoigt[2,1] = self.data_grid[i,13] #8 = 13
             elvoigt[2,2] = self.data_grid[i,14]
             elvoigt[2,3] = self.data_grid[i,15]
             elvoigt[2,4] = self.data_grid[i,16]
             elvoigt[2,5] = self.data_grid[i,17]
 
-            elvoigt[3,0] = self.data_grid[i,3]
-            elvoigt[3,1] = self.data_grid[i,9]
-            elvoigt[3,2] = self.data_grid[i,15]
+            elvoigt[3,0] = self.data_grid[i,18] #3 = 18
+            elvoigt[3,1] = self.data_grid[i,19] #9 = 19
+            elvoigt[3,2] = self.data_grid[i,20] #15 = 20
             elvoigt[3,3] = self.data_grid[i,21]
             elvoigt[3,4] = self.data_grid[i,22]
             elvoigt[3,5] = self.data_grid[i,23]
 
-            elvoigt[4,0] = self.data_grid[i,4]
-            elvoigt[4,1] = self.data_grid[i,10]
-            elvoigt[4,2] = self.data_grid[i,16]
-            elvoigt[4,3] = self.data_grid[i,22]
+            elvoigt[4,0] = self.data_grid[i,24] #4 = 24
+            elvoigt[4,1] = self.data_grid[i,25] #10 = 25
+            elvoigt[4,2] = self.data_grid[i,26] #16 = 26
+            elvoigt[4,3] = self.data_grid[i,27] #17 = 27
             elvoigt[4,4] = self.data_grid[i,28]
             elvoigt[4,5] = self.data_grid[i,29]
 
-            elvoigt[5,0] = self.data_grid[i,5]
-            elvoigt[5,1] = self.data_grid[i,11]
-            elvoigt[5,2] = self.data_grid[i,17]
-            elvoigt[5,3] = self.data_grid[i,23]
-            elvoigt[5,4] = self.data_grid[i,29]
+            elvoigt[5,0] = self.data_grid[i,30] #5 = 30
+            elvoigt[5,1] = self.data_grid[i,31] #11 = 31
+            elvoigt[5,2] = self.data_grid[i,32] #17 = 32
+            elvoigt[5,3] = self.data_grid[i,33] #23 = 33
+            elvoigt[5,4] = self.data_grid[i,34] #29 = 34
             elvoigt[5,5] = self.data_grid[i,35]
 
             compvoigt = np.linalg.inv(elvoigt)
@@ -780,7 +780,7 @@ class LStensor:
                         fp1.write(("%15.8e" % temp)+'\t')
                     fp1.write('\n')
 
-        fp2.write("#%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s%15s\t%15s\t%15s\n" % ("Sxxxx","Sxxyy","Sxxzz","Sxxyz","Sxxxz","Sxxxy","Syyyy","Syyzz","Syyyz","Syyxz","Syyxy","Szzzz","Szzyz","Szzxz","Szzxy","Syzyz","Syzxz","Syzxy","Sxzxz","Sxzxy","Sxyxy"))
+        fp2.write("#%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\n" % ("Sxxxx","Sxxyy","Sxxzz","Sxxyz","Sxxxz","Sxxxy","Syyxx","Syyyy","Syyzz","Syyyz","Syyxz","Syyxy","Szzxx","Szzyy","Szzzz","Szzyz","Szzxz","Szzxy","Syzxx","Syzyy","Syzzz","Syzyz","Syzxz","Syzxy","Sxzxx","Sxzyy","Sxzzz","Sxzyz","Sxzxz","Sxzxy","Sxyxx","Sxyyy","Sxyzz","Sxyyz","Sxyxz","Sxyxy"))
 
         for i in range(self.nx):
             for j in range(self.ny):
@@ -791,7 +791,7 @@ class LStensor:
                         fp2.write(("%15.8f" % (j*self.dy))+'\t')
                     if(self.nz > 1):
                         fp2.write(("%15.8f" % (k*self.dz))+'\t')
-                    for d in [0,1,2,3,4,5,7,8,9,10,11,14,15,16,17,21,22,23,28,29,35]:
+                    for d in [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35]:
                         temp = complist[i*self.ny*self.nz+j*self.nz+k,d]
                         fp2.write(("%15.8e" % temp)+'\t')
                     fp2.write('\n')

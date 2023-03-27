@@ -315,7 +315,7 @@ static inline void distribute_n2(
         stress_grid = nullptr;
     }
     
-    matrix6_mds elast = {0};
+    matrix6_mds elast;
     if (nullptr != phi &&
             (realval_ext(0.0) != phi[0] || realval_ext(0.0) != kappa[1])) {
         // Construct the stiffness matrix in Voigt notation
@@ -365,20 +365,40 @@ static inline void distribute_n2(
         elast[0][3] = xij00*(xkl12r - xij12r);
         elast[0][4] = xij00*(xkl02r - xij02r);
         elast[0][5] = xij00*(xkl01r - xij01r);
+
+        elast[1][0] = xij11*(xkl00r - xij00r); // Added for Symm
         elast[1][1] = xij11*(xkl11r - xij11r);
         elast[1][2] = xij11*(xkl22r - xij22r);
         elast[1][3] = xij11*(xkl12r - xij12r);
         elast[1][4] = xij11*(xkl02r - xij02r);
         elast[1][5] = xij11*(xkl01r - xij01r);
+
+        elast[2][0] = xij22*(xkl00r - xij00r); //Added for Symm
+        elast[2][1] = xij22*(xkl11r - xij11r); //Added for Symm
         elast[2][2] = xij22*(xkl22r - xij22r);
         elast[2][3] = xij22*(xkl12r - xij12r);
         elast[2][4] = xij22*(xkl02r - xij02r);
         elast[2][5] = xij22*(xkl01r - xij01r);
+
+        elast[3][0] = xij12*(xkl00r - xij00r); //Added for Symm
+        elast[3][1] = xij12*(xkl11r - xij11r); //Added for Symm
+        elast[3][2] = xij12*(xkl22r - xij22r); //Added for Symm
         elast[3][3] = xij12*(xkl12r - xij12r);
         elast[3][4] = xij12*(xkl02r - xij02r);
         elast[3][5] = xij12*(xkl01r - xij01r);
+
+        elast[4][0] = xij02*(xkl00r - xij00r); // Added for Symm
+        elast[4][1] = xij02*(xkl11r - xij11r); // Added for Symm
+        elast[4][2] = xij02*(xkl22r - xij22r); // Added for Symm
+        elast[4][3] = xij02*(xkl12r - xij12r); // Added for Symm
         elast[4][4] = xij02*(xkl02r - xij02r);
         elast[4][5] = xij02*(xkl01r - xij01r);
+
+        elast[5][0] = xij01*(xkl00r - xij00r); // Added for Symm
+        elast[5][1] = xij01*(xkl11r - xij11r); // Added for Symm
+        elast[5][2] = xij01*(xkl22r - xij22r); // Added for Symm
+        elast[5][3] = xij01*(xkl12r - xij12r); // Added for Symm
+        elast[5][4] = xij01*(xkl02r - xij02r); // Added for Symm
         elast[5][5] = xij01*(xkl01r - xij01r);
     } else {
         elast_grid = nullptr;
@@ -1120,8 +1140,8 @@ void StressGrid::DistributeKinetic(
     }
 #endif
 
-    matrix3_mds stress = {0};
-    matrix6_mds elast = {0};
+    matrix3_mds stress;
+    matrix6_mds elast;
 
     if (MDS_OK == this->state.ierr)
     {
@@ -1141,23 +1161,47 @@ void StressGrid::DistributeKinetic(
             stress[2][1] = (real_mds)(-mass)*(real_mds)(va[2])*(real_mds)(va[1]);
             stress[2][2] = (real_mds)(-mass)*(real_mds)(va[2])*(real_mds)(va[2]);
             
-            elast[0][0] = (real_mds)(mass)*realval_mds(4.0)*(real_mds)(va[0])*(real_mds)(va[0]); //c_xxxx = c_0000
-            elast[1][1] = (real_mds)(mass)*realval_mds(4.0)*(real_mds)(va[1])*(real_mds)(va[1]); //c_yyyy = c_1111
-            elast[2][2] = (real_mds)(mass)*realval_mds(4.0)*(real_mds)(va[2])*(real_mds)(va[2]); //c_zzzz = c_2222
+            elast[0][0] = (real_mds)(mass)*realval_mds(4.0)*(real_mds)(va[0])*(real_mds)(va[0]);
+            elast[0][1] = realval_mds(0.0);
+            elast[0][2] = realval_mds(0.0);
+            elast[0][3] = realval_mds(0.0);
+            elast[0][4] = (real_mds)(mass)*((real_mds)(va[0])*(real_mds)(va[2]) + (real_mds)(va[0])*(real_mds)(va[2]));
+            elast[0][5] = (real_mds)(mass)*((real_mds)(va[0])*(real_mds)(va[1]) + (real_mds)(va[0])*(real_mds)(va[1]));
 
-            elast[0][4] = (real_mds)(mass)*((real_mds)(va[0])*(real_mds)(va[2]) + (real_mds)(va[0])*(real_mds)(va[2])); //c_xxxz = c_0002
-            elast[0][5] = (real_mds)(mass)*((real_mds)(va[0])*(real_mds)(va[1]) + (real_mds)(va[0])*(real_mds)(va[1])); //c_xxxy = c_0001
-            elast[1][3] = (real_mds)(mass)*((real_mds)(va[1])*(real_mds)(va[2]) + (real_mds)(va[1])*(real_mds)(va[2])); //c_yyyz = c_1112
-            elast[1][5] = (real_mds)(mass)*((real_mds)(va[1])*(real_mds)(va[0]) + (real_mds)(va[1])*(real_mds)(va[0])); //c_yyxy = c_1101
-            elast[2][3] = (real_mds)(mass)*((real_mds)(va[2])*(real_mds)(va[1]) + (real_mds)(va[2])*(real_mds)(va[1])); //c_zzyz = c_2212
-            elast[2][4] = (real_mds)(mass)*((real_mds)(va[2])*(real_mds)(va[0]) + (real_mds)(va[2])*(real_mds)(va[0])); //c_zzxz = c_2202
-            elast[4][4] = (real_mds)(mass)*((real_mds)(va[0])*(real_mds)(va[0]) + (real_mds)(va[2])*(real_mds)(va[2])); //c_xzxz = c_0202
-            elast[5][5] = (real_mds)(mass)*((real_mds)(va[0])*(real_mds)(va[0]) + (real_mds)(va[1])*(real_mds)(va[1])); //c_xyxy = c_0101
-            elast[3][3] = (real_mds)(mass)*((real_mds)(va[1])*(real_mds)(va[1]) + (real_mds)(va[2])*(real_mds)(va[2])); //c_yzyz = c_1212
+            elast[1][0] = realval_mds(0.0);
+            elast[1][1] = (real_mds)(mass)*realval_mds(4.0)*(real_mds)(va[1])*(real_mds)(va[1]);
+            elast[1][2] = realval_mds(0.0);
+            elast[1][3] = (real_mds)(mass)*((real_mds)(va[1])*(real_mds)(va[2]) + (real_mds)(va[1])*(real_mds)(va[2]));
+            elast[1][4] = realval_mds(0.0);
+            elast[1][5] = (real_mds)(mass)*((real_mds)(va[1])*(real_mds)(va[0]) + (real_mds)(va[1])*(real_mds)(va[0]));
 
-            elast[3][4] = (real_mds)(mass)*(real_mds)(va[1])*(real_mds)(va[0]); //c_yzxz = c_1202
-            elast[3][5] = (real_mds)(mass)*(real_mds)(va[2])*(real_mds)(va[0]); //c_yzxy = c_1201
-            elast[4][5] = (real_mds)(mass)*(real_mds)(va[2])*(real_mds)(va[1]); //c_xzxy = c_0201
+            elast[2][0] = realval_mds(0.0);
+            elast[2][1] = realval_mds(0.0);
+            elast[2][2] = (real_mds)(mass)*realval_mds(4.0)*(real_mds)(va[2])*(real_mds)(va[2]);
+            elast[2][3] = (real_mds)(mass)*((real_mds)(va[2])*(real_mds)(va[1]) + (real_mds)(va[2])*(real_mds)(va[1]));
+            elast[2][4] = (real_mds)(mass)*((real_mds)(va[2])*(real_mds)(va[0]) + (real_mds)(va[2])*(real_mds)(va[0]));
+            elast[2][5] = realval_mds(0.0);
+
+            elast[3][0] = realval_mds(0.0);
+            elast[3][1] = (real_mds)(mass)*((real_mds)(va[2])*(real_mds)(va[1]) + (real_mds)(va[2])*(real_mds)(va[1]));
+            elast[3][2] = (real_mds)(mass)*((real_mds)(va[1])*(real_mds)(va[2]) + (real_mds)(va[1])*(real_mds)(va[2]));
+            elast[3][3] = (real_mds)(mass)*((real_mds)(va[1])*(real_mds)(va[1]) + (real_mds)(va[2])*(real_mds)(va[2]));
+            elast[3][4] = (real_mds)(mass)*(real_mds)(va[1])*(real_mds)(va[0]);
+            elast[3][5] = (real_mds)(mass)*(real_mds)(va[2])*(real_mds)(va[0]);
+
+            elast[4][0] = (real_mds)(mass)*((real_mds)(va[2])*(real_mds)(va[0]) + (real_mds)(va[2])*(real_mds)(va[0]));
+            elast[4][1] = realval_mds(0.0);
+            elast[4][2] = (real_mds)(mass)*((real_mds)(va[0])*(real_mds)(va[2]) + (real_mds)(va[0])*(real_mds)(va[2]));
+            elast[4][3] = (real_mds)(mass)*(real_mds)(va[0])*(real_mds)(va[1]);
+            elast[4][4] = (real_mds)(mass)*((real_mds)(va[0])*(real_mds)(va[0]) + (real_mds)(va[2])*(real_mds)(va[2]));
+            elast[4][5] = (real_mds)(mass)*(real_mds)(va[2])*(real_mds)(va[1]);
+
+            elast[5][0] = (real_mds)(mass)*((real_mds)(va[1])*(real_mds)(va[0]) + (real_mds)(va[1])*(real_mds)(va[0]));
+            elast[5][1] = (real_mds)(mass)*((real_mds)(va[0])*(real_mds)(va[1]) + (real_mds)(va[0])*(real_mds)(va[1]));
+            elast[5][2] = realval_mds(0.0);
+            elast[5][3] = (real_mds)(mass)*(real_mds)(va[1])*(real_mds)(va[2]);
+            elast[5][4] = (real_mds)(mass)*(real_mds)(va[1])*(real_mds)(va[2]);
+            elast[5][5] = (real_mds)(mass)*((real_mds)(va[0])*(real_mds)(va[0]) + (real_mds)(va[1])*(real_mds)(va[1]));
         }
         else
         {
@@ -1171,23 +1215,47 @@ void StressGrid::DistributeKinetic(
             stress[2][1] = (real_mds)(-mass)*((real_mds)(va[2])*(real_mds)(va[1]) + (real_mds)(vb[2])*(real_mds)(vb[1]))/realval_mds(2.0);
             stress[2][2] = (real_mds)(-mass)*((real_mds)(va[2])*(real_mds)(va[2]) + (real_mds)(vb[2])*(real_mds)(vb[2]))/realval_mds(2.0);
             
-            elast[0][0] = (real_mds)(mass)*realval_mds(4.0)*((real_mds)(va[0])*(real_mds)(va[0]) + (real_mds)(vb[0])*(real_mds)(vb[0]))/realval_mds(2.0); //c_xxxx = c_0000
-            elast[1][1] = (real_mds)(mass)*realval_mds(4.0)*((real_mds)(va[1])*(real_mds)(va[1]) + (real_mds)(vb[1])*(real_mds)(vb[1]))/realval_mds(2.0); //c_yyyy = c_1111
-            elast[2][2] = (real_mds)(mass)*realval_mds(4.0)*((real_mds)(va[2])*(real_mds)(va[2]) + (real_mds)(vb[2])*(real_mds)(vb[2]))/realval_mds(2.0); //c_zzzz = c_2222
+            elast[0][0] = (real_mds)(mass)*realval_mds(4.0)*((real_mds)(va[0])*(real_mds)(va[0]) + (real_mds)(vb[0])*(real_mds)(vb[0]))/realval_mds(2.0);
+            elast[0][1] = realval_mds(0.0);
+            elast[0][2] = realval_mds(0.0);
+            elast[0][3] = realval_mds(0.0);
+            elast[0][4] = (real_mds)(mass)*((real_mds)(va[0])*(real_mds)(va[2]) + (real_mds)(va[0])*(real_mds)(va[2]) + (real_mds)(vb[0])*(real_mds)(vb[2]) + (real_mds)(vb[0])*(real_mds)(vb[2]))/realval_mds(2.0);
+            elast[0][5] = (real_mds)(mass)*((real_mds)(va[0])*(real_mds)(va[1]) + (real_mds)(va[0])*(real_mds)(va[1]) + (real_mds)(vb[0])*(real_mds)(vb[1]) + (real_mds)(vb[0])*(real_mds)(vb[1]))/realval_mds(2.0);
 
-            elast[0][4] = (real_mds)(mass)*((real_mds)(va[0])*(real_mds)(va[2]) + (real_mds)(va[0])*(real_mds)(va[2]) + (real_mds)(vb[0])*(real_mds)(vb[2]) + (real_mds)(vb[0])*(real_mds)(vb[2]))/realval_mds(2.0); //c_xxxz = c_0002
-            elast[0][5] = (real_mds)(mass)*((real_mds)(va[0])*(real_mds)(va[1]) + (real_mds)(va[0])*(real_mds)(va[1]) + (real_mds)(vb[0])*(real_mds)(vb[1]) + (real_mds)(vb[0])*(real_mds)(vb[1]))/realval_mds(2.0); //c_xxxy = c_0001
-            elast[1][3] = (real_mds)(mass)*((real_mds)(va[1])*(real_mds)(va[2]) + (real_mds)(va[1])*(real_mds)(va[2]) + (real_mds)(vb[1])*(real_mds)(vb[2]) + (real_mds)(vb[1])*(real_mds)(vb[2]))/realval_mds(2.0); //c_yyyz = c_1112
-            elast[1][5] = (real_mds)(mass)*((real_mds)(va[1])*(real_mds)(va[0]) + (real_mds)(va[1])*(real_mds)(va[0]) + (real_mds)(vb[1])*(real_mds)(vb[0]) + (real_mds)(vb[1])*(real_mds)(vb[0]))/realval_mds(2.0); //c_yyxy = c_1101
-            elast[2][3] = (real_mds)(mass)*((real_mds)(va[2])*(real_mds)(va[1]) + (real_mds)(va[2])*(real_mds)(va[1]) + (real_mds)(vb[2])*(real_mds)(vb[1]) + (real_mds)(vb[2])*(real_mds)(vb[1]))/realval_mds(2.0); //c_zzyz = c_2212
-            elast[2][4] = (real_mds)(mass)*((real_mds)(va[2])*(real_mds)(va[0]) + (real_mds)(va[2])*(real_mds)(va[0]) + (real_mds)(vb[2])*(real_mds)(vb[0]) + (real_mds)(vb[2])*(real_mds)(vb[0]))/realval_mds(2.0); //c_zzxz = c_2202
-            elast[3][3] = (real_mds)(mass)*((real_mds)(va[1])*(real_mds)(va[1]) + (real_mds)(va[2])*(real_mds)(va[2]) + (real_mds)(vb[1])*(real_mds)(vb[1]) + (real_mds)(vb[2])*(real_mds)(vb[2]))/realval_mds(2.0); //c_yzyz = c_1212
-            elast[4][4] = (real_mds)(mass)*((real_mds)(va[0])*(real_mds)(va[0]) + (real_mds)(va[2])*(real_mds)(va[2]) + (real_mds)(vb[0])*(real_mds)(vb[0]) + (real_mds)(vb[2])*(real_mds)(vb[2]))/realval_mds(2.0); //c_xzxz = c_0202
-            elast[5][5] = (real_mds)(mass)*((real_mds)(va[0])*(real_mds)(va[0]) + (real_mds)(va[1])*(real_mds)(va[1]) + (real_mds)(vb[0])*(real_mds)(vb[0]) + (real_mds)(vb[1])*(real_mds)(vb[1]))/realval_mds(2.0); //c_xyxy = c_0101
+            elast[1][0] = realval_mds(0.0);
+            elast[1][1] = (real_mds)(mass)*realval_mds(4.0)*((real_mds)(va[1])*(real_mds)(va[1]) + (real_mds)(vb[1])*(real_mds)(vb[1]))/realval_mds(2.0);
+            elast[1][2] = realval_mds(0.0);
+            elast[1][3] = (real_mds)(mass)*((real_mds)(va[1])*(real_mds)(va[2]) + (real_mds)(va[1])*(real_mds)(va[2]) + (real_mds)(vb[1])*(real_mds)(vb[2]) + (real_mds)(vb[1])*(real_mds)(vb[2]))/realval_mds(2.0);
+            elast[1][4] = realval_mds(0.0);
+            elast[1][5] = (real_mds)(mass)*((real_mds)(va[1])*(real_mds)(va[0]) + (real_mds)(va[1])*(real_mds)(va[0]) + (real_mds)(vb[1])*(real_mds)(vb[0]) + (real_mds)(vb[1])*(real_mds)(vb[0]))/realval_mds(2.0);
 
-            elast[3][4] = (real_mds)(mass)*((real_mds)(va[1])*(real_mds)(va[0]) + (real_mds)(vb[1])*(real_mds)(vb[0]))/realval_mds(2.0); //c_yzxz = c_1202
-            elast[3][5] = (real_mds)(mass)*((real_mds)(va[2])*(real_mds)(va[0]) + (real_mds)(vb[2])*(real_mds)(vb[0]))/realval_mds(2.0); //c_yzxy = c_1201
-            elast[4][5] = (real_mds)(mass)*((real_mds)(va[2])*(real_mds)(va[1]) + (real_mds)(vb[2])*(real_mds)(vb[1]))/realval_mds(2.0); //c_xzxy = c_0201
+            elast[2][0] = realval_mds(0.0);
+            elast[2][1] = realval_mds(0.0);
+            elast[2][2] = (real_mds)(mass)*realval_mds(4.0)*((real_mds)(va[2])*(real_mds)(va[2]) + (real_mds)(vb[2])*(real_mds)(vb[2]))/realval_mds(2.0);
+            elast[2][3] = (real_mds)(mass)*((real_mds)(va[2])*(real_mds)(va[1]) + (real_mds)(va[2])*(real_mds)(va[1]) + (real_mds)(vb[2])*(real_mds)(vb[1]) + (real_mds)(vb[2])*(real_mds)(vb[1]))/realval_mds(2.0);
+            elast[2][4] = (real_mds)(mass)*((real_mds)(va[2])*(real_mds)(va[0]) + (real_mds)(va[2])*(real_mds)(va[0]) + (real_mds)(vb[2])*(real_mds)(vb[0]) + (real_mds)(vb[2])*(real_mds)(vb[0]))/realval_mds(2.0);
+            elast[2][5] = realval_mds(0.0);
+
+            elast[3][0] = realval_mds(0.0);
+            elast[3][1] = (real_mds)(mass)*((real_mds)(va[2])*(real_mds)(va[1]) + (real_mds)(va[2])*(real_mds)(va[1]) + (real_mds)(vb[2])*(real_mds)(vb[1]) + (real_mds)(vb[2])*(real_mds)(vb[1]))/realval_mds(2.0);
+            elast[3][2] = (real_mds)(mass)*((real_mds)(va[1])*(real_mds)(va[2]) + (real_mds)(va[1])*(real_mds)(va[2]) + (real_mds)(vb[1])*(real_mds)(vb[2]) + (real_mds)(vb[1])*(real_mds)(vb[2]))/realval_mds(2.0);
+            elast[3][3] = (real_mds)(mass)*((real_mds)(va[1])*(real_mds)(va[1]) + (real_mds)(va[2])*(real_mds)(va[2]) + (real_mds)(vb[1])*(real_mds)(vb[1]) + (real_mds)(vb[2])*(real_mds)(vb[2]))/realval_mds(2.0);
+            elast[3][4] = (real_mds)(mass)*((real_mds)(va[1])*(real_mds)(va[0]) + (real_mds)(vb[1])*(real_mds)(vb[0]))/realval_mds(2.0);
+            elast[3][5] = (real_mds)(mass)*((real_mds)(va[2])*(real_mds)(va[0]) + (real_mds)(vb[2])*(real_mds)(vb[0]))/realval_mds(2.0);
+
+            elast[4][0] = (real_mds)(mass)*((real_mds)(va[2])*(real_mds)(va[0]) + (real_mds)(va[2])*(real_mds)(va[0]) + (real_mds)(vb[2])*(real_mds)(vb[0]) + (real_mds)(vb[2])*(real_mds)(vb[0]))/realval_mds(2.0);
+            elast[4][1] = realval_mds(0.0);
+            elast[4][2] = (real_mds)(mass)*((real_mds)(va[0])*(real_mds)(va[2]) + (real_mds)(va[0])*(real_mds)(va[2]) + (real_mds)(vb[0])*(real_mds)(vb[2]) + (real_mds)(vb[0])*(real_mds)(vb[2]))/realval_mds(2.0);
+            elast[4][3] = (real_mds)(mass)*((real_mds)(va[0])*(real_mds)(va[1]) + (real_mds)(vb[0])*(real_mds)(vb[1]))/realval_mds(2.0);
+            elast[4][4] = (real_mds)(mass)*((real_mds)(va[0])*(real_mds)(va[0]) + (real_mds)(va[2])*(real_mds)(va[2]) + (real_mds)(vb[0])*(real_mds)(vb[0]) + (real_mds)(vb[2])*(real_mds)(vb[2]))/realval_mds(2.0);
+            elast[4][5] = (real_mds)(mass)*((real_mds)(va[2])*(real_mds)(va[1]) + (real_mds)(vb[2])*(real_mds)(vb[1]))/realval_mds(2.0);
+
+            elast[5][0] = (real_mds)(mass)*((real_mds)(va[1])*(real_mds)(va[0]) + (real_mds)(va[1])*(real_mds)(va[0]) + (real_mds)(vb[1])*(real_mds)(vb[0]) + (real_mds)(vb[1])*(real_mds)(vb[0]))/realval_mds(2.0);
+            elast[5][1] = (real_mds)(mass)*((real_mds)(va[0])*(real_mds)(va[1]) + (real_mds)(va[0])*(real_mds)(va[1]) + (real_mds)(vb[0])*(real_mds)(vb[1]) + (real_mds)(vb[0])*(real_mds)(vb[1]))/realval_mds(2.0);
+            elast[5][2] = realval_mds(0.0);
+            elast[5][3] = (real_mds)(mass)*((real_mds)(va[1])*(real_mds)(va[2]) + (real_mds)(vb[1])*(real_mds)(vb[2]))/realval_mds(2.0);
+            elast[5][4] = (real_mds)(mass)*((real_mds)(va[1])*(real_mds)(va[2]) + (real_mds)(vb[1])*(real_mds)(vb[2]))/realval_mds(2.0);
+            elast[5][5] = (real_mds)(mass)*((real_mds)(va[0])*(real_mds)(va[0]) + (real_mds)(va[1])*(real_mds)(va[1]) + (real_mds)(vb[0])*(real_mds)(vb[0]) + (real_mds)(vb[1])*(real_mds)(vb[1]))/realval_mds(2.0);
         }
 
         // Get the coordinates of the point in the grid
