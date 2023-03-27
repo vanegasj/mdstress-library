@@ -105,6 +105,7 @@ namespace mds
     // public settings for the StressGrid class
     typedef struct {
         real_mds    gridSpacing;
+        real_mds    impulseWidth;
         int         fdecomp;
         int         contrib;
         real_mds    mindihangle;

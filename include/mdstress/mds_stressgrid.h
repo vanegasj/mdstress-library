@@ -73,6 +73,11 @@ class  mds::StressGrid
             std::lock_guard<std::mutex> lock(m_mutex_state);
             this->settings.gridSpacing = (real_mds)d;
         }
+        
+        void SetImpulseWidth(real_ext d) {
+            std::lock_guard<std::mutex> lock(m_mutex_state);
+            this->settings.impulseWidth= (real_mds)d;
+        }
 
         void SetForceDecomposition ( int fdecomp ) {
             std::lock_guard<std::mutex> lock(m_mutex_state);
