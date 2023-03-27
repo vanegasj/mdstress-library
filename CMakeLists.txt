@@ -30,7 +30,8 @@ set(MDS_PRECISION "MDS_DOUBLE" CACHE STRING "Precision used by mdstresslib inter
 set_property(CACHE MDS_PRECISION PROPERTY STRINGS MDS_FLOAT MDS_DOUBLE MDS_LONG_DOUBLE)
 
 # find the eigen library
-find_package(Eigen3 3.3 REQUIRED NO_MODULE)
+list(APPEND CMAKE_PREFIX_PATH "${CMAKE_CURRENT_SOURCE_DIR}/contrib/eigen3")
+find_package(Eigen3 3.4 REQUIRED NO_MODULE)
 
 # set our cmake modules path for tclap
 set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake" ${CMAKE_MODULE_PATH})
