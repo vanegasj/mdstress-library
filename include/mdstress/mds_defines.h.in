@@ -162,6 +162,7 @@ namespace mds
 
         // biggest - threads*cells*36
         matrix6_mds *current_grid_elborn;
+        matrix6_mds *current_grid_elkin;
     } alloc_t;
     
     class StressGrid;
