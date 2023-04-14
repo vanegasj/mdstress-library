@@ -1501,7 +1501,7 @@ bool StressGrid::SaveCheckpoint(const char * filename, const char * temp_filenam
 #ifdef DEBUG_CHECKPOINTS
             //printf("\rSTRESSLIB: SaveCheckpoint called, but no filenames provided and no filenames cached so skipping\n");
 #endif
-            return false;
+            return true;
         }
     }
 
@@ -1522,50 +1522,100 @@ bool StressGrid::SaveCheckpoint(const char * filename, const char * temp_filenam
         }
     }
 
+    // track return status
+    bool ret = false;
+
     // just like gromacs, we will write to the temp file and then copy it over previous
+    int retry_count = 10; // 60 seconds to try to open each file
     FILE* temp_outfile = fopen(this->m_filename_cpt_temp.c_str(), "wb" );
+    for (int i = 0; i < retry_count && temp_outfile == nullptr; i++) {
+        // sleep for 6 seconds
+        std::this_thread::sleep_for(std::chrono::seconds(6));
 
-    // write the state and settings
-    fwrite(&this->state, sizeof(state_t), 1, temp_outfile);
-    fwrite(&this->settings, sizeof(settings_t), 1, temp_outfile);
-    
-    // have to be a little more careful with the pointers
-    if (nullptr != this->alloc.sum_grid)             fwrite(this->alloc.sum_grid,            sizeof(matrix3_mds), this->state.nCells, temp_outfile);  
-    if (nullptr != this->alloc.avg_grid)             fwrite(this->alloc.avg_grid,            sizeof(matrix3_mds), this->state.nCells, temp_outfile);  
-    if (nullptr != this->alloc.sum_grid_elcovar)     fwrite(this->alloc.sum_grid_elcovar,    sizeof(matrix6_mds), this->state.nCells, temp_outfile);  
-    if (nullptr != this->alloc.sum_grid_elkin)       fwrite(this->alloc.sum_grid_elkin,      sizeof(matrix6_mds), this->state.nCells, temp_outfile);  
-    if (nullptr != this->alloc.sum_grid_elborn)      fwrite(this->alloc.sum_grid_elborn,     sizeof(matrix6_mds), this->state.nCells, temp_outfile);  
-    if (nullptr != this->alloc.sum_grid_volcovar)    fwrite(this->alloc.sum_grid_volcovar,   sizeof(matrix3_mds), this->state.nCells, temp_outfile);  
-    if (nullptr != this->alloc.current_grid)         fwrite(this->alloc.current_grid,        sizeof(matrix3_mds), this->state.nCells, temp_outfile);  
-    if (nullptr != this->alloc.current_grid_elborn)  fwrite(this->alloc.current_grid_elborn, sizeof(matrix6_mds), this->state.nCells, temp_outfile);  
-    if (nullptr != this->alloc.current_grid_elkin)   fwrite(this->alloc.current_grid_elkin,  sizeof(matrix6_mds), this->state.nCells, temp_outfile);  
-
-    // finally we will write the output filename
-    int32_t filename_len = this->m_filename.size();
-    fwrite(&filename_len, sizeof(int), 1, temp_outfile);
-    fwrite(this->m_filename.data(), sizeof(char), filename_len, temp_outfile);
-    fclose(temp_outfile);
-
-    // copy temporary file over target file
-    FILE* source = fopen(this->m_filename_cpt_temp.c_str(), "rb");
-    FILE* dest = fopen(this->m_filename_cpt.c_str(), "wb");
-
-    size_t size = 0;
-    char buf[BUFSIZ];
-    while ( (size = fread(buf, 1, BUFSIZ, source) ) ) {
-        fwrite(buf, 1, size, dest);
+        // attempt to open again
+        temp_outfile = fopen(this->m_filename_cpt_temp.c_str(), "wb" );
     }
-    fclose(source);
-    fclose(dest);
 
-    // then we delete the temporary file
-    remove(this->m_filename_cpt_temp.c_str());
+    if (nullptr != temp_outfile) {
+        // write the state and settings
+        fwrite(&this->state, sizeof(state_t), 1, temp_outfile);
+        fwrite(&this->settings, sizeof(settings_t), 1, temp_outfile);
+        
+        // have to be a little more careful with the pointers
+        if (nullptr != this->alloc.sum_grid)             fwrite(this->alloc.sum_grid,            sizeof(matrix3_mds), this->state.nCells, temp_outfile);  
+        if (nullptr != this->alloc.avg_grid)             fwrite(this->alloc.avg_grid,            sizeof(matrix3_mds), this->state.nCells, temp_outfile);  
+        if (nullptr != this->alloc.sum_grid_elcovar)     fwrite(this->alloc.sum_grid_elcovar,    sizeof(matrix6_mds), this->state.nCells, temp_outfile);  
+        if (nullptr != this->alloc.sum_grid_elkin)       fwrite(this->alloc.sum_grid_elkin,      sizeof(matrix6_mds), this->state.nCells, temp_outfile);  
+        if (nullptr != this->alloc.sum_grid_elborn)      fwrite(this->alloc.sum_grid_elborn,     sizeof(matrix6_mds), this->state.nCells, temp_outfile);  
+        if (nullptr != this->alloc.sum_grid_volcovar)    fwrite(this->alloc.sum_grid_volcovar,   sizeof(matrix3_mds), this->state.nCells, temp_outfile);  
+        if (nullptr != this->alloc.current_grid)         fwrite(this->alloc.current_grid,        sizeof(matrix3_mds), this->state.nCells, temp_outfile);  
+        if (nullptr != this->alloc.current_grid_elborn)  fwrite(this->alloc.current_grid_elborn, sizeof(matrix6_mds), this->state.nCells, temp_outfile);  
+        if (nullptr != this->alloc.current_grid_elkin)   fwrite(this->alloc.current_grid_elkin,  sizeof(matrix6_mds), this->state.nCells, temp_outfile);  
 
-    // empty the checkpoint filename strings to signal it has been saved
-    this->m_filename_cpt.clear();
-    this->m_filename_cpt_temp.clear();
-    
-    return true;
+        // finally we will write the output filename
+        int32_t filename_len = this->m_filename.size();
+        fwrite(&filename_len, sizeof(int), 1, temp_outfile);
+        fwrite(this->m_filename.data(), sizeof(char), filename_len, temp_outfile);
+        fclose(temp_outfile);
+
+        // copy temporary file over target file
+        FILE* source = fopen(this->m_filename_cpt_temp.c_str(), "rb");
+        for (int i = 0; i < retry_count && source == nullptr; i++) {
+            // sleep for 6 seconds
+            std::this_thread::sleep_for(std::chrono::seconds(6));
+
+            // attempt to open again
+            source = fopen(this->m_filename_cpt_temp.c_str(), "rb");
+        }
+
+        FILE* dest = fopen(this->m_filename_cpt.c_str(), "wb");
+        for (int i = 0; i < retry_count && dest == nullptr; i++) {
+            // sleep for 6 seconds
+            std::this_thread::sleep_for(std::chrono::seconds(6));
+
+            // attempt to open again
+            dest = fopen(this->m_filename_cpt.c_str(), "wb");
+        }
+
+        // check that we were able to open the source and destination successfully
+        if (nullptr != source && nullptr != dest) {
+            size_t bytes_written = 0;
+            size_t size = 0;
+            char buf[BUFSIZ];
+            while ( (size = fread(buf, 1, BUFSIZ, source) ) ) {
+                // only write if bytes read is greater than 0
+                if (size > 0) {
+                    fwrite(buf, 1, size, dest);
+                    bytes_written += size;
+                }
+
+                //  if the size isn't equal to the buffer size, there was either an error or
+                //  we reached EOF so we break out of the loop here
+                if (size != BUFSIZ)
+                    break;
+            }
+            fclose(source);
+            fclose(dest);
+
+            // then we delete the temporary file
+            remove(this->m_filename_cpt_temp.c_str());
+            
+            // empty the checkpoint filename strings to signal it has been saved
+            this->m_filename_cpt.clear();
+            this->m_filename_cpt_temp.clear();
+
+            // set return status
+            if (bytes_written > 0)
+                ret = true;
+
+        } else if (nullptr != source) {
+            fclose(source);
+        } else if (nullptr != dest) {
+            fclose(dest);
+        }
+    }
+
+    return ret;
 }
 
 bool StressGrid::LoadCheckpoint(const char * filename)
@@ -1576,8 +1626,8 @@ bool StressGrid::LoadCheckpoint(const char * filename)
     // the main thread will have an actual file name, and it will lock the state
     if (nullptr != filename)
     {
-        // lock access to state, alloc and settings while waiting for load to complete
-        //std::lock_guard<std::mutex> lock(m_mutex_state);
+        // reset the filename to an empty string
+        this->m_filename = std::string("");
 
         std::string load_filename = std::string(filename);
         load_filename += ".mds";
@@ -1585,49 +1635,58 @@ bool StressGrid::LoadCheckpoint(const char * filename)
         
         // overwrite state and settings from loaded checkpoint
         FILE* infile = fopen(load_filename.c_str(), "rb" );
-        fread(&this->state, sizeof(state_t), 1, infile);
-        fread(&this->settings, sizeof(settings_t), 1, infile);
-        
-        // allocate buffers if necessary
-        if (nullptr == this->alloc.sum_grid)              this->alloc.sum_grid             = new matrix3_mds [this->state.nCells]();
-        if (nullptr == this->alloc.avg_grid)              this->alloc.avg_grid             = new matrix3_mds [this->state.nCells]();
-        if (nullptr == this->alloc.sum_grid_elcovar)      this->alloc.sum_grid_elcovar     = new matrix6_mds [this->state.nCells]();
-        if (nullptr == this->alloc.sum_grid_elkin)        this->alloc.sum_grid_elkin       = new matrix6_mds [this->state.nCells]();
-        if (nullptr == this->alloc.sum_grid_elborn)       this->alloc.sum_grid_elborn      = new matrix6_mds [this->state.nCells]();
-        if (nullptr == this->alloc.sum_grid_volcovar)     this->alloc.sum_grid_volcovar    = new matrix3_mds [this->state.nCells]();
-        if (nullptr == this->alloc.current_grid)          this->alloc.current_grid         = new matrix3_mds [this->state.nCells*this->m_max_threads]();
-        if (nullptr == this->alloc.current_grid_elborn)   this->alloc.current_grid_elborn  = new matrix6_mds [this->state.nCells*this->m_max_threads]();
-        if (nullptr == this->alloc.current_grid_elkin)    this->alloc.current_grid_elkin   = new matrix6_mds [this->state.nCells*this->m_max_threads]();
-        
-        // copy all grid information from the file
-        if (nullptr != this->alloc.sum_grid)             fread(this->alloc.sum_grid,            sizeof(matrix3_mds),  this->state.nCells, infile);  
-        if (nullptr != this->alloc.avg_grid)             fread(this->alloc.avg_grid,            sizeof(matrix3_mds),  this->state.nCells, infile);  
-        if (nullptr != this->alloc.sum_grid_elcovar)     fread(this->alloc.sum_grid_elcovar,    sizeof(matrix6_mds),  this->state.nCells, infile);  
-        if (nullptr != this->alloc.sum_grid_elkin)       fread(this->alloc.sum_grid_elkin,      sizeof(matrix6_mds),  this->state.nCells, infile);  
-        if (nullptr != this->alloc.sum_grid_elborn)      fread(this->alloc.sum_grid_elborn,     sizeof(matrix6_mds),  this->state.nCells, infile);  
-        if (nullptr != this->alloc.sum_grid_volcovar)    fread(this->alloc.sum_grid_volcovar,   sizeof(matrix3_mds),  this->state.nCells, infile);  
-        if (nullptr != this->alloc.current_grid)         fread(this->alloc.current_grid,        sizeof(matrix3_mds),  this->state.nCells, infile);  
-        if (nullptr != this->alloc.current_grid_elborn)  fread(this->alloc.current_grid_elborn, sizeof(matrix6_mds),  this->state.nCells, infile);  
-        if (nullptr != this->alloc.current_grid_elkin)   fread(this->alloc.current_grid_elkin,  sizeof(matrix6_mds),  this->state.nCells, infile);  
+        for (int i = 0; i < 10 && infile == nullptr; i++) {
+            // sleep for 6 seconds
+            std::this_thread::sleep_for(std::chrono::seconds(6));
 
-        // finally we will read the output filename
-        int32_t filename_len = 0;
-        fread(&filename_len, sizeof(int), 1, infile);
-        if (filename_len > 0)
-        {
-            char * buf = new char[filename_len+1];
-            buf[filename_len+1] = '\0';
-            fread(buf, sizeof(char), filename_len, infile);
-            this->m_filename = std::string(buf);
-            delete [] buf;
+            // attempt to open again
+            infile = fopen(load_filename.c_str(), "rb" );
         }
-        fclose(infile);
+        if (nullptr != infile) {
+            fread(&this->state, sizeof(state_t), 1, infile);
+            fread(&this->settings, sizeof(settings_t), 1, infile);
+            
+            // allocate buffers if necessary
+            if (nullptr == this->alloc.sum_grid)              this->alloc.sum_grid             = new matrix3_mds [this->state.nCells]();
+            if (nullptr == this->alloc.avg_grid)              this->alloc.avg_grid             = new matrix3_mds [this->state.nCells]();
+            if (nullptr == this->alloc.sum_grid_elcovar)      this->alloc.sum_grid_elcovar     = new matrix6_mds [this->state.nCells]();
+            if (nullptr == this->alloc.sum_grid_elkin)        this->alloc.sum_grid_elkin       = new matrix6_mds [this->state.nCells]();
+            if (nullptr == this->alloc.sum_grid_elborn)       this->alloc.sum_grid_elborn      = new matrix6_mds [this->state.nCells]();
+            if (nullptr == this->alloc.sum_grid_volcovar)     this->alloc.sum_grid_volcovar    = new matrix3_mds [this->state.nCells]();
+            if (nullptr == this->alloc.current_grid)          this->alloc.current_grid         = new matrix3_mds [this->state.nCells*this->m_max_threads]();
+            if (nullptr == this->alloc.current_grid_elborn)   this->alloc.current_grid_elborn  = new matrix6_mds [this->state.nCells*this->m_max_threads]();
+            if (nullptr == this->alloc.current_grid_elkin)    this->alloc.current_grid_elkin   = new matrix6_mds [this->state.nCells*this->m_max_threads]();
+            
+            // copy all grid information from the file
+            if (nullptr != this->alloc.sum_grid)             fread(this->alloc.sum_grid,            sizeof(matrix3_mds),  this->state.nCells, infile);  
+            if (nullptr != this->alloc.avg_grid)             fread(this->alloc.avg_grid,            sizeof(matrix3_mds),  this->state.nCells, infile);  
+            if (nullptr != this->alloc.sum_grid_elcovar)     fread(this->alloc.sum_grid_elcovar,    sizeof(matrix6_mds),  this->state.nCells, infile);  
+            if (nullptr != this->alloc.sum_grid_elkin)       fread(this->alloc.sum_grid_elkin,      sizeof(matrix6_mds),  this->state.nCells, infile);  
+            if (nullptr != this->alloc.sum_grid_elborn)      fread(this->alloc.sum_grid_elborn,     sizeof(matrix6_mds),  this->state.nCells, infile);  
+            if (nullptr != this->alloc.sum_grid_volcovar)    fread(this->alloc.sum_grid_volcovar,   sizeof(matrix3_mds),  this->state.nCells, infile);  
+            if (nullptr != this->alloc.current_grid)         fread(this->alloc.current_grid,        sizeof(matrix3_mds),  this->state.nCells, infile);  
+            if (nullptr != this->alloc.current_grid_elborn)  fread(this->alloc.current_grid_elborn, sizeof(matrix6_mds),  this->state.nCells, infile);  
+            if (nullptr != this->alloc.current_grid_elkin)   fread(this->alloc.current_grid_elkin,  sizeof(matrix6_mds),  this->state.nCells, infile);  
+
+            // finally we will read the output filename
+            int32_t filename_len = 0;
+            fread(&filename_len, sizeof(int), 1, infile);
+            if (filename_len > 0)
+            {
+                char * buf = new char[filename_len+1];
+                buf[filename_len+1] = '\0';
+                fread(buf, sizeof(char), filename_len, infile);
+                this->m_filename = std::string(buf);
+                delete [] buf;
+            }
+            fclose(infile);
+        }
     }
     
     static barrier exit_load_checkpoint(this->m_max_threads);
     exit_load_checkpoint.count_down_and_wait();
 
-    return true;
+    return (this->m_filename.size() > 0);
 }
 
 void StressGrid::Write ( )
