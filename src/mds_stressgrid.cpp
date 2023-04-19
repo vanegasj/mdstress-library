@@ -833,7 +833,7 @@ static void decompose_nbody(
  */
 StressGrid::StressGrid() :
     settings({0}),
-    state({0}),
+    state({{0}}),
     alloc({0}),
     m_filename(),
     m_filename_cpt(),
@@ -1782,12 +1782,12 @@ void StressGrid::Write ( )
             covfac2 = realval_mds(mds_units)*realval_mds(mds_units)*this->state.avg_boxvol/(this->settings.temperature*realval_mds(KBfac)*this->state.var_boxvol*this->state.nframes);
 
         // need to store matrices in double precision
-        matrix3_out sum_grid = {0};
-        matrix6_out sum_grid_elcovar = {0};
-        matrix6_out sum_grid_elborn = {0};
-        matrix6_out sum_grid_elkin = {0};
-        matrix3_out s = {0};
-        matrix6_out elast = {0};
+        matrix3_out sum_grid = {{0}};
+        matrix6_out sum_grid_elcovar = {{0}};
+        matrix6_out sum_grid_elborn = {{0}};
+        matrix6_out sum_grid_elkin = {{0}};
+        matrix3_out s = {{0}};
+        matrix6_out elast = {{0}};
 
         // need this for corrections below
         matrix6_mds npt_covar_corr[1];
