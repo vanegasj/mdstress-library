@@ -128,7 +128,7 @@ class  mds::StressGrid
         }
 
         void Init( );
-        
+
         void DistributeInteraction(
                 int nAtoms,
                 const array3_ext *R,
