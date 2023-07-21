@@ -636,6 +636,689 @@ class LStensor:
             print("DONE!\n")
 
         return
+        
+    def g_isotropic(self,basename):
+    
+    	outIso = basename+"_moduli_isotropic.txt"
+    	fp1 = open(outIso, 'w')
+    	
+    	outEEE = basename +"_elast_element_error_isotropic.txt"
+    	fp2 = open(outEEE, 'w')
+    	
+    	ncells = self.nx*self.ny*self.nz
+        matlist = np.zeros((ncells,10))
+
+        for i in range(ncells):
+            elvoigt = np.zeros((6,6))
+            elvoigt[0,0] = self.data_grid[i,0]
+            elvoigt[0,1] = self.data_grid[i,1]
+            elvoigt[0,2] = self.data_grid[i,2]
+            elvoigt[0,3] = self.data_grid[i,3]
+            elvoigt[0,4] = self.data_grid[i,4]
+            elvoigt[0,5] = self.data_grid[i,5]
+
+            elvoigt[1,0] = self.data_grid[i,6] #1 = 6
+            elvoigt[1,1] = self.data_grid[i,7]
+            elvoigt[1,2] = self.data_grid[i,8]
+            elvoigt[1,3] = self.data_grid[i,9]
+            elvoigt[1,4] = self.data_grid[i,10]
+            elvoigt[1,5] = self.data_grid[i,11]
+
+            elvoigt[2,0] = self.data_grid[i,12] #2 = 12
+            elvoigt[2,1] = self.data_grid[i,13] #8 = 13
+            elvoigt[2,2] = self.data_grid[i,14]
+            elvoigt[2,3] = self.data_grid[i,15]
+            elvoigt[2,4] = self.data_grid[i,16]
+            elvoigt[2,5] = self.data_grid[i,17]
+
+            elvoigt[3,0] = self.data_grid[i,18] #3 = 18
+            elvoigt[3,1] = self.data_grid[i,19] #9 = 19
+            elvoigt[3,2] = self.data_grid[i,20] #15 = 20
+            elvoigt[3,3] = self.data_grid[i,21]
+            elvoigt[3,4] = self.data_grid[i,22]
+            elvoigt[3,5] = self.data_grid[i,23]
+
+            elvoigt[4,0] = self.data_grid[i,24] #4 = 24
+            elvoigt[4,1] = self.data_grid[i,25] #10 = 25
+            elvoigt[4,2] = self.data_grid[i,26] #16 = 26
+            elvoigt[4,3] = self.data_grid[i,27] #17 = 27
+            elvoigt[4,4] = self.data_grid[i,28]
+            elvoigt[4,5] = self.data_grid[i,29]
+
+            elvoigt[5,0] = self.data_grid[i,30] #5 = 30
+            elvoigt[5,1] = self.data_grid[i,31] #11 = 31
+            elvoigt[5,2] = self.data_grid[i,32] #17 = 32
+            elvoigt[5,3] = self.data_grid[i,33] #23 = 33
+            elvoigt[5,4] = self.data_grid[i,34] #29 = 34
+            elvoigt[5,5] = self.data_grid[i,35]
+            
+            #<C11>
+            matlist[i,0] = np.mean((elvoigt[0,0],elvoigt[1,1],elvoigt[2,2]))
+            matlist[i,1] = np.std((elvoigt[0,0],elvoigt[1,1],elvoigt[2,2]))
+            #<C12> (Lame' Modulus)
+            matlist[i,2] = np.mean((elvoigt[0,1],elvoigt[0,2],elvoigt[1,0],elvoigt[1,2],elvoigt[2,0],elvoigt[2,1]))
+            matlist[i,3] = np.std((elvoigt[0,1],elvoigt[0,2],elvoigt[1,0],elvoigt[1,2],elvoigt[2,0],elvoigt[2,1]))
+            #<C44> (Shear Modulus)
+            matlist[i,4] = np.mean((elvoigt[3,3],elvoigt[4,4],elvoigt[5,5]))
+            matlist[i,5] = np.std((elvoigt[3,3],elvoigt[4,4],elvoigt[5,5]))
+            #<C_Null>
+            matlist[i,6] = np.mean((elvoigt[0,3],elvoigt[0,4],elvoigt[0,5],elvoigt[1,3],elvoigt[1,4],elvoigt[1,5],elvoigt[2,3],elvoigt[2,4],elvoigt[2,5],elvoigt[3,0],elvoigt[3,1],elvoigt[3,2],elvoigt[3,4],elvoigt[3,5],elvoigt[4,0],elvoigt[4,1],elvoigt[4,2],elvoigt[4,3],elvoigt[4,5],elvoigt[5,0],elvoigt[5,1],elvoigt[5,2],elvoigt[5,3],elvoigt[5,4]))
+            matlist[i,7] = np.std((elvoigt[0,3],elvoigt[0,4],elvoigt[0,5],elvoigt[1,3],elvoigt[1,4],elvoigt[1,5],elvoigt[2,3],elvoigt[2,4],elvoigt[2,5],elvoigt[3,0],elvoigt[3,1],elvoigt[3,2],elvoigt[3,4],elvoigt[3,5],elvoigt[4,0],elvoigt[4,1],elvoigt[4,2],elvoigt[4,3],elvoigt[4,5],elvoigt[5,0],elvoigt[5,1],elvoigt[5,2],elvoigt[5,3],elvoigt[5,4]))
+            #[<C44>-(1/2)*(<C11>-<C12>)] = 0 (Isotropy)
+            matlist[i,8] = (matlist[i,4] - ((0.5)*(matlist[i,0]-matlist[i,2])))
+            matlist[i,9] = np.sqrt((matlist[i,1]**2)+(matlist[i,3]**2)+4*(matlist[i,5]**2))
+            
+        modlist = np.zeros((ncells,8))
+
+        for i in range(ncells):
+        	
+            #Young's Modulus (E)
+            modlist[i,0] = ((matlist[i,0]+2*matlist[i,2])*(matlist[i,0]-matlist[i,2]))/(matlist[i,0]+matlist[i,2])
+            #stddev of E
+            modlist[i,1] = np.sqrt(((((matlist[i,0]**2)+2*matlist[i,0]*matlist[i,2]+3*(matlist[i,2]**2))*(matlist[i,1]))**2) + (((-2)*(matlist[i,2])*(2*matlist[i,0]-matlist[i,2])*(matlist[i,3]))**2))/((matlist[i,0]+matlist[i,2])**2)
+            #Area Modulus (A)
+            modlist[i,2] = ((matlist[i,0]+2*matlist[i,2])*(matlist[i,0]-matlist[i,2]))/(2*matlist[i,0])
+            #stddev of A
+            modlist[i,3] = np.sqrt(((((matlist[i,0]**2)+2*(matlist[i,2]**2))*(matlist[i,1]))**2)+(((matlist[i,0])*(matlist[i,0]-4*matlist[i,2])*(matlist[i,3]))**2))/(2*(matlist[i,0]**2))
+            #Bulk modulus (B)
+            modlist[i,4] = (matlist[i,0]+2*matlist[i,2])/3
+            #stddev of B
+            modlist[i,5] = np.sqrt((matlist[i,1]**2)+4*(matlist[i,3]**2))/(3)
+            #Poisson Ratio (v)
+            modlist[i,6] = matlist[i,0]/(matlist[i,0]+matlist[i,2])
+            #stddev of v
+            modlist[i,7] = np.sqrt(((matlist[i,2]*matlist[i,1])**2)+((matlist[i,0]*matlist[i,3])**2))/((matlist[i,0]+matlist[i,2])**2)
+            
+            
+        fp1.write("#%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\n" % ("E","stddev","A","stddev","B","stddev","v","stddev"))
+        for i in range(self.nx):
+            for j in range(self.ny):
+                for k in range(self.nz):
+                    if(self.nx > 1):
+                        fp1.write(("%15.8f" % (i*self.dx))+'\t')
+                    if(self.ny > 1):
+                        fp1.write(("%15.8f" % (j*self.dy))+'\t')
+                    if(self.nz > 1):
+                        fp1.write(("%15.8f" % (k*self.dz))+'\t')
+                    for d in [0,1,2,3,4,5,6,7]:
+                        temp = modlist[i*self.ny*self.nz+j*self.nz+k,d]
+                        fp1.write(("%15.8e" % temp)+'\t')
+                    fp1.write('\n')
+                    
+        fp2.write("#%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\n" %("<C11>","stddev","<C12>(Lame)","stddev","<C44>(Shear)","stddev","<C_Null>","stddev","Isotropy","stddev")
+        or i in range(self.nx):
+            for j in range(self.ny):
+                for k in range(self.nz):
+                    if(self.nx > 1):
+                        fp2.write(("%15.8f" % (i*self.dx))+'\t')
+                    if(self.ny > 1):
+                        fp2.write(("%15.8f" % (j*self.dy))+'\t')
+                    if(self.nz > 1):
+                        fp2.write(("%15.8f" % (k*self.dz))+'\t')
+                    for d in [0,1,2,3,4,5,6,7,8,9]:
+                        temp = matlist[i*self.ny*self.nz+j*self.nz+k,d]
+                        fp2.write(("%15.8e" % temp)+'\t')
+                    fp2.write('\n')
+                    
+        return
+        
+    def g_cubic(self, basename):
+    
+    	outCubic = basename+"_moduli_cubic.txt"
+    	fp1 = open(outCubic, 'w')
+    	
+    	outEEE = basename +"_elast_element_error_cubic.txt"
+    	fp2 = open(outEEE, 'w')
+    	
+    	ncells = self.nx*self.ny*self.nz
+        matlist = np.zeros((ncells,8))
+
+        for i in range(ncells):
+            elvoigt = np.zeros((6,6))
+            elvoigt[0,0] = self.data_grid[i,0]
+            elvoigt[0,1] = self.data_grid[i,1]
+            elvoigt[0,2] = self.data_grid[i,2]
+            elvoigt[0,3] = self.data_grid[i,3]
+            elvoigt[0,4] = self.data_grid[i,4]
+            elvoigt[0,5] = self.data_grid[i,5]
+
+            elvoigt[1,0] = self.data_grid[i,6] #1 = 6
+            elvoigt[1,1] = self.data_grid[i,7]
+            elvoigt[1,2] = self.data_grid[i,8]
+            elvoigt[1,3] = self.data_grid[i,9]
+            elvoigt[1,4] = self.data_grid[i,10]
+            elvoigt[1,5] = self.data_grid[i,11]
+
+            elvoigt[2,0] = self.data_grid[i,12] #2 = 12
+            elvoigt[2,1] = self.data_grid[i,13] #8 = 13
+            elvoigt[2,2] = self.data_grid[i,14]
+            elvoigt[2,3] = self.data_grid[i,15]
+            elvoigt[2,4] = self.data_grid[i,16]
+            elvoigt[2,5] = self.data_grid[i,17]
+
+            elvoigt[3,0] = self.data_grid[i,18] #3 = 18
+            elvoigt[3,1] = self.data_grid[i,19] #9 = 19
+            elvoigt[3,2] = self.data_grid[i,20] #15 = 20
+            elvoigt[3,3] = self.data_grid[i,21]
+            elvoigt[3,4] = self.data_grid[i,22]
+            elvoigt[3,5] = self.data_grid[i,23]
+
+            elvoigt[4,0] = self.data_grid[i,24] #4 = 24
+            elvoigt[4,1] = self.data_grid[i,25] #10 = 25
+            elvoigt[4,2] = self.data_grid[i,26] #16 = 26
+            elvoigt[4,3] = self.data_grid[i,27] #17 = 27
+            elvoigt[4,4] = self.data_grid[i,28]
+            elvoigt[4,5] = self.data_grid[i,29]
+
+            elvoigt[5,0] = self.data_grid[i,30] #5 = 30
+            elvoigt[5,1] = self.data_grid[i,31] #11 = 31
+            elvoigt[5,2] = self.data_grid[i,32] #17 = 32
+            elvoigt[5,3] = self.data_grid[i,33] #23 = 33
+            elvoigt[5,4] = self.data_grid[i,34] #29 = 34
+            elvoigt[5,5] = self.data_grid[i,35]
+            
+            #<C11>
+            matlist[i,0] = np.mean((elvoigt[0,0],elvoigt[1,1],elvoigt[2,2]))
+            matlist[i,1] = np.std((elvoigt[0,0],elvoigt[1,1],elvoigt[2,2]))
+            #<C12> (Lame' Modulus)
+            matlist[i,2] = np.mean((elvoigt[0,1],elvoigt[0,2],elvoigt[1,0],elvoigt[1,2],elvoigt[2,0],elvoigt[2,1]))
+            matlist[i,3] = np.std((elvoigt[0,1],elvoigt[0,2],elvoigt[1,0],elvoigt[1,2],elvoigt[2,0],elvoigt[2,1]))
+            #<C44> (Shear Modulus)
+            matlist[i,4] = np.mean((elvoigt[3,3],elvoigt[4,4],elvoigt[5,5]))
+            matlist[i,5] = np.std((elvoigt[3,3],elvoigt[4,4],elvoigt[5,5]))
+            #<C_Null>
+            matlist[i,6] = np.mean((elvoigt[0,3],elvoigt[0,4],elvoigt[0,5],elvoigt[1,3],elvoigt[1,4],elvoigt[1,5],elvoigt[2,3],elvoigt[2,4],elvoigt[2,5],elvoigt[3,0],elvoigt[3,1],elvoigt[3,2],elvoigt[3,4],elvoigt[3,5],elvoigt[4,0],elvoigt[4,1],elvoigt[4,2],elvoigt[4,3],elvoigt[4,5],elvoigt[5,0],elvoigt[5,1],elvoigt[5,2],elvoigt[5,3],elvoigt[5,4]))
+            matlist[i,7] = np.std((elvoigt[0,3],elvoigt[0,4],elvoigt[0,5],elvoigt[1,3],elvoigt[1,4],elvoigt[1,5],elvoigt[2,3],elvoigt[2,4],elvoigt[2,5],elvoigt[3,0],elvoigt[3,1],elvoigt[3,2],elvoigt[3,4],elvoigt[3,5],elvoigt[4,0],elvoigt[4,1],elvoigt[4,2],elvoigt[4,3],elvoigt[4,5],elvoigt[5,0],elvoigt[5,1],elvoigt[5,2],elvoigt[5,3],elvoigt[5,4]))
+            
+        modlist = np.zeros((ncells,8))
+
+        for i in range(ncells):
+        	
+            #Young's Modulus (E)
+            modlist[i,0] = ((matlist[i,0]+2*matlist[i,2])*(matlist[i,0]-matlist[i,2]))/(matlist[i,0]+matlist[i,2])
+            #stddev of E
+            modlist[i,1] = np.sqrt(((((matlist[i,0]**2)+2*matlist[i,0]*matlist[i,2]+3*(matlist[i,2]**2))*(matlist[i,1]))**2) + (((-2)*(matlist[i,2])*(2*matlist[i,0]-matlist[i,2])*(matlist[i,3]))**2))/((matlist[i,0]+matlist[i,2])**2)
+            #Area Modulus (A)
+            modlist[i,2] = ((matlist[i,0]+2*matlist[i,2])*(matlist[i,0]-matlist[i,2]))/(2*matlist[i,0])
+            #stddev of A
+            modlist[i,3] = np.sqrt(((((matlist[i,0]**2)+2*(matlist[i,2]**2))*(matlist[i,1]))**2)+(((matlist[i,0])*(matlist[i,0]-4*matlist[i,2])*(matlist[i,3]))**2))/(2*(matlist[i,0]**2))
+            #Bulk modulus (B)
+            modlist[i,4] = (matlist[i,0]+2*matlist[i,2])/3
+            #stddev of B
+            modlist[i,5] = np.sqrt((matlist[i,1]**2)+4*(matlist[i,3]**2))/(3)
+            #Poisson Ratio (v)
+            modlist[i,6] = matlist[i,0]/(matlist[i,0]+matlist[i,2])
+            #stddev of v
+            modlist[i,7] = np.sqrt(((matlist[i,2]*matlist[i,1])**2)+((matlist[i,0]*matlist[i,3])**2))/((matlist[i,0]+matlist[i,2])**2)
+            
+            
+        fp1.write("#%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\n" % ("E","stddev","A","stddev","B","stddev","v","stddev"))
+        for i in range(self.nx):
+            for j in range(self.ny):
+                for k in range(self.nz):
+                    if(self.nx > 1):
+                        fp1.write(("%15.8f" % (i*self.dx))+'\t')
+                    if(self.ny > 1):
+                        fp1.write(("%15.8f" % (j*self.dy))+'\t')
+                    if(self.nz > 1):
+                        fp1.write(("%15.8f" % (k*self.dz))+'\t')
+                    for d in [0,1,2,3,4,5,6,7]:
+                        temp = modlist[i*self.ny*self.nz+j*self.nz+k,d]
+                        fp1.write(("%15.8e" % temp)+'\t')
+                    fp1.write('\n')
+                    
+        fp2.write("#%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\n" %("<C11>","stddev","<C12>(Lame)","stddev","<C44>(Shear)","stddev","<C_Null>","stddev"z)
+        or i in range(self.nx):
+            for j in range(self.ny):
+                for k in range(self.nz):
+                    if(self.nx > 1):
+                        fp2.write(("%15.8f" % (i*self.dx))+'\t')
+                    if(self.ny > 1):
+                        fp2.write(("%15.8f" % (j*self.dy))+'\t')
+                    if(self.nz > 1):
+                        fp2.write(("%15.8f" % (k*self.dz))+'\t')
+                    for d in [0,1,2,3,4,5,6,7,8,9]:
+                        temp = matlist[i*self.ny*self.nz+j*self.nz+k,d]
+                        fp2.write(("%15.8e" % temp)+'\t')
+                    fp2.write('\n')
+                    
+        return
+    
+    def g_transverse(self, basename):
+    
+    	outTrans = basename+"_moduli_transverse.txt"
+    	fp1 = open(outTrans, 'w')
+    	
+    	outEEE = basename +"_elast_element_error_transverse.txt"
+    	fp2 = open(outEEE, 'w')
+    	
+    	ncells = self.nx*self.ny*self.nz
+        matlist = np.zeros((ncells,16))
+
+        for i in range(ncells):
+            elvoigt = np.zeros((6,6))
+            elvoigt[0,0] = self.data_grid[i,0]
+            elvoigt[0,1] = self.data_grid[i,1]
+            elvoigt[0,2] = self.data_grid[i,2]
+            elvoigt[0,3] = self.data_grid[i,3]
+            elvoigt[0,4] = self.data_grid[i,4]
+            elvoigt[0,5] = self.data_grid[i,5]
+
+            elvoigt[1,0] = self.data_grid[i,6] #1 = 6
+            elvoigt[1,1] = self.data_grid[i,7]
+            elvoigt[1,2] = self.data_grid[i,8]
+            elvoigt[1,3] = self.data_grid[i,9]
+            elvoigt[1,4] = self.data_grid[i,10]
+            elvoigt[1,5] = self.data_grid[i,11]
+
+            elvoigt[2,0] = self.data_grid[i,12] #2 = 12
+            elvoigt[2,1] = self.data_grid[i,13] #8 = 13
+            elvoigt[2,2] = self.data_grid[i,14]
+            elvoigt[2,3] = self.data_grid[i,15]
+            elvoigt[2,4] = self.data_grid[i,16]
+            elvoigt[2,5] = self.data_grid[i,17]
+
+            elvoigt[3,0] = self.data_grid[i,18] #3 = 18
+            elvoigt[3,1] = self.data_grid[i,19] #9 = 19
+            elvoigt[3,2] = self.data_grid[i,20] #15 = 20
+            elvoigt[3,3] = self.data_grid[i,21]
+            elvoigt[3,4] = self.data_grid[i,22]
+            elvoigt[3,5] = self.data_grid[i,23]
+
+            elvoigt[4,0] = self.data_grid[i,24] #4 = 24
+            elvoigt[4,1] = self.data_grid[i,25] #10 = 25
+            elvoigt[4,2] = self.data_grid[i,26] #16 = 26
+            elvoigt[4,3] = self.data_grid[i,27] #17 = 27
+            elvoigt[4,4] = self.data_grid[i,28]
+            elvoigt[4,5] = self.data_grid[i,29]
+
+            elvoigt[5,0] = self.data_grid[i,30] #5 = 30
+            elvoigt[5,1] = self.data_grid[i,31] #11 = 31
+            elvoigt[5,2] = self.data_grid[i,32] #17 = 32
+            elvoigt[5,3] = self.data_grid[i,33] #23 = 33
+            elvoigt[5,4] = self.data_grid[i,34] #29 = 34
+            elvoigt[5,5] = self.data_grid[i,35]
+            
+            #<C11>
+            matlist[i,0] = np.mean((elvoigt[0,0],elvoigt[1,1]))
+            matlist[i,1] = np.std((elvoigt[0,0],elvoigt[1,1]))
+            #<C12>
+            matlist[i,2] = np.mean((elvoigt[0,1],elvoigt[1,0]))
+            matlist[i,3] = np.std((elvoigt[0,1],elvoigt[1,0]))
+            #<C13>
+            matlist[i,4] = np.mean((elvoigt[0,2],elvoigt[1,2],elvoigt[2,0],elvoigt[2,1]))
+            matlist[i,5] = np.std((elvoigt[0,2],elvoigt[1,2],elvoigt[2,0],elvoigt[2,1]))
+            #<C33>
+            matlist[i,6] = np.mean((elvoigt[0,2]))
+            matlist[i,7] = np.std((elvoigt[0,2]))
+            #<C44> (Axial Shear Modulus Ga = Gxz = Gyz)
+            matlist[i,8] = np.mean((elvoigt[3,3],elvoigt[4,4]))
+            matlist[i,9] = np.std((elvoigt[3,3],elvoigt[4,4]))
+            #<C66> (Transverse Shear Modulus Gt = Gxy)
+            matlist[i,10] = np.mean((elvoigt[5,5]))
+            matlist[i,11] = np.std((elvoigt[5,5]))
+            #<C_Null>
+            matlist[i,12] = np.mean((elvoigt[0,3],elvoigt[0,4],elvoigt[0,5],elvoigt[1,3],elvoigt[1,4],elvoigt[1,5],elvoigt[2,3],elvoigt[2,4],elvoigt[2,5],elvoigt[3,0],elvoigt[3,1],elvoigt[3,2],elvoigt[3,4],elvoigt[3,5],elvoigt[4,0],elvoigt[4,1],elvoigt[4,2],elvoigt[4,3],elvoigt[4,5],elvoigt[5,0],elvoigt[5,1],elvoigt[5,2],elvoigt[5,3],elvoigt[5,4]))
+            matlist[i,13] = np.std((elvoigt[0,3],elvoigt[0,4],elvoigt[0,5],elvoigt[1,3],elvoigt[1,4],elvoigt[1,5],elvoigt[2,3],elvoigt[2,4],elvoigt[2,5],elvoigt[3,0],elvoigt[3,1],elvoigt[3,2],elvoigt[3,4],elvoigt[3,5],elvoigt[4,0],elvoigt[4,1],elvoigt[4,2],elvoigt[4,3],elvoigt[4,5],elvoigt[5,0],elvoigt[5,1],elvoigt[5,2],elvoigt[5,3],elvoigt[5,4]))
+            #[<C66>-(1/2)*(<C11>-<C12>)] = 0 (Isotropy)        
+            matlist[i,14] = (matlist[i,10] - ((0.5)*(matlist[i,0]-matlist[i,2])))
+            matlist[i,15] = np.sqrt((matlist[i,1]**2)+(matlist[i,3]**2)+4*(matlist[i,11]**2))
+            
+        modlist = np.zeros((ncells,8))
+
+        for i in range(ncells):
+        	
+            #Transverse Young's Modulus (Et = Ex = Ey)
+            modlist[i,0] = matlist[i,2]*()
+            #stddev of E_T
+            #Axial Young's Modulus (Ea = Ez)
+            modlist[i,0] = ((matlist[i,0]+2*matlist[i,2])*(matlist[i,0]-matlist[i,2]))/(matlist[i,0]+matlist[i,2])
+            #stddev of Ea
+            modlist[i,1] = np.sqrt(((((matlist[i,0]**2)+2*matlist[i,0]*matlist[i,2]+3*(matlist[i,2]**2))*(matlist[i,1]))**2) + (((-2)*(matlist[i,2])*(2*matlist[i,0]-matlist[i,2])*(matlist[i,3]))**2))/((matlist[i,0]+matlist[i,2])**2)
+            #Area Modulus (A)
+            modlist[i,2] = ((matlist[i,0]+2*matlist[i,2])*(matlist[i,0]-matlist[i,2]))/(2*matlist[i,0])
+            #stddev of A
+            modlist[i,3] = np.sqrt(((((matlist[i,0]**2)+2*(matlist[i,2]**2))*(matlist[i,1]))**2)+(((matlist[i,0])*(matlist[i,0]-4*matlist[i,2])*(matlist[i,3]))**2))/(2*(matlist[i,0]**2))
+            #Bulk modulus (B)
+            modlist[i,4] = (matlist[i,0]+2*matlist[i,2])/3
+            #stddev of B
+            modlist[i,5] = np.sqrt((matlist[i,1]**2)+4*(matlist[i,3]**2))/(3)
+            #Traverse Plane Strain Bulk modulus (K)
+            modlist[i,4] = (matlist[i,0]+2*matlist[i,2])/3
+            #stddev of K
+            modlist[i,5] = np.sqrt((matlist[i,1]**2)+4*(matlist[i,3]**2))/(3)
+            #Transverse Poisson Ratio (vt = vxz =vyz)
+            modlist[i,6] = matlist[i,0]/(matlist[i,0]+matlist[i,2])
+            #stddev of vt
+            modlist[i,7] = np.sqrt(((matlist[i,2]*matlist[i,1])**2)+((matlist[i,0]*matlist[i,3])**2))/((matlist[i,0]+matlist[i,2])**2)
+            #Axial Poisson Ratio (va = vxy)
+            modlist[i,6] = matlist[i,0]/(matlist[i,0]+matlist[i,2])
+            #stddev of va
+            modlist[i,7] = np.sqrt(((matlist[i,2]*matlist[i,1])**2)+((matlist[i,0]*matlist[i,3])**2))/((matlist[i,0]+matlist[i,2])**2)
+            
+            
+        fp1.write("#%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\n" % ("E","stddev","A","stddev","B","stddev","v","stddev"))
+        for i in range(self.nx):
+            for j in range(self.ny):
+                for k in range(self.nz):
+                    if(self.nx > 1):
+                        fp1.write(("%15.8f" % (i*self.dx))+'\t')
+                    if(self.ny > 1):
+                        fp1.write(("%15.8f" % (j*self.dy))+'\t')
+                    if(self.nz > 1):
+                        fp1.write(("%15.8f" % (k*self.dz))+'\t')
+                    for d in [0,1,2,3,4,5,6,7]:
+                        temp = modlist[i*self.ny*self.nz+j*self.nz+k,d]
+                        fp1.write(("%15.8e" % temp)+'\t')
+                    fp1.write('\n')
+                    
+        fp2.write("#%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\n" %("<C11>","stddev","<C12>(Lame)","stddev","<C44>(Shear)","stddev","<C_Null>","stddev"z)
+        or i in range(self.nx):
+            for j in range(self.ny):
+                for k in range(self.nz):
+                    if(self.nx > 1):
+                        fp2.write(("%15.8f" % (i*self.dx))+'\t')
+                    if(self.ny > 1):
+                        fp2.write(("%15.8f" % (j*self.dy))+'\t')
+                    if(self.nz > 1):
+                        fp2.write(("%15.8f" % (k*self.dz))+'\t')
+                    for d in [0,1,2,3,4,5,6,7,8,9]:
+                        temp = matlist[i*self.ny*self.nz+j*self.nz+k,d]
+                        fp2.write(("%15.8e" % temp)+'\t')
+                    fp2.write('\n')
+                    
+        return
+    
+    def g_orthotropic(self, basename):
+    
+    	outOrtho = basename+"_moduli_orthotropic.txt"
+    	fp1 = open(outOrtho, 'w')
+    	
+    	outEEE = basename +"_elast_element_error_orthotropic.txt"
+    	fp2 = open(outEEE, 'w')
+    	
+    	ncells = self.nx*self.ny*self.nz
+        matlist = np.zeros((ncells,6,6))
+
+        for i in range(ncells):
+            elvoigt = np.zeros((6,6))
+            elvoigt[0,0] = self.data_grid[i,0]
+            elvoigt[0,1] = self.data_grid[i,1]
+            elvoigt[0,2] = self.data_grid[i,2]
+            elvoigt[0,3] = self.data_grid[i,3]
+            elvoigt[0,4] = self.data_grid[i,4]
+            elvoigt[0,5] = self.data_grid[i,5]
+
+            elvoigt[1,0] = self.data_grid[i,6] #1 = 6
+            elvoigt[1,1] = self.data_grid[i,7]
+            elvoigt[1,2] = self.data_grid[i,8]
+            elvoigt[1,3] = self.data_grid[i,9]
+            elvoigt[1,4] = self.data_grid[i,10]
+            elvoigt[1,5] = self.data_grid[i,11]
+
+            elvoigt[2,0] = self.data_grid[i,12] #2 = 12
+            elvoigt[2,1] = self.data_grid[i,13] #8 = 13
+            elvoigt[2,2] = self.data_grid[i,14]
+            elvoigt[2,3] = self.data_grid[i,15]
+            elvoigt[2,4] = self.data_grid[i,16]
+            elvoigt[2,5] = self.data_grid[i,17]
+
+            elvoigt[3,0] = self.data_grid[i,18] #3 = 18
+            elvoigt[3,1] = self.data_grid[i,19] #9 = 19
+            elvoigt[3,2] = self.data_grid[i,20] #15 = 20
+            elvoigt[3,3] = self.data_grid[i,21]
+            elvoigt[3,4] = self.data_grid[i,22]
+            elvoigt[3,5] = self.data_grid[i,23]
+
+            elvoigt[4,0] = self.data_grid[i,24] #4 = 24
+            elvoigt[4,1] = self.data_grid[i,25] #10 = 25
+            elvoigt[4,2] = self.data_grid[i,26] #16 = 26
+            elvoigt[4,3] = self.data_grid[i,27] #17 = 27
+            elvoigt[4,4] = self.data_grid[i,28]
+            elvoigt[4,5] = self.data_grid[i,29]
+
+            elvoigt[5,0] = self.data_grid[i,30] #5 = 30
+            elvoigt[5,1] = self.data_grid[i,31] #11 = 31
+            elvoigt[5,2] = self.data_grid[i,32] #17 = 32
+            elvoigt[5,3] = self.data_grid[i,33] #23 = 33
+            elvoigt[5,4] = self.data_grid[i,34] #29 = 34
+            elvoigt[5,5] = self.data_grid[i,35]
+            
+        modlist = np.zeros((ncells,7))
+
+        for i in range(ncells):
+            #if (moduli == 'x'):
+            Ex = matlist[i,0,0]
+            modlist[i,0] = 1/Ex
+            #if (moduli == 'y'):
+            Ey = matlist[i,1,1]
+            modlist[i,1] = 1/Ey
+            #if (moduli == 'z'):
+            Ez = matlist[i,2,2]
+            modlist[i,2] = 1/Ez
+            #if (moduli == 'xy'):
+            Axy = matlist[i,0,0] + matlist[i,1,1] + 2*matlist[i,0,1]
+            modlist[i,3] = 1/Axy
+            #if (moduli == 'yz'):
+            Ayz = matlist[i,1,1] + matlist[i,2,2] + 2*matlist[i,1,2]
+            modlist[i,4] = 1/Ayz
+            #if (moduli == 'xz'):
+            Axz = matlist[i,0,0] + matlist[i,2,2] + 2*matlist[i,0,2]
+            modlist[i,5] = 1/Axz
+            #if (moduli == 'xyz'):
+            B = matlist[i,0,0] + matlist[i,1,1] + matlist[i,2,2] + 2*(matlist[i,0,1] + matlist[i,1,2] + matlist[i,0,2])
+            modlist[i,6] = 1/B
+            
+        fp1.write("#%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\n" % ("Ex","Ey","Ez","Axy","Ayz","Axz","B"))
+        for i in range(self.nx):
+            for j in range(self.ny):
+                for k in range(self.nz):
+                    if(self.nx > 1):
+                        fp1.write(("%15.8f" % (i*self.dx))+'\t')
+                    if(self.ny > 1):
+                        fp1.write(("%15.8f" % (j*self.dy))+'\t')
+                    if(self.nz > 1):
+                        fp1.write(("%15.8f" % (k*self.dz))+'\t')
+                    for d in [0,1,2,3,4,5,6]:
+                        temp = modlist[i*self.ny*self.nz+j*self.nz+k,d]
+                        fp1.write(("%15.8e" % temp)+'\t')
+                    fp1.write('\n')
+                    
+        return
+    
+    def g_monoclinic(self, basename):
+    
+    	outMono = basename+"_moduli_monoclinic.txt"
+    	fp1 = open(outMono, 'w')
+    	
+    	outEEE = basename +"_elast_element_error_monoclinic.txt"
+    	fp2 = open(outEEE, 'w')
+    	
+    	ncells = self.nx*self.ny*self.nz
+        matlist = np.zeros((ncells,6,6))
+
+        for i in range(ncells):
+            elvoigt = np.zeros((6,6))
+            elvoigt[0,0] = self.data_grid[i,0]
+            elvoigt[0,1] = self.data_grid[i,1]
+            elvoigt[0,2] = self.data_grid[i,2]
+            elvoigt[0,3] = self.data_grid[i,3]
+            elvoigt[0,4] = self.data_grid[i,4]
+            elvoigt[0,5] = self.data_grid[i,5]
+
+            elvoigt[1,0] = self.data_grid[i,6] #1 = 6
+            elvoigt[1,1] = self.data_grid[i,7]
+            elvoigt[1,2] = self.data_grid[i,8]
+            elvoigt[1,3] = self.data_grid[i,9]
+            elvoigt[1,4] = self.data_grid[i,10]
+            elvoigt[1,5] = self.data_grid[i,11]
+
+            elvoigt[2,0] = self.data_grid[i,12] #2 = 12
+            elvoigt[2,1] = self.data_grid[i,13] #8 = 13
+            elvoigt[2,2] = self.data_grid[i,14]
+            elvoigt[2,3] = self.data_grid[i,15]
+            elvoigt[2,4] = self.data_grid[i,16]
+            elvoigt[2,5] = self.data_grid[i,17]
+
+            elvoigt[3,0] = self.data_grid[i,18] #3 = 18
+            elvoigt[3,1] = self.data_grid[i,19] #9 = 19
+            elvoigt[3,2] = self.data_grid[i,20] #15 = 20
+            elvoigt[3,3] = self.data_grid[i,21]
+            elvoigt[3,4] = self.data_grid[i,22]
+            elvoigt[3,5] = self.data_grid[i,23]
+
+            elvoigt[4,0] = self.data_grid[i,24] #4 = 24
+            elvoigt[4,1] = self.data_grid[i,25] #10 = 25
+            elvoigt[4,2] = self.data_grid[i,26] #16 = 26
+            elvoigt[4,3] = self.data_grid[i,27] #17 = 27
+            elvoigt[4,4] = self.data_grid[i,28]
+            elvoigt[4,5] = self.data_grid[i,29]
+
+            elvoigt[5,0] = self.data_grid[i,30] #5 = 30
+            elvoigt[5,1] = self.data_grid[i,31] #11 = 31
+            elvoigt[5,2] = self.data_grid[i,32] #17 = 32
+            elvoigt[5,3] = self.data_grid[i,33] #23 = 33
+            elvoigt[5,4] = self.data_grid[i,34] #29 = 34
+            elvoigt[5,5] = self.data_grid[i,35]
+            
+        modlist = np.zeros((ncells,7))
+
+        for i in range(ncells):
+            #if (moduli == 'x'):
+            Ex = matlist[i,0,0]
+            modlist[i,0] = 1/Ex
+            #if (moduli == 'y'):
+            Ey = matlist[i,1,1]
+            modlist[i,1] = 1/Ey
+            #if (moduli == 'z'):
+            Ez = matlist[i,2,2]
+            modlist[i,2] = 1/Ez
+            #if (moduli == 'xy'):
+            Axy = matlist[i,0,0] + matlist[i,1,1] + 2*matlist[i,0,1]
+            modlist[i,3] = 1/Axy
+            #if (moduli == 'yz'):
+            Ayz = matlist[i,1,1] + matlist[i,2,2] + 2*matlist[i,1,2]
+            modlist[i,4] = 1/Ayz
+            #if (moduli == 'xz'):
+            Axz = matlist[i,0,0] + matlist[i,2,2] + 2*matlist[i,0,2]
+            modlist[i,5] = 1/Axz
+            #if (moduli == 'xyz'):
+            B = matlist[i,0,0] + matlist[i,1,1] + matlist[i,2,2] + 2*(matlist[i,0,1] + matlist[i,1,2] + matlist[i,0,2])
+            modlist[i,6] = 1/B
+            
+        fp1.write("#%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\n" % ("Ex","Ey","Ez","Axy","Ayz","Axz","B"))
+        for i in range(self.nx):
+            for j in range(self.ny):
+                for k in range(self.nz):
+                    if(self.nx > 1):
+                        fp1.write(("%15.8f" % (i*self.dx))+'\t')
+                    if(self.ny > 1):
+                        fp1.write(("%15.8f" % (j*self.dy))+'\t')
+                    if(self.nz > 1):
+                        fp1.write(("%15.8f" % (k*self.dz))+'\t')
+                    for d in [0,1,2,3,4,5,6]:
+                        temp = modlist[i*self.ny*self.nz+j*self.nz+k,d]
+                        fp1.write(("%15.8e" % temp)+'\t')
+                    fp1.write('\n')
+                    
+        return
+    
+    def g_triclinic(self, basename):
+    
+    	outTri = basename+"_moduli_triclinic.txt"
+    	fp1 = open(outTri, 'w')
+    	
+    	outEEE = basename +"_elast_element_error_triclinic.txt"
+    	fp2 = open(outEEE, 'w')
+    	
+    	ncells = self.nx*self.ny*self.nz
+        matlist = np.zeros((ncells,6,6))
+
+        for i in range(ncells):
+            elvoigt = np.zeros((6,6))
+            elvoigt[0,0] = self.data_grid[i,0]
+            elvoigt[0,1] = self.data_grid[i,1]
+            elvoigt[0,2] = self.data_grid[i,2]
+            elvoigt[0,3] = self.data_grid[i,3]
+            elvoigt[0,4] = self.data_grid[i,4]
+            elvoigt[0,5] = self.data_grid[i,5]
+
+            elvoigt[1,0] = self.data_grid[i,6] #1 = 6
+            elvoigt[1,1] = self.data_grid[i,7]
+            elvoigt[1,2] = self.data_grid[i,8]
+            elvoigt[1,3] = self.data_grid[i,9]
+            elvoigt[1,4] = self.data_grid[i,10]
+            elvoigt[1,5] = self.data_grid[i,11]
+
+            elvoigt[2,0] = self.data_grid[i,12] #2 = 12
+            elvoigt[2,1] = self.data_grid[i,13] #8 = 13
+            elvoigt[2,2] = self.data_grid[i,14]
+            elvoigt[2,3] = self.data_grid[i,15]
+            elvoigt[2,4] = self.data_grid[i,16]
+            elvoigt[2,5] = self.data_grid[i,17]
+
+            elvoigt[3,0] = self.data_grid[i,18] #3 = 18
+            elvoigt[3,1] = self.data_grid[i,19] #9 = 19
+            elvoigt[3,2] = self.data_grid[i,20] #15 = 20
+            elvoigt[3,3] = self.data_grid[i,21]
+            elvoigt[3,4] = self.data_grid[i,22]
+            elvoigt[3,5] = self.data_grid[i,23]
+
+            elvoigt[4,0] = self.data_grid[i,24] #4 = 24
+            elvoigt[4,1] = self.data_grid[i,25] #10 = 25
+            elvoigt[4,2] = self.data_grid[i,26] #16 = 26
+            elvoigt[4,3] = self.data_grid[i,27] #17 = 27
+            elvoigt[4,4] = self.data_grid[i,28]
+            elvoigt[4,5] = self.data_grid[i,29]
+
+            elvoigt[5,0] = self.data_grid[i,30] #5 = 30
+            elvoigt[5,1] = self.data_grid[i,31] #11 = 31
+            elvoigt[5,2] = self.data_grid[i,32] #17 = 32
+            elvoigt[5,3] = self.data_grid[i,33] #23 = 33
+            elvoigt[5,4] = self.data_grid[i,34] #29 = 34
+            elvoigt[5,5] = self.data_grid[i,35]
+            
+        modlist = np.zeros((ncells,7))
+
+        for i in range(ncells):
+            #if (moduli == 'x'):
+            Ex = matlist[i,0,0]
+            modlist[i,0] = 1/Ex
+            #if (moduli == 'y'):
+            Ey = matlist[i,1,1]
+            modlist[i,1] = 1/Ey
+            #if (moduli == 'z'):
+            Ez = matlist[i,2,2]
+            modlist[i,2] = 1/Ez
+            #if (moduli == 'xy'):
+            Axy = matlist[i,0,0] + matlist[i,1,1] + 2*matlist[i,0,1]
+            modlist[i,3] = 1/Axy
+            #if (moduli == 'yz'):
+            Ayz = matlist[i,1,1] + matlist[i,2,2] + 2*matlist[i,1,2]
+            modlist[i,4] = 1/Ayz
+            #if (moduli == 'xz'):
+            Axz = matlist[i,0,0] + matlist[i,2,2] + 2*matlist[i,0,2]
+            modlist[i,5] = 1/Axz
+            #if (moduli == 'xyz'):
+            B = matlist[i,0,0] + matlist[i,1,1] + matlist[i,2,2] + 2*(matlist[i,0,1] + matlist[i,1,2] + matlist[i,0,2])
+            modlist[i,6] = 1/B
+            
+        fp1.write("#%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\n" % ("Ex","Ey","Ez","Axy","Ayz","Axz","B"))
+        for i in range(self.nx):
+            for j in range(self.ny):
+                for k in range(self.nz):
+                    if(self.nx > 1):
+                        fp1.write(("%15.8f" % (i*self.dx))+'\t')
+                    if(self.ny > 1):
+                        fp1.write(("%15.8f" % (j*self.dy))+'\t')
+                    if(self.nz > 1):
+                        fp1.write(("%15.8f" % (k*self.dz))+'\t')
+                    for d in [0,1,2,3,4,5,6]:
+                        temp = modlist[i*self.ny*self.nz+j*self.nz+k,d]
+                        fp1.write(("%15.8e" % temp)+'\t')
+                    fp1.write('\n')
+                    
+        return
 
     def g_invert(self,basename):
 
