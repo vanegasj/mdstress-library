@@ -636,16 +636,15 @@ class LStensor:
             print("DONE!\n")
 
         return
-        
+
     def g_isotropic(self,basename):
-    
-    	outIso = basename+"_moduli_isotropic.txt"
-    	fp1 = open(outIso, 'w')
-    	
-    	outEEE = basename +"_elast_element_error_isotropic.txt"
-    	fp2 = open(outEEE, 'w')
-    	
-    	ncells = self.nx*self.ny*self.nz
+        outIso = basename+"_moduli_isotropic.txt"
+        fp1 = open(outIso, 'w')
+
+        outEEE = basename +"_elast_element_error_isotropic.txt"
+        fp2 = open(outEEE, 'w')
+
+        ncells = self.nx*self.ny*self.nz
         matlist = np.zeros((ncells,10))
 
         for i in range(ncells):
@@ -744,9 +743,11 @@ class LStensor:
                         temp = modlist[i*self.ny*self.nz+j*self.nz+k,d]
                         fp1.write(("%15.8e" % temp)+'\t')
                     fp1.write('\n')
-                    
-        fp2.write("#%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\n" %("<C11>","stddev","<C12>(Lame)","stddev","<C44>(Shear)","stddev","<C_Null>","stddev","Isotropy","stddev")
-        or i in range(self.nx):
+        
+        fp1.close()
+        
+        fp2.write("#%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\n" %("<C11>","stddev","<C12>(Lame)","stddev","<C44>(Shear)","stddev","<C_Null>","stddev","Isotropy","stddev"))
+        for i in range(self.nx):
             for j in range(self.ny):
                 for k in range(self.nz):
                     if(self.nx > 1):
@@ -759,18 +760,18 @@ class LStensor:
                         temp = matlist[i*self.ny*self.nz+j*self.nz+k,d]
                         fp2.write(("%15.8e" % temp)+'\t')
                     fp2.write('\n')
-                    
+        fp2.close()
         return
         
     def g_cubic(self, basename):
     
-    	outCubic = basename+"_moduli_cubic.txt"
-    	fp1 = open(outCubic, 'w')
-    	
-    	outEEE = basename +"_elast_element_error_cubic.txt"
-    	fp2 = open(outEEE, 'w')
-    	
-    	ncells = self.nx*self.ny*self.nz
+        outCubic = basename+"_moduli_cubic.txt"
+        fp1 = open(outCubic, 'w')
+
+        outEEE = basename +"_elast_element_error_cubic.txt"
+        fp2 = open(outEEE, 'w')
+
+        ncells = self.nx*self.ny*self.nz
         matlist = np.zeros((ncells,8))
 
         for i in range(ncells):
@@ -833,7 +834,7 @@ class LStensor:
         modlist = np.zeros((ncells,8))
 
         for i in range(ncells):
-        	
+
             #Young's Modulus (E)
             modlist[i,0] = ((matlist[i,0]+2*matlist[i,2])*(matlist[i,0]-matlist[i,2]))/(matlist[i,0]+matlist[i,2])
             #stddev of E
@@ -867,8 +868,8 @@ class LStensor:
                         fp1.write(("%15.8e" % temp)+'\t')
                     fp1.write('\n')
                     
-        fp2.write("#%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\n" %("<C11>","stddev","<C12>(Lame)","stddev","<C44>(Shear)","stddev","<C_Null>","stddev"z)
-        or i in range(self.nx):
+        fp2.write("#%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\n" %("<C11>","stddev","<C12>(Lame)","stddev","<C44>(Shear)","stddev","<C_Null>","stddev"))
+        for i in range(self.nx):
             for j in range(self.ny):
                 for k in range(self.nz):
                     if(self.nx > 1):
@@ -886,13 +887,13 @@ class LStensor:
     
     def g_transverse(self, basename):
     
-    	outTrans = basename+"_moduli_transverse.txt"
-    	fp1 = open(outTrans, 'w')
-    	
-    	outEEE = basename +"_elast_element_error_transverse.txt"
-    	fp2 = open(outEEE, 'w')
-    	
-    	ncells = self.nx*self.ny*self.nz
+        outTrans = basename+"_moduli_transverse.txt"
+        fp1 = open(outTrans, 'w')
+
+        outEEE = basename +"_elast_element_error_transverse.txt"
+        fp2 = open(outEEE, 'w')
+
+        ncells = self.nx*self.ny*self.nz
         matlist = np.zeros((ncells,16))
 
         for i in range(ncells):
@@ -967,7 +968,7 @@ class LStensor:
         modlist = np.zeros((ncells,14))
 
         for i in range(ncells):
-        	
+
             #Transverse Young's Modulus (Et = Ex = Ey)
             modlist[i,0] = 0.0
             #stddev of E_T
@@ -1012,8 +1013,8 @@ class LStensor:
                         fp1.write(("%15.8e" % temp)+'\t')
                     fp1.write('\n')
                     
-        fp2.write("#%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\n" %("<C11>","stddev","<C12>(Lame)","stddev","<C44>(Shear)","stddev","<C_Null>","stddev"z)
-        or i in range(self.nx):
+        fp2.write("#%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\n" %("<C11>","stddev","<C12>(Lame)","stddev","<C44>(Shear)","stddev","<C_Null>","stddev"))
+        for i in range(self.nx):
             for j in range(self.ny):
                 for k in range(self.nz):
                     if(self.nx > 1):
@@ -1031,13 +1032,13 @@ class LStensor:
     
     def g_orthotropic(self, basename):
     
-    	outOrtho = basename+"_moduli_orthotropic.txt"
-    	fp1 = open(outOrtho, 'w')
-    	
-    	outEEE = basename +"_elast_element_error_orthotropic.txt"
-    	fp2 = open(outEEE, 'w')
-    	
-    	ncells = self.nx*self.ny*self.nz
+        outOrtho = basename+"_moduli_orthotropic.txt"
+        fp1 = open(outOrtho, 'w')
+
+        outEEE = basename +"_elast_element_error_orthotropic.txt"
+        fp2 = open(outEEE, 'w')
+
+        ncells = self.nx*self.ny*self.nz
         matlist = np.zeros((ncells,6,6))
 
         for i in range(ncells):
@@ -1128,13 +1129,13 @@ class LStensor:
     
     def g_monoclinic(self, basename):
     
-    	outMono = basename+"_moduli_monoclinic.txt"
-    	fp1 = open(outMono, 'w')
-    	
-    	outEEE = basename +"_elast_element_error_monoclinic.txt"
-    	fp2 = open(outEEE, 'w')
-    	
-    	ncells = self.nx*self.ny*self.nz
+        outMono = basename+"_moduli_monoclinic.txt"
+        fp1 = open(outMono, 'w')
+
+        outEEE = basename +"_elast_element_error_monoclinic.txt"
+        fp2 = open(outEEE, 'w')
+
+        ncells = self.nx*self.ny*self.nz
         matlist = np.zeros((ncells,6,6))
 
         for i in range(ncells):
@@ -1225,13 +1226,13 @@ class LStensor:
     
     def g_triclinic(self, basename):
     
-    	outTri = basename+"_moduli_triclinic.txt"
-    	fp1 = open(outTri, 'w')
-    	
-    	outEEE = basename +"_elast_element_error_triclinic.txt"
-    	fp2 = open(outEEE, 'w')
-    	
-    	ncells = self.nx*self.ny*self.nz
+        outTri = basename+"_moduli_triclinic.txt"
+        fp1 = open(outTri, 'w')
+
+        outEEE = basename +"_elast_element_error_triclinic.txt"
+        fp2 = open(outEEE, 'w')
+
+        ncells = self.nx*self.ny*self.nz
         matlist = np.zeros((ncells,6,6))
 
         for i in range(ncells):

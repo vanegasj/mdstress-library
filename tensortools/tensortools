@@ -76,7 +76,7 @@ juan.m.vanegas@gmail.com  and/or torres.sanchez.a@gmail.com''')
 #    parser.add_argument('--transax',  nargs=3,                               help='Translate data along a given axis (or multiple axes) assuming periodic boundaries. Provide 0 or 1 for each axis (default = 0,0,0). Must be used together with --transshift.',metavar=(0,0,0), default=(0,0,0))
     parser.add_argument('--trans',    nargs=3,                               help='Translate data along a given axis (or multiple axes) assuming periodic boundaries (i.e., wrapping the arrays). The translation/shift is not arbitrary, but must be an integer number of cells (default = 0,0,0).',metavar=(0,0,0), default=(0,0,0))
     parser.add_argument('--moduli',   nargs='?', const=True, default=False,  help='Use the elasticity tensor as input to compute the compliance tensor and calculate the Young\'s (E), area (A), and bulk (B) moduli (default = False).',metavar = '')
-    parser.add_argument('--matsym',   nargs=1								 help='Determine Symmetric Elements of the Elasticity Tensor subject to a chosen constraint. Moduli Calculations must be turned on. 0 - No explict Symmetry, 1 - Isotropic Symmetry, 2 - Cubic Symmetry, 3 - Transverse Symmetry, 4 - Orthotropic Symmetry, 5 - Monoclinic Symmetry, 6 - Triclinic Symmetry (0,1,2,3 are implimented, 4,5,6 are not implimented)', metvar=0, default=0)
+    parser.add_argument('--matsym',   type=int, nargs=1,                     help='Determine Symmetric Elements of the Elasticity Tensor subject to a chosen constraint. Moduli Calculations must be turned on. 0 - No explict Symmetry, 1 - Isotropic Symmetry, 2 - Cubic Symmetry, 3 - Transverse Symmetry, 4 - Orthotropic Symmetry, 5 - Monoclinic Symmetry, 6 - Triclinic Symmetry (0,1,2,3 are implimented, 4,5,6 are not implimented)', metavar=0, default=0)
     parser.add_argument('--elhookecorr', type=str, nargs=1,                  help='Correct the elasticity tensor using the stress tensor to obtain the Hooke\'s law elasticity tensor. Pass the stress tensor binary file as an input to this flag.',metavar = '[input.bin]')
     # OUTPUT
     parser.add_argument('--orep',     nargs='?', default='spat_d',           help='Output data representation, values: spat (spatial stress/density distributed on a grid, default), atom (stress per atom)',metavar='spat')
@@ -142,7 +142,7 @@ juan.m.vanegas@gmail.com  and/or torres.sanchez.a@gmail.com''')
     integ      = args.integ
     sym        = args.sym
     elhookestress = args.elhookecorr
-    materialsym   = args.matsym
+    materialsym   = args.matsym[0]
 
     # Check input data
 
@@ -209,21 +209,21 @@ juan.m.vanegas@gmail.com  and/or torres.sanchez.a@gmail.com''')
 
     #Calculate the compliance tensor, Moduli and Poisson Ratios
     if (bModuli == True):
-    	if(materialsym == 0):
-        	field.g_invert(basename)
+        if(materialsym == 0):
+            field.g_invert(basename)
         if(materialsym == 1):
-        	field.g_isotropic(basename)
+            field.g_isotropic(basename)
         if(materialsym == 2):
-        	field.g_cubic(basename)
+            field.g_cubic(basename)
         if(materialsym == 3):
-        	field.g_transverse(basename)
-        if(materialsym == 4)
-        	field.g_orthotropic(basename)
-        if(materialsym == 5)
-        	field.g_monoclinic(basename)
-        if(materialsym == 6)
-        	field.g_triclinic(basename)
-        	
+            field.g_transverse(basename)
+        if(materialsym == 4):
+            field.g_orthotropic(basename)
+        if(materialsym == 5):
+            field.g_monoclinic(basename)
+        if(materialsym == 6):
+            field.g_triclinic(basename)
+
     # Write data to file
     if(orep=='spat'):
         if (not(sym)):
