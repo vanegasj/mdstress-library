@@ -724,7 +724,7 @@ class LStensor:
             #stddev of B
             modlist[i,5] = np.sqrt((matlist[i,1]**2)+4*(matlist[i,3]**2))/(3)
             #Poisson Ratio (v)
-            modlist[i,6] = matlist[i,0]/(matlist[i,0]+matlist[i,2])
+            modlist[i,6] = matlist[i,2]/(matlist[i,0]+matlist[i,2])
             #stddev of v
             modlist[i,7] = np.sqrt(((matlist[i,2]*matlist[i,1])**2)+((matlist[i,0]*matlist[i,3])**2))/((matlist[i,0]+matlist[i,2])**2)
             
@@ -848,7 +848,7 @@ class LStensor:
             #stddev of B
             modlist[i,5] = np.sqrt((matlist[i,1]**2)+4*(matlist[i,3]**2))/(3)
             #Poisson Ratio (v)
-            modlist[i,6] = matlist[i,0]/(matlist[i,0]+matlist[i,2])
+            modlist[i,6] = matlist[i,2]/(matlist[i,0]+matlist[i,2])
             #stddev of v
             modlist[i,7] = np.sqrt(((matlist[i,2]*matlist[i,1])**2)+((matlist[i,0]*matlist[i,3])**2))/((matlist[i,0]+matlist[i,2])**2)
             
