@@ -950,13 +950,13 @@ class LStensor:
             matlist[i,5] = np.std((elvoigt[0,2],elvoigt[1,2],elvoigt[2,0],elvoigt[2,1]))
             #<C33>
             matlist[i,6] = np.mean((elvoigt[0,2]))
-            matlist[i,7] = np.std((elvoigt[0,2]))
+            matlist[i,7] = np.sqrt(2.0)*sqrt(matlist[i,1]**2+matlist[i,3]**2)
             #<C44> (Axial Shear Modulus Ga = Gxz = Gyz)
             matlist[i,8] = np.mean((elvoigt[3,3],elvoigt[4,4]))
             matlist[i,9] = np.std((elvoigt[3,3],elvoigt[4,4]))
             #<C66> (Transverse Shear Modulus Gt = Gxy)
             matlist[i,10] = np.mean((elvoigt[5,5]))
-            matlist[i,11] = np.std((elvoigt[5,5]))
+            matlist[i,11] = np.sqrt(1.0)*np.sqrt(matlist[i,1]**2+matlist[i,3]**2)
             #<C_Null>
             matlist[i,12] = np.mean((elvoigt[0,3],elvoigt[0,4],elvoigt[0,5],elvoigt[1,3],elvoigt[1,4],elvoigt[1,5],elvoigt[2,3],elvoigt[2,4],elvoigt[2,5],elvoigt[3,0],elvoigt[3,1],elvoigt[3,2],elvoigt[3,4],elvoigt[3,5],elvoigt[4,0],elvoigt[4,1],elvoigt[4,2],elvoigt[4,3],elvoigt[4,5],elvoigt[5,0],elvoigt[5,1],elvoigt[5,2],elvoigt[5,3],elvoigt[5,4]))
             matlist[i,13] = np.std((elvoigt[0,3],elvoigt[0,4],elvoigt[0,5],elvoigt[1,3],elvoigt[1,4],elvoigt[1,5],elvoigt[2,3],elvoigt[2,4],elvoigt[2,5],elvoigt[3,0],elvoigt[3,1],elvoigt[3,2],elvoigt[3,4],elvoigt[3,5],elvoigt[4,0],elvoigt[4,1],elvoigt[4,2],elvoigt[4,3],elvoigt[4,5],elvoigt[5,0],elvoigt[5,1],elvoigt[5,2],elvoigt[5,3],elvoigt[5,4]))
@@ -964,38 +964,38 @@ class LStensor:
             matlist[i,14] = (matlist[i,10] - ((0.5)*(matlist[i,0]-matlist[i,2])))
             matlist[i,15] = np.sqrt((matlist[i,1]**2)+(matlist[i,3]**2)+4*(matlist[i,11]**2))
             
-        modlist = np.zeros((ncells,8))
+        modlist = np.zeros((ncells,14))
 
         for i in range(ncells):
         	
             #Transverse Young's Modulus (Et = Ex = Ey)
-            modlist[i,0] = matlist[i,2]*()
+            modlist[i,0] = 0.0
             #stddev of E_T
+            modlist[i,1] = 0.0
             #Axial Young's Modulus (Ea = Ez)
-            modlist[i,0] = ((matlist[i,0]+2*matlist[i,2])*(matlist[i,0]-matlist[i,2]))/(matlist[i,0]+matlist[i,2])
+            modlist[i,2] = 0.0
             #stddev of Ea
-            modlist[i,1] = np.sqrt(((((matlist[i,0]**2)+2*matlist[i,0]*matlist[i,2]+3*(matlist[i,2]**2))*(matlist[i,1]))**2) + (((-2)*(matlist[i,2])*(2*matlist[i,0]-matlist[i,2])*(matlist[i,3]))**2))/((matlist[i,0]+matlist[i,2])**2)
+            modlist[i,3] = 0.0
             #Area Modulus (A)
-            modlist[i,2] = ((matlist[i,0]+2*matlist[i,2])*(matlist[i,0]-matlist[i,2]))/(2*matlist[i,0])
+            modlist[i,4] = 0.0
             #stddev of A
-            modlist[i,3] = np.sqrt(((((matlist[i,0]**2)+2*(matlist[i,2]**2))*(matlist[i,1]))**2)+(((matlist[i,0])*(matlist[i,0]-4*matlist[i,2])*(matlist[i,3]))**2))/(2*(matlist[i,0]**2))
+            modlist[i,5] = 0.0
             #Bulk modulus (B)
-            modlist[i,4] = (matlist[i,0]+2*matlist[i,2])/3
+            modlist[i,6] = 0.0
             #stddev of B
-            modlist[i,5] = np.sqrt((matlist[i,1]**2)+4*(matlist[i,3]**2))/(3)
+            modlist[i,7] = 0.0
             #Traverse Plane Strain Bulk modulus (K)
-            modlist[i,4] = (matlist[i,0]+2*matlist[i,2])/3
+            modlist[i,8] = 0.0
             #stddev of K
-            modlist[i,5] = np.sqrt((matlist[i,1]**2)+4*(matlist[i,3]**2))/(3)
+            modlist[i,9] = 0.0
             #Transverse Poisson Ratio (vt = vxz =vyz)
-            modlist[i,6] = matlist[i,0]/(matlist[i,0]+matlist[i,2])
+            modlist[i,10] = 0.0
             #stddev of vt
-            modlist[i,7] = np.sqrt(((matlist[i,2]*matlist[i,1])**2)+((matlist[i,0]*matlist[i,3])**2))/((matlist[i,0]+matlist[i,2])**2)
+            modlist[i,11] = 0.0
             #Axial Poisson Ratio (va = vxy)
-            modlist[i,6] = matlist[i,0]/(matlist[i,0]+matlist[i,2])
+            modlist[i,12] = 0.0
             #stddev of va
-            modlist[i,7] = np.sqrt(((matlist[i,2]*matlist[i,1])**2)+((matlist[i,0]*matlist[i,3])**2))/((matlist[i,0]+matlist[i,2])**2)
-            
+            modlist[i,13] = 0.0
             
         fp1.write("#%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\n" % ("E","stddev","A","stddev","B","stddev","v","stddev"))
         for i in range(self.nx):
