@@ -142,7 +142,6 @@ juan.m.vanegas@gmail.com  and/or torres.sanchez.a@gmail.com''')
     integ      = args.integ
     sym        = args.sym
     elhookestress = args.elhookecorr
-    materialsym   = args.matsym[0]
 
     # Check input data
 
@@ -209,6 +208,7 @@ juan.m.vanegas@gmail.com  and/or torres.sanchez.a@gmail.com''')
 
     #Calculate the compliance tensor, Moduli and Poisson Ratios
     if (bModuli == True):
+    	materialsym   = args.matsym[0]
         if(materialsym == 0):
             field.g_invert(basename)
         if(materialsym == 1):
