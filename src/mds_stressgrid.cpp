@@ -1468,6 +1468,24 @@ void StressGrid::SumGrid ( )
                 summatrix6(this->alloc.sum_grid_elcovar[i], tmp_covar[0], this->alloc.sum_grid_elcovar[i]); //this accumulates the covar of sigma_local_ij*sigma_total_kl
             }
 
+            /*  Output the C11, C12, and C44 values for debugging/convergence testing */
+            if (this->state.this_frameId % this->settings.debugprint == 0){
+                double cf = -mds_units*mds_units*this->state.avg_boxvol/(this->settings.temperature*KBfac*this->state.nframes);
+                double bf = mds_units/this->state.nframes;
+                printf("step %d\t\tskipframe %d\t\tBC11 %e\tBC22 %e\tBC33 %e\tBC12 %e\tBC13 %e\tBC23 %e\tBC44 %e\tBC55 %e\tBC66 %e\tFC11 %e\tFC22 %e\tFC33 %e\tFC12 %e\tFC13 %e\tFC23 %e\tFC44 %e\tFC55 %e\tFC66 %e\tKC11 %e\tKC22 %e\tKC33 %e\tKC12 %e\tKC13 %e\tKC23 %e\tKC44 %e\tKC55 %e\tKC66 %e\n",
+                        int(this->state.this_frameId), int(this->state.nframes),
+                        this->alloc.sum_grid_elborn[0][0][0]*bf, this->alloc.sum_grid_elborn[0][1][1]*bf, this->alloc.sum_grid_elborn[0][2][2]*bf,
+                        this->alloc.sum_grid_elborn[0][0][1]*bf, this->alloc.sum_grid_elborn[0][0][2]*bf, this->alloc.sum_grid_elborn[0][1][2]*bf,
+                        this->alloc.sum_grid_elborn[0][3][3]*bf, this->alloc.sum_grid_elborn[0][4][4]*bf, this->alloc.sum_grid_elborn[0][5][5]*bf,
+                        this->alloc.sum_grid_elcovar[0][0][0]*cf, this->alloc.sum_grid_elcovar[0][1][1]*cf, this->alloc.sum_grid_elcovar[0][2][2]*cf,
+                        this->alloc.sum_grid_elcovar[0][0][1]*cf, this->alloc.sum_grid_elcovar[0][0][2]*cf, this->alloc.sum_grid_elcovar[0][1][2]*cf,
+                        this->alloc.sum_grid_elcovar[0][3][3]*cf, this->alloc.sum_grid_elcovar[0][4][4]*cf, this->alloc.sum_grid_elcovar[0][5][5]*cf,
+                        this->alloc.sum_grid_elkin[0][0][0]*bf, this->alloc.sum_grid_elkin[0][1][1]*bf, this->alloc.sum_grid_elkin[0][2][2]*bf,
+                        this->alloc.sum_grid_elkin[0][0][1]*bf, this->alloc.sum_grid_elkin[0][0][2]*bf, this->alloc.sum_grid_elkin[0][1][2]*bf,
+                        this->alloc.sum_grid_elkin[0][3][3]*bf, this->alloc.sum_grid_elkin[0][4][4]*bf, this->alloc.sum_grid_elkin[0][5][5]*bf);
+            }
+            /* End debugging output */
+
             zeromatrix3(this->state.current_gridtot);
             for(int i = 0; i < this->state.nCells; ++i) {
                 zeromatrix3(this->alloc.current_grid[i]);

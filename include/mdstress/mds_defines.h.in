@@ -108,6 +108,7 @@ namespace mds
         real_mds    impulseWidth;
         int         fdecomp;
         int         contrib;
+        int         debugprint;
         real_mds    mindihangle;
         real_mds    temperature;
         bool        pcoupl;

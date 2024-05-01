@@ -89,6 +89,11 @@ class  mds::StressGrid
             this->settings.contrib = contrib;
         }
 
+        void SetDebugPrint ( int debugprint ) {
+            std::lock_guard<std::mutex> lock(m_mutex_state);
+            this->settings.debugprint = debugprint;
+        }
+
         void SetMinDihAngle (real_ext mindihangle) {
             std::lock_guard<std::mutex> lock(m_mutex_state);
             this->settings.mindihangle = (real_mds)mindihangle;
