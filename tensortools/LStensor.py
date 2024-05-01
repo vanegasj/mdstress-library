@@ -729,7 +729,8 @@ class LStensor:
             modlist[i,7] = np.sqrt(((matlist[i,2]*matlist[i,1])**2)+((matlist[i,0]*matlist[i,3])**2))/((matlist[i,0]+matlist[i,2])**2)
             
             
-        fp1.write("#%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\n" % ("E","stddev","A","stddev","B","stddev","v","stddev"))
+        fp1.write("#E = Young's modulus\n#A = Area modulus\n#B = Bulk modulus\n#nu = Poisson ratio\n")
+        fp1.write("#%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\n" % ("E","stddev","A","stddev","B","stddev","nu","stddev"))
         for i in range(self.nx):
             for j in range(self.ny):
                 for k in range(self.nz):
@@ -853,7 +854,8 @@ class LStensor:
             modlist[i,7] = np.sqrt(((matlist[i,2]*matlist[i,1])**2)+((matlist[i,0]*matlist[i,3])**2))/((matlist[i,0]+matlist[i,2])**2)
             
             
-        fp1.write("#%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\n" % ("E","stddev","A","stddev","B","stddev","v","stddev"))
+        fp1.write("#E = Young's modulus\n#A = Area modulus\n#B = Bulk modulus\n#nu = Poisson ratio\n")
+        fp1.write("#%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\n" % ("E","stddev","A","stddev","B","stddev","nu","stddev"))
         for i in range(self.nx):
             for j in range(self.ny):
                 for k in range(self.nz):
@@ -998,7 +1000,8 @@ class LStensor:
             #stddev of va
             modlist[i,13] = 0.0
             
-        fp1.write("#%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\n" % ("E","stddev","A","stddev","B","stddev","v","stddev"))
+        fp1.write("#E = Young's modulus\n#A = Area modulus\n#B = Bulk modulus\n#nu = Poisson ratio\n")
+        fp1.write("#%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\n" % ("E","stddev","A","stddev","B","stddev","nu","stddev"))
         for i in range(self.nx):
             for j in range(self.ny):
                 for k in range(self.nz):
@@ -1110,6 +1113,7 @@ class LStensor:
             B = matlist[i,0,0] + matlist[i,1,1] + matlist[i,2,2] + 2*(matlist[i,0,1] + matlist[i,1,2] + matlist[i,0,2])
             modlist[i,6] = 1/B
             
+        fp1.write("#E = Young's modulus\n#A = Area modulus\n#B = Bulk modulus\n#nu = Poisson ratio\n")
         fp1.write("#%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\n" % ("Ex","Ey","Ez","Axy","Ayz","Axz","B"))
         for i in range(self.nx):
             for j in range(self.ny):
@@ -1207,6 +1211,7 @@ class LStensor:
             B = matlist[i,0,0] + matlist[i,1,1] + matlist[i,2,2] + 2*(matlist[i,0,1] + matlist[i,1,2] + matlist[i,0,2])
             modlist[i,6] = 1/B
             
+        fp1.write("#E = Young's modulus\n#A = Area modulus\n#B = Bulk modulus\n#nu = Poisson ratio\n")
         fp1.write("#%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\n" % ("Ex","Ey","Ez","Axy","Ayz","Axz","B"))
         for i in range(self.nx):
             for j in range(self.ny):
@@ -1303,7 +1308,8 @@ class LStensor:
             #if (moduli == 'xyz'):
             B = matlist[i,0,0] + matlist[i,1,1] + matlist[i,2,2] + 2*(matlist[i,0,1] + matlist[i,1,2] + matlist[i,0,2])
             modlist[i,6] = 1/B
-            
+        
+        fp1.write("#E = Young's modulus\n#A = Area modulus\n#B = Bulk modulus\n#nu = Poisson ratio\n")
         fp1.write("#%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\n" % ("Ex","Ey","Ez","Axy","Ayz","Axz","B"))
         for i in range(self.nx):
             for j in range(self.ny):
@@ -1449,6 +1455,7 @@ class LStensor:
             complist[i,34] = matlist[i,5,4]
             complist[i,35] = matlist[i,5,5]
 
+        fp1.write("#E = Young's modulus\n#A = Area modulus\n#B = Bulk modulus\n#nu = Poisson ratio\n")
         fp1.write("#%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\n" % ("Ex","Ey","Ez","Axy","Ayz","Axz","B"))
         for i in range(self.nx):
             for j in range(self.ny):
