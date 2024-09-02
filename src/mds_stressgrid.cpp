@@ -1469,7 +1469,7 @@ void StressGrid::SumGrid ( )
             }
 
             /*  Output the C11, C12, and C44 values for debugging/convergence testing */
-            if (this->state.this_frameId % this->settings.debugprint == 0){
+            if (this->settings.debugprint >= 1 && (this->state.this_frameId % this->settings.debugprint) == 0){
                 double cf = -mds_units*mds_units*this->state.avg_boxvol/(this->settings.temperature*KBfac*this->state.nframes);
                 double bf = mds_units/this->state.nframes;
                 printf("step %d\t\tskipframe %d\t\tBC11 %e\tBC22 %e\tBC33 %e\tBC12 %e\tBC13 %e\tBC23 %e\tBC44 %e\tBC55 %e\tBC66 %e\tFC11 %e\tFC22 %e\tFC33 %e\tFC12 %e\tFC13 %e\tFC23 %e\tFC44 %e\tFC55 %e\tFC66 %e\tKC11 %e\tKC22 %e\tKC33 %e\tKC12 %e\tKC13 %e\tKC23 %e\tKC44 %e\tKC55 %e\tKC66 %e\n",
