@@ -68,6 +68,7 @@ juan.m.vanegas@gmail.com  and/or torres.sanchez.a@gmail.com''')
 
     # PROCESSING DATA
     parser.add_argument('--mif',      nargs='?', default='avg',              help='How to process multiple input files, values: avg (default), sum, or delta (subtract second to last input files from the first file)',metavar='avg')
+    parser.add_argument('--std',      nargs='?', const=True, default=False,  help='Compute the standard deviation from the mean when given multiple input files and computing the avg. Minimum of 2 smaples required.',metavar='')
     parser.add_argument('--sym',      nargs='?', const=True, default=False,  help='FOR STRESS ONLY. Separates the resultant stress in its symmetric and antisymmetric parts, and creates two outputs with the subscripts _sym and _asym respectively',metavar='')
     parser.add_argument('--prof',                                            help='Output a profile along a given dimension, values: x, y, or z (default)',metavar='z')
     parser.add_argument('--integ',                                           help='integrate out the stress profile along a given dimension, values: x, y, or z (default)',metavar='z')
@@ -158,7 +159,9 @@ juan.m.vanegas@gmail.com  and/or torres.sanchez.a@gmail.com''')
     # Average, sum, or delta?
     bAvg = args.mif
 
-    bModuli = None
+    bSTD = False
+    if (args.std == True):
+        bSTD = True
 
     # Type of data: density (order=0), vector (order=1), or stress (order=2)
     if (itype == 'dens'):
@@ -232,7 +235,7 @@ juan.m.vanegas@gmail.com  and/or torres.sanchez.a@gmail.com''')
             elif (oformat == 'nc'):
                 field.g_savenc(outputfile)
             elif (oformat == 'txt'):
-                field.g_savetxt(outputfile)
+                field.g_savetxt(outputfile, bSTD)
         else:
             outname, outext = outputfile.split('.')
             namesym  = outname+'_sym.' +outext
@@ -252,7 +255,7 @@ juan.m.vanegas@gmail.com  and/or torres.sanchez.a@gmail.com''')
         elif (oformat == 'pdb'):
             field.a_savepdb(outputfile)
         elif (oformat == 'txt'):
-            field.a_savetxt(outputfile)
+            field.a_savetxt(outputfile, bSTD)
         elif (oformat == 'chi'):
             field.a_savechiattr(outputfile)
 

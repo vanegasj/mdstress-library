@@ -62,8 +62,6 @@ except:
 
 import struct
 
-
-
 class LStensor:
     '''
     Local Stress calculations. Master class for post-processing data from GROMACS_LS package.
@@ -92,6 +90,7 @@ class LStensor:
 
         self.gridFlag = False
         self.data_grid = None
+        self.data_grid_std = None
         self.invariants_grid = None
         self.box = np.zeros([3,3])
         self.nx = self.ny = self.nz = 0
@@ -168,20 +167,34 @@ class LStensor:
         # Read subsequent input files if necessary
         nfiles = len(files)
 
-        # Average or sum data from the rest of the files
-        if ((bAvg == 'sum') or (bAvg == 'avg')):
-            mult = 1
-        else:
-            mult = -1
-        for i in range(1, nfiles):
-            tdata,tbox,tx,ty,tz = self.__readGridbin__(files[i], self.dsize)
-            self.data_grid = self.data_grid + mult*tdata
-            if (bAvg == 'avg'):
+        # Sum or subtract data from the rest of the files
+        if (bAvg == 'sum' or bAvg == 'delta'):
+            mult  = 1
+            if (bAvg == 'delta'):
+                mult = -1
+            for i in range(1, nfiles):
+                tdata,tbox,tx,ty,tz = self.__readGridbin__(files[i], self.dsize)
+                self.data_grid = self.data_grid + mult*tdata
                 self.box += tbox
 
         if (bAvg == 'avg'):
-            self.data_grid /= nfiles
-            self.box /= nfiles
+            count = 0
+            mean = np.zeros_like(self.data_grid)
+            M2 = np.zeros_like(self.data_grid)
+            for i in range(nfiles):
+                tdata,tbox,tx,ty,tz = self.__readGridbin__(files[i], self.dsize)
+                if (i > 0):
+                    self.box += tbox
+                count += 1
+                delta = tdata - mean
+                mean += delta / count
+                delta2 = tdata - mean
+                M2 += delta * delta2
+            self.data_grid = mean
+            if ( count >= 2):
+                self.data_grid_std = np.sqrt(M2/count)
+
+        self.box /= nfiles
 
         self.dx = self.box[0,0]/self.nx
         self.dy = self.box[1,1]/self.ny
@@ -452,12 +465,17 @@ class LStensor:
 
         return 0
 
-    def g_savetxt (self, outputfile):
+    def g_savetxt (self, outputfile, bSTD = False):
         '''
         Write data to txt file
         '''
 
         fp = open(outputfile, 'w')
+        if (bSTD == True and np.ndim(self.data_grid_std) != 0):
+            fpstd = open(outputfile.replace('.txt','.std.txt'), 'w')
+            fpstd.write("# Standard deviations from the mean\n")
+        elif (bSTD == True):
+            print("Not enough samples to compute the variance/standard deviation\n")
 
         #fp.write("# LStensor of order {0}\n# ".format(self.order))
         if (self.order == 0):
@@ -496,31 +514,50 @@ class LStensor:
                     for k in range(self.nz):
                         if(self.nx > 1):
                             fp.write(("%15.8f" % (i*self.dx))+'\t')
+                            if (bSTD == True and np.ndim(self.data_grid_std) != 0):
+                                fpstd.write(("%15.8f" % (i*self.dx))+'\t')
                         if(self.ny > 1):
                             fp.write(("%15.8f" % (j*self.dy))+'\t')
+                            if (bSTD == True and np.ndim(self.data_grid_std) != 0):
+                                fpstd.write(("%15.8f" % (j*self.dy))+'\t')
                         if(self.nz > 1):
                             fp.write(("%15.8f" % (k*self.dz))+'\t')
+                            if (bSTD == True and np.ndim(self.data_grid_std) != 0):
+                                fpstd.write(("%15.8f" % (k*self.dz))+'\t')
                         for d in [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35]:
                             temp = self.data_grid[i*self.ny*self.nz+j*self.nz+k,d]
                             fp.write(("%15.8e" % temp)+'\t')
+                            if (bSTD == True and np.ndim(self.data_grid_std) != 0):
+                                temp = self.data_grid_std[i*self.ny*self.nz+j*self.nz+k,d]
+                                fpstd.write(("%15.8e" % temp)+'\t')
                         fp.write('\n')
-
+                        if (bSTD == True and np.ndim(self.data_grid_std) != 0):
+                            fpstd.write('\n')
         else:
             for i in range(self.nx):
                 for j in range(self.ny):
                     for k in range(self.nz):
                         if(self.nx > 1):
                             fp.write(("%15.8f" % (i*self.dx))+'\t')
+                            if (bSTD == True and np.ndim(self.data_grid_std) != 0):
+                                fpstd.write(("%15.8f" % (i*self.dx))+'\t')
                         if(self.ny > 1):
                             fp.write(("%15.8f" % (j*self.dy))+'\t')
+                            if (bSTD == True and np.ndim(self.data_grid_std) != 0):
+                                fpstd.write(("%15.8f" % (j*self.dy))+'\t')
                         if(self.nz > 1):
                             fp.write(("%15.8f" % (k*self.dz))+'\t')
+                            if (bSTD == True and np.ndim(self.data_grid_std) != 0):
+                                fpstd.write(("%15.8f" % (k*self.dz))+'\t')
                         for d in range(self.dsize):
                             temp = self.data_grid[i*self.ny*self.nz+j*self.nz+k,d]
                             fp.write(("%15.8f" % temp)+'\t')
+                            if (bSTD == True and np.ndim(self.data_grid_std) != 0):
+                                temp = self.data_grid_std[i*self.ny*self.nz+j*self.nz+k,d]
+                                fpstd.write(("%15.8f" % temp)+'\t')
                         fp.write('\n')
-
-
+                        if (bSTD == True and np.ndim(self.data_grid_std) != 0):
+                            fpstd.write('\n')
 
         fp.close()
 
@@ -953,7 +990,7 @@ class LStensor:
             matlist[i,5] = np.std((elvoigt[0,2],elvoigt[1,2],elvoigt[2,0],elvoigt[2,1]))
             #<C33>
             matlist[i,6] = np.mean((elvoigt[0,2]))
-            matlist[i,7] = np.sqrt(2.0)*sqrt(matlist[i,1]**2+matlist[i,3]**2)
+            matlist[i,7] = np.sqrt(2.0)*np.sqrt(matlist[i,1]**2+matlist[i,3]**2)
             #<C44> (Axial Shear Modulus Ga = Gxz = Gyz)
             matlist[i,8] = np.mean((elvoigt[3,3],elvoigt[4,4]))
             matlist[i,9] = np.std((elvoigt[3,3],elvoigt[4,4]))
