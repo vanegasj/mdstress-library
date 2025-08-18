@@ -1,13 +1,12 @@
 #!/usr/bin/env python
 
-#=========================================================================
+#/*=========================================================================
 #
-#  Module    : LOCAL STRESS FROM GROMACS TRAJECTORIES
-#  File      : tensortools.py
+#  Module    : MDStress
 #  Authors   : A. Torres-Sanchez and J. M. Vanegas
-#  Modified  : A. Lewis
-#  Purpose   : Compute the local stress from precomputed trajectories in GROMACS
-#  Date      : 25/03/2015
+#  Modified  : B. Himberg and A. L. Lewis
+#  Purpose   : Compute the local stress from MD trajectories
+#  Date      : Aug-18-2025
 #  Version   :
 #  Changes   :
 #
@@ -15,32 +14,11 @@
 #
 #     This software is distributed WITHOUT ANY WARRANTY; without even
 #     the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-#     PURPOSE.  
+#     PURPOSE.
 #
-#     Please, report any bug to either of us:
+#     Report any bugs to:
 #     juan.m.vanegas@gmail.com
-#     torres.sanchez.a@gmail.com
-#=========================================================================
-#
-# References:
-#
-# Regarding this program:
-# [1] Manual (parent folder/manual)
-# [2] J. M. Vanegas; A. Torres-Sanchez; M. Arroyo; J. Chem. Theor. Comput. 10 (2), 691-702 (2014)
-# [3] O. H. S. Ollila; H.J. Risselada; M. Louhivouri; E. Lindahl; I. Vattulainen; S.J. Marrink; Phys. Rev Lett. 102, 078101 (2009)
-#
-# General IKN framework and Central Force Decomposition
-# [4] E. B. Tadmor; R. E. Miller; Modeling Materials: Continuum, Atomistic and Multiscale Techniques, Cambridge University Press (2011)
-# [5] N. C. Admal; E. B. Tadmor; J. Elast. 100, 63 (2010)
-#
-# Covariant Central Force Decomposition
-# [6] A. Torres-Sanchez; J. M. Vanegas; M. Arroyo; Submitted to PRL (2015)
-# [7] A. Torres-Sanchez; J. M. Vanegas; M. Arroyo; In preparation (2015)
-#
-# Goetz-Lipowsky Decomposition
-# [8] R. Goetz; R. Lipowsky; J. Chem. Phys. 108, 7397 (1998)
-#
-
+#=========================================================================*/
 
 try:
     from LStensor import LStensor
@@ -55,10 +33,10 @@ import os
 
 def main():
 
-    parser = argparse.ArgumentParser(description='Tensortools.py -- Swiss army knife of stress tensor and 3D density calculations',formatter_class=argparse.RawDescriptionHelpFormatter,epilog='''\
-Juan M. Vanegas and Alejandro Torres-Sanchez
-Please, report any bug to either of us:
-juan.m.vanegas@gmail.com  and/or torres.sanchez.a@gmail.com''')
+    parser = argparse.ArgumentParser(description='tensortools.py -- Swiss army knife of stress, elasticity, and 3D density calculations',formatter_class=argparse.RawDescriptionHelpFormatter,epilog='''\
+J. M. Vanegas, A. Torres-Sanchez, B. Himberg, and A. L. Lewis
+Report any bug to:
+juan.m.vanegas@gmail.com''')
     # INPUT
     parser.add_argument('-f',         nargs='+', required=True,              help='Single or multiple binary input files (must all have the same grid size)',metavar='[input.bin]')
     parser.add_argument('-v',         nargs='?', const=True, default=False,  help='verbose',metavar='')

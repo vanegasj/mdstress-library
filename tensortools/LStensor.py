@@ -1,11 +1,10 @@
-#=========================================================================
+#/*=========================================================================
 #
-#  Module    : LOCAL STRESS FROM GROMACS TRAJECTORIES
-#  File      : LStensor.py
+#  Module    : MDStress
 #  Authors   : A. Torres-Sanchez and J. M. Vanegas
-#  Modified  : A. Lewis
-#  Purpose   : Compute the local stress from precomputed trajectories in GROMACS
-#  Date      : 25/03/2015
+#  Modified  : B. Himberg and A. L. Lewis
+#  Purpose   : Compute the local stress from MD trajectories
+#  Date      : Aug-18-2025
 #  Version   :
 #  Changes   :
 #
@@ -15,31 +14,9 @@
 #     the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
 #     PURPOSE.
 #
-#     Please, report any bug to either of us:
+#     Report any bugs to:
 #     juan.m.vanegas@gmail.com
-#     torres.sanchez.a@gmail.com
-#=========================================================================
-#
-# References:
-#
-# Regarding this program:
-# [1] Manual (parent folder/manual)
-# [2] J. M. Vanegas; A. Torres-Sanchez; M. Arroyo; J. Chem. Theor. Comput. 10 (2), 691-702 (2014)
-# [3] O. H. S. Ollila; H.J. Risselada; M. Louhivouri; E. Lindahl; I. Vattulainen; S.J. Marrink; Phys. Rev Lett. 102, 078101 (2009)
-#
-# General IKN framework and Central Force Decomposition
-# [4] E. B. Tadmor; R. E. Miller; Modeling Materials: Continuum, Atomistic and Multiscale Techniques, Cambridge University Press (2011)
-# [5] N. C. Admal; E. B. Tadmor; J. Elast. 100, 63 (2010)
-#
-# Covariant Central Force Decomposition
-# [6] A. Torres-Sanchez; J. M. Vanegas; M. Arroyo; Submitted to PRL (2015)
-# [7] A. Torres-Sanchez; J. M. Vanegas; M. Arroyo; In preparation (2015)
-#
-# Goetz-Lipowsky Decomposition
-# [8] R. Goetz; R. Lipowsky; J. Chem. Phys. 108, 7397 (1998)
-#
-# Decomposition on geometric centers
-# [9] H. Heinz; W. Paul; K. Binder; Phys. Rev. E. 72 066704 (2005)
+#=========================================================================*/
 
 try:
     import numpy as np

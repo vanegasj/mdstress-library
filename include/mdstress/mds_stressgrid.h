@@ -1,11 +1,10 @@
 /*=========================================================================
 
   Module    : MDStress
-  File      : mds_stressgrid.h
-  Authors   : A. Torres-Sanchez, J. M. Vanegas and Benjamin E. Himberg
-  Modified  :
+  Authors   : A. Torres-Sanchez and J. M. Vanegas
+  Modified  : B. Himberg and A. L. Lewis
   Purpose   : Compute the local stress from MD trajectories
-  Date      : 04/01/2023
+  Date      : Aug-18-2025
   Version   :
   Changes   :
 
@@ -15,10 +14,8 @@
      the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
      PURPOSE.
 
-     Please, report any bug to us:
-     torres.sanchez.a@gmail.com
+     Report any bugs to:
      juan.m.vanegas@gmail.com
-     bhimberg@gmail.com
 =========================================================================*/
 
 #ifndef MDS_STRESSGRID_H

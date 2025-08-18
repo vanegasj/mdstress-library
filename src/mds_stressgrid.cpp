@@ -1,11 +1,10 @@
 /*=========================================================================
 
   Module    : MDStress
-  File      : mds_stressgrid.cpp
   Authors   : A. Torres-Sanchez and J. M. Vanegas
-  Modified  : B. Himberg and A. Lewis
+  Modified  : B. Himberg and A. L. Lewis
   Purpose   : Compute the local stress from MD trajectories
-  Date      : Oct-15-2021
+  Date      : Aug-18-2025
   Version   :
   Changes   :
 
@@ -13,12 +12,12 @@
 
      This software is distributed WITHOUT ANY WARRANTY; without even
      the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-     PURPOSE.  
+     PURPOSE.
 
-     Please, report any bug to either of us:
-     torres.sanchez.a@gmail.com
+     Report any bugs to:
      juan.m.vanegas@gmail.com
 =========================================================================*/
+
 //KBfac is equal to KB*10E22 to convert V/(KB*T) from J/m^3 to bar^-1
 #define KBfac 1.38064852E-1
 
@@ -27,7 +26,7 @@
 #include "mds_error.h"
 
 // disable warning for eigen
-#pragma GCC diagnostic push 
+#pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
 #include <Eigen/Dense>
 #pragma GCC diagnostic pop
@@ -1763,15 +1762,15 @@ void StressGrid::Write ( )
         std::string rawname = this->m_filename.substr(0, lastindex);
 
         //Change output format if the user specifies a filename with a .dat extension
-        outname = this->m_filename + outnumber.str();
-        if (outname.find(".dat") == std::string::npos)
-            outname = outname + ".mds";
+        outname = rawname + "_stress.dat" + outnumber.str();
+        //if (outname.find(".dat") == std::string::npos)
+        //    outname = outname + ".mds";
 
-        elcovar_outname = rawname + "_elcovar.dat" + outnumber.str();
+        elcovar_outname = rawname + "_elfluc.dat" + outnumber.str();
         elkin_outname = rawname + "_elkin.dat" + outnumber.str();
         elborn_outname = rawname + "_elborn.dat" + outnumber.str();
-        eltotal_outname = rawname + "_eltotal.dat" + outnumber.str();
-        eltotalhooke_outname = rawname + "_eltotalhooke.dat" + outnumber.str();
+        eltotal_outname = rawname + "_eltot.dat" + outnumber.str();
+        eltotalhooke_outname = rawname + "_eltothooke.dat" + outnumber.str();
 
         // open the main output file
         outfile = fopen(outname.c_str(), "wb" );

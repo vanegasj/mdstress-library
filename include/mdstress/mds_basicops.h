@@ -1,11 +1,10 @@
 /*=========================================================================
 
   Module    : MDStress
-  File      : mds_basicops.h
   Authors   : A. Torres-Sanchez and J. M. Vanegas
-  Modified  :
+  Modified  : B. Himberg and A. L. Lewis
   Purpose   : Compute the local stress from MD trajectories
-  Date      : 25/03/2015
+  Date      : Aug-18-2025
   Version   :
   Changes   :
 
@@ -15,8 +14,7 @@
      the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
      PURPOSE.
 
-     Please, report any bug to either of us:
-     torres.sanchez.a@gmail.com
+     Report any bugs to:
      juan.m.vanegas@gmail.com
 =========================================================================*/
 
