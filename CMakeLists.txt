@@ -6,6 +6,8 @@ project(mdstress_test LANGUAGES CXX )
 # set the C++11 standard
 set(CMAKE_CXX_STANDARD 17)
 
+set(CMAKE_INSTALL_LIBDIR lib)
+
 # compiling for native, however not using fast math
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG -ffast-math -march=native" CACHE STRING
     "Flags used by the compiler during release builds." FORCE)

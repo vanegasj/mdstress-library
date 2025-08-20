@@ -1766,7 +1766,7 @@ void StressGrid::Write ( )
         //if (outname.find(".dat") == std::string::npos)
         //    outname = outname + ".mds";
 
-        elcovar_outname = rawname + "_elfluc.dat" + outnumber.str();
+        elcovar_outname = rawname + "_elfluct.dat" + outnumber.str();
         elkin_outname = rawname + "_elkin.dat" + outnumber.str();
         elborn_outname = rawname + "_elborn.dat" + outnumber.str();
         eltotal_outname = rawname + "_eltot.dat" + outnumber.str();

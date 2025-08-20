@@ -456,13 +456,13 @@ class LStensor:
 
         #fp.write("# LStensor of order {0}\n# ".format(self.order))
         if (self.order == 0):
-            fp.write("# Density in units of kg/m^3, charge/m^3, or counts/m^3\n# ")
+            fp.write("# Density in units of kg/m^3, charge/nm^3, or counts/nm^3\n# ")
         elif (self.order == 1):
             fp.write("# Vector field (LStensor of order {0})\n# ".format(self.order))
         elif (self.order == 2):
             fp.write("# Stress in units of bar (10^5 Pa)\n# ")
         elif (self.order == 6):
-            fp.write("# Elasticity matrix in units of bar (10^5 Pa)\n# ")
+            fp.write("# Elasticity matrix (Voigt) in units of bar (10^5 Pa)\n# ")
 
         if (self.nx != 1):
             fp.write("%13s\t" % "x")
@@ -481,6 +481,8 @@ class LStensor:
             fp.write("%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\n" % ("Sxx","Sxy","Sxz","Syx","Syy","Syz","Szx","Szy","Szz") )
         elif (self.order == 6):
             fp.write("%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\n" % ("Cxxxx","Cxxyy","Cxxzz","Cxxyz","Cxxxz","Cxxxy","Cyyxx","Cyyyy","Cyyzz","Cyyyz","Cyyxz","Cyyxy","Czzxx","Czzyy","Czzzz","Czzyz","Czzxz","Czzxy","Cyzxx","Cyzyy","Cyzzz","Cyzyz","Cyzxz","Cyzxy","Cxzxx","Cxzyy","Cxzzz","Cxzyz","Cxzxz","Cxzxy","Cxyxx","Cxyyy","Cxyzz","Cxyyz","Cxyxz","Cxyxy"))
+            fp.write("#\t\t\t\t")
+            fp.write("%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\t%15s\n" % ("C11","C12","C13","C14","C15","C16","C21","C22","C23","C24","C25","C26","C31","C32","C33","C34","C35","C36","C41","C42","C43","C44","C45","C46","C51","C52","C53","C54","C55","C56","C61","C62","C63","C64","C65","C66"))
 
         if(self.verbose):
             print("Writing data on grid in txt format to {0}...".format(outputfile))
