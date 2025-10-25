@@ -90,3 +90,5 @@ if(MODULEFILES_PATH)
     # install it in the specified modulesfiles dir
     install(FILES ${CMAKE_CURRENT_BINARY_DIR}/mdstress-library DESTINATION ${MODULEFILES_PATH} PERMISSIONS OWNER_READ OWNER_WRITE GROUP_READ WORLD_READ)
 endif(MODULEFILES_PATH)
+
+add_subdirectory(test)
