@@ -35,6 +35,33 @@ set_property(CACHE MDS_PRECISION PROPERTY STRINGS MDS_FLOAT MDS_DOUBLE MDS_LONG_
 list(APPEND CMAKE_PREFIX_PATH "${CMAKE_CURRENT_SOURCE_DIR}/contrib/eigen3")
 find_package(Eigen3 3.4 REQUIRED NO_MODULE)
 
+# Option to build tests
+option(BUILD_MDSTRESS_TESTS "Enable building of mdstress test executables" ON)
+
+# If tests are disabled, remove old test executables during configuration
+if(NOT BUILD_MDSTRESS_TESTS)
+    message(STATUS "Tests are disabled. Removing old test executables in build/test ...")
+
+    # compute path to build/test directory
+    set(TEST_DIR "${CMAKE_BINARY_DIR}/test")
+
+    # only remove if it exists
+    if(EXISTS ${TEST_DIR})
+        execute_process(
+            COMMAND ${CMAKE_COMMAND} -E remove_directory ${TEST_DIR}
+            RESULT_VARIABLE REMOVE_TEST_DIR_RESULT
+            OUTPUT_VARIABLE REMOVE_TEST_DIR_OUTPUT
+            ERROR_VARIABLE REMOVE_TEST_DIR_ERROR
+        )
+
+        if(NOT REMOVE_TEST_DIR_RESULT EQUAL 0)
+            message(WARNING "Failed to remove ${TEST_DIR}: ${REMOVE_TEST_DIR_ERROR}")
+        else()
+            message(STATUS "Removed old test executables at ${TEST_DIR}")
+        endif()
+    endif()
+endif()
+
 # set our cmake modules path for tclap
 set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake" ${CMAKE_MODULE_PATH})
 
@@ -91,4 +118,6 @@ if(MODULEFILES_PATH)
     install(FILES ${CMAKE_CURRENT_BINARY_DIR}/mdstress-library DESTINATION ${MODULEFILES_PATH} PERMISSIONS OWNER_READ OWNER_WRITE GROUP_READ WORLD_READ)
 endif(MODULEFILES_PATH)
 
-add_subdirectory(test)
+if(BUILD_MDSTRESS_TESTS)
+    add_subdirectory(test)
+endif()

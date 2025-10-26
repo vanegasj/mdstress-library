@@ -4,9 +4,19 @@
 #include "mds_stressgrid.h"
 
 bool test_one(int input) {
-	assert(input == 1 && "test_one; Input should evaluate to 1");
+	
 
-	return True;
+	assert(input == 1 && "test_one; Input should evaluate to 1");
+	
+	if (input == 1) {
+		std::cout << "test_example/test_one has passed" << std::endl;
+	} else {
+		std::cout << "test_example/test_one has failed" << std::endl;
+		return false;
+	}
+
+
+	return true;
 }
 
 int main() {

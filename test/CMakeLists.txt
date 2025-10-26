@@ -8,7 +8,7 @@ foreach(TEST_SRC ${TEST_SOURCES})
     # Get the filename without path and extension
     get_filename_component(TEST_NAME ${TEST_SRC} NAME_WE)
 
-    add_executable(${TEST_NAME} ${TEST_SRC}
+    add_executable(${TEST_NAME} ${TEST_SRC})
    
     # Include headers
     target_include_directories(${TEST_NAME} PRIVATE
