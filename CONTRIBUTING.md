@@ -60,7 +60,7 @@ cmake ../ -DCMAKE_INSTALL_PREFIX=$HOME/apps/gromacs-ls/2016.3 -DGMX_BUILD_OWN_FF
 make -j 8  
 make install
 ```
-Assuming that there were no issues during the compilation and installation, you should now have the library installed inside $HOME/apps/mdstress-library/1.0 . 
+Assuming that there were no issues during the compilation and installation, you should now have the library installed inside `$HOME/apps/mdstress-library/1.0` . 
 Use the following commands to make the library available through the modules environment:
 ```
 cd $HOME/apps/modulefiles  
@@ -96,6 +96,7 @@ The GROMACS-LS executable is called `gmx_LS`.
 	- migration: `migration/some-migration`
 ## Issues & Planning
 - Issues must be filed in the Linear Workspace
+	- [External link to Linear Workspace](https://linear.app/cs077-capstone/team/CS0/all)
 - If filing for a feature:
 	- Issue must be labeled as a feature
 	- Issue must be grouped with other issues within same feature group
@@ -107,12 +108,13 @@ Reference issues with `Closes #123` or `Fixes #456` at the end of the commit mes
 ## Code Style, Linting & Formatting
 - No formatter/linter implemented.
 - When pushing new files:
-	- Refer to https://google.github.io/styleguide/cppguide.html
+	- Refer to this style guide: https://google.github.io/styleguide/cppguide.html
 - When modifying files:
 	- Try to keep new lines/functional blocks to this style guide: https://google.github.io/styleguide/cppguide.html
 	- Do not spend dev time re-formatting current files
 ## Testing
 - Unit tests required when modifiying any function, and when creating any new function
+	- Test files must be named `test_[function_name].cpp` and be stored in the `./build/test` directory
 - Building MDStress generates executable test files using hard-stop assert statements in the `./build/test/` directory
 - Building GROMACS-LS runs built-in testing
 - In order to minimize dependencies for legacy users, there is no testing framework implemented
@@ -126,7 +128,7 @@ Reference issues with `Closes #123` or `Fixes #456` at the end of the commit mes
 - No CI/CD implemented as of yet
 ## Security & Secrets
 - If a security vulnerability is found, please report directly to Juan Vanegas (vanegasj@oregonstate.edu)
-- There are no secret variables in this project, but if there were do not hardcode
+- There are no secret variables in this project, but if there were, do not hardcode
 ## Documentation Expectations
 - Document in concise and clear comments throughout code
 - Prefer clear code over verbose comments
