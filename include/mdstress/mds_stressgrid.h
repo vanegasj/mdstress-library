@@ -28,6 +28,7 @@
 
 class  mds::StressGrid
 {
+    friend class StressGridTestFixture;
     public :
         StressGrid();
         ~StressGrid();
