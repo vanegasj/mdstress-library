@@ -32,8 +32,8 @@ public:
 	grid.state.avg_boxvol = 125.0;
 	grid.state.var_boxvol = 10.5;
 
-	void* old_sum_grid = grid.alloc.sum_grid;
-	void* old_avg_grid = grid.alloc.avg_grid;
+//	void* old_sum_grid = grid.alloc.sum_grid;
+//	void* old_avg_grid = grid.alloc.avg_grid;
 
 	//assert(old_sum_grid != nullptr && "Pointers should be allocated");
 	//assert(old_avg_grid != nullptr && "Pointers should be allocation");
