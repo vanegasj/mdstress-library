@@ -2,7 +2,7 @@
 #include <cstring>
 #include "mds_stressgrid.h"
 
-using namespace mds;
+namespace mds {
 
 class StressGridTestFixture {
     friend class StressGrid;
@@ -10,11 +10,14 @@ class StressGridTestFixture {
 public:
     static void test_Clear() {
 	mds::StressGrid grid;
+	
+//	StressGrid::Alloc& alloc = grid.alloc;
+//	StressGrid::State& state = grid.state;
 
-	grid.SetNumberOfGridCellsX(5);
-	grid.SetNumberOfGridCellsY(5);
-	grid.SetNumberOfGridCellsZ(5);
-	grid.SetSpacing(1.0f);
+//  grid.SetNumberOfGridCellsX(5);
+//	grid.SetNumberOfGridCellsY(5);
+//	grid.SetNumberOfGridCellsZ(5);
+//	grid.SetSpacing(1.0f);
 
 	matrix3_ext box = {{5.0, 0.0, 0.0},
 	                   {0.0, 5.0, 0.0},
@@ -38,7 +41,7 @@ public:
 	grid.Clear();
 
 	assert(grid.alloc.sum_grid == nullptr);
-	assert(grid.alloc.avg_grind == nullptr);
+	assert(grid.alloc.avg_grid == nullptr);
 	assert(grid.alloc.sum_grid_volcovar == nullptr);
 	assert(grid.alloc.sum_grid_elcovar == nullptr);
 	assert(grid.alloc.sum_grid_elkin == nullptr);
@@ -56,7 +59,10 @@ public:
     }
 };
 
+} // namespace
+
 int main() {
-    StressGridTestFixture::test_Clear();
+    mds::StressGridTestFixture::test_Clear();
     return 0;
 }
+

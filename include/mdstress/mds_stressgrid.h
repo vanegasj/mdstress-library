@@ -26,7 +26,12 @@
 #include "mds_basicops.h"
 #include "mds_cmenger.h"
 
-class  mds::StressGrid
+
+namespace mds {
+
+    class StressGridTestFixture;
+
+class  StressGrid
 {
     friend class StressGridTestFixture;
     public :
@@ -159,6 +164,9 @@ class  mds::StressGrid
         // settings are public, since they may be read
         // by the application itself
         settings_t settings;
+
+	using Alloc = alloc_t;
+	using State = state_t;
     private:
         state_t state;
         alloc_t alloc;
@@ -175,4 +183,6 @@ class  mds::StressGrid
 
         void Clear();
 };
+
+} // namespace
 #endif//MDS_STRESSGRID_H
