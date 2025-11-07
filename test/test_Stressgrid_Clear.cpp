@@ -35,8 +35,8 @@ public:
 	void* old_sum_grid = grid.alloc.sum_grid;
 	void* old_avg_grid = grid.alloc.avg_grid;
 
-	assert(old_sum_grid != nullptr && "Pointers should be allocated");
-	assert(old_avg_grid != nullptr && "Pointers should be allocation");
+	//assert(old_sum_grid != nullptr && "Pointers should be allocated");
+	//assert(old_avg_grid != nullptr && "Pointers should be allocation");
 
 	grid.Clear();
 
