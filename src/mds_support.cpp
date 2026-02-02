@@ -37,7 +37,8 @@ ad::dual2nd CosTheta3(ad::dual2nd ab, ad::dual2nd bg, ad::dual2nd ag)
     return (ab*ab + bg*bg - ag*ag)/(2*ab*bg);
 }
 
-void ThreeBodyCosineAutoD(real_mds ab, real_mds bg, real_mds ag, mds::array3_mds &d_cos_array)
+//void ThreeBodyCosineAutoD(real_mds ab, real_mds bg, real_mds ag, mds::array3_mds &d_cos_array)
+void ThreeBodyCosineD(real_mds ab, real_mds bg, real_mds ag, mds::array3_mds &d_cos_array)
 {
     d_cos_array[iab] = ad::derivative(CosTheta3D2, wrt(ab), at(ab, bg, ag));
     d_cos_array[ibg] = ad::derivative(CosTheta3D2, wrt(bg), at(ab, bg, ag));
@@ -45,7 +46,7 @@ void ThreeBodyCosineAutoD(real_mds ab, real_mds bg, real_mds ag, mds::array3_mds
 }
 
 //Derivative of Cosine Function (creates derivative vector)
-void ThreeBodyCosineD(real_mds ab, real_mds bg, real_mds ag, mds::array3_mds &d_cos_array)
+/*void ThreeBodyCosineD(real_mds ab, real_mds bg, real_mds ag, mds::array3_mds &d_cos_array)
 {
     real_mds numer, denom;
 
@@ -66,9 +67,10 @@ void ThreeBodyCosineD(real_mds ab, real_mds bg, real_mds ag, mds::array3_mds &d_
     denom = ab * bg;
 
     d_cos_array[iag] = numer / denom;
-}
+}*/
 
-void ThreeBodyCosineAutoD(real_mds ab, real_mds bg, real_mds ag, mds::array3_mds &d_cos_array)
+//void ThreeBodyCosineAutoD2(real_mds ab, real_mds bg, real_mds ag, mds::array3_mds &d_cos_array)
+void ThreeBodyCosineD2(real_mds ab, real_mds bg, real_mds ag, mds::array3_mds &d_cos_array)
 {
     auto [d0, dab, dabab] = derivatives(CosTheta3D2, wrt(ab, ab), at(ab, bg, ag));
     d2_cos_array[iab][iab] = dabab;
@@ -93,7 +95,7 @@ void ThreeBodyCosineAutoD(real_mds ab, real_mds bg, real_mds ag, mds::array3_mds
 }
 
 //Second Derivative of Cosine Function (Creates derivative matrix)
-void ThreeBodyCosineD2(real_mds ab, real_mds bg, real_mds ag, matrix3_mds &d2_cos_array) {
+/*void ThreeBodyCosineD2(real_mds ab, real_mds bg, real_mds ag, matrix3_mds &d2_cos_array) {
     real_mds numer;
     real_mds denom;
 
@@ -137,7 +139,7 @@ void ThreeBodyCosineD2(real_mds ab, real_mds bg, real_mds ag, matrix3_mds &d2_co
     denom = ab * bg;
 
     d2_cos_array[iag][iag] = numer / denom;
-}
+}*/
 
 //First Derivative of Theta Function (Creates 1st derivative vector)
 //Need Cosine Theta
