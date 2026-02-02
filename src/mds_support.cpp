@@ -72,25 +72,25 @@ void ThreeBodyCosineD(real_mds ab, real_mds bg, real_mds ag, mds::array3_mds &d_
 //void ThreeBodyCosineAutoD2(real_mds ab, real_mds bg, real_mds ag, mds::array3_mds &d_cos_array)
 void ThreeBodyCosineD2(real_mds ab, real_mds bg, real_mds ag, mds::array3_mds &d_cos_array)
 {
-    auto [d0, dab, dabab] = derivatives(CosTheta3D2, wrt(ab, ab), at(ab, bg, ag));
+    auto [d0, dab, dabab] = ad::derivatives(CosTheta3D2, wrt(ab, ab), at(ab, bg, ag));
     d2_cos_array[iab][iab] = dabab;
 
-    auto [d1, dbg, dbgab] = derivatives(CosTheta3D2, wrt(bg, ab), at(ab, bg, ag));
+    auto [d1, dbg, dbgab] = ad::derivatives(CosTheta3D2, wrt(bg, ab), at(ab, bg, ag));
     d2_cos_array[iab][ibg] = dbgab;
     d2_cos_array[ibg][iab] = dbgab;
 
-    auto [d2, dag, dagab] = derivatives(CosTheta3D2, wrt(ag, ab), at(ab, bg, ag));
+    auto [d2, dag, dagab] = ad::derivatives(CosTheta3D2, wrt(ag, ab), at(ab, bg, ag));
     d2_cos_array[iab][iag] = dagab;
     d2_cos_array[iag][iab] = dagab;
 
-    auto [d3, dbg2, dbgbg] = derivatives(CosTheta3D2, wrt(bg, bg), at(ab, bg, ag));
+    auto [d3, dbg2, dbgbg] = add::derivatives(CosTheta3D2, wrt(bg, bg), at(ab, bg, ag));
     d2_cos_array[ibg][ibg] = dbgbg;
 
-    auto [d4, dag2, dagbg] = derivatives(CosTheta3D2, wrt(ag, bg), at(ab, bg, ag));
+    auto [d4, dag2, dagbg] = ad::derivatives(CosTheta3D2, wrt(ag, bg), at(ab, bg, ag));
     d2_cos_array[iag][ibg] = dagbg;
     d2_cos_array[ibg][iag] = dagbg;
 
-    auto [d5, dag3, dagag] = derivatives(CosTheta3D2, wrt(ag, ag), at(ab, bg, ag));
+    auto [d5, dag3, dagag] = ad::derivatives(CosTheta3D2, wrt(ag, ag), at(ab, bg, ag));
     d2_cos_array[iag][iag] = dagag;
 }
 
