@@ -21,11 +21,28 @@
 #include "mds_support.h"
 #include "mds_basicops.h"
 
+#include "./contrib/autodiff/forward/dual.hpp"
+//#include <contrib/autodiff/forward/dual.hpp>
+using namespace ad = autodiff;
+
 #define iab 0
 #define ibg 1
 #define iag 2
 
 using namespace mds;
+
+// The multi-variable function for which derivatives are needed
+ad::dual2nd CosTheta3(ad::dual2nd ab, ad::dual2nd bg, ad::dual2nd ag)
+{
+    return (ab*ab + bg*bg - ag*ag)/(2*ab*bg);
+}
+
+void ThreeBodyCosineAutoD(real_mds ab, real_mds bg, real_mds ag, mds::array3_mds &d_cos_array)
+{
+    d_cos_array[iab] = ad::derivative(CosTheta3D2, wrt(ab), at(ab, bg, ag));
+    d_cos_array[ibg] = ad::derivative(CosTheta3D2, wrt(bg), at(ab, bg, ag));
+    d_cos_array[iag] = ad::derivative(CosTheta3D2, wrt(ag), at(ab, bg, ag));
+}
 
 //Derivative of Cosine Function (creates derivative vector)
 void ThreeBodyCosineD(real_mds ab, real_mds bg, real_mds ag, mds::array3_mds &d_cos_array)
@@ -49,6 +66,30 @@ void ThreeBodyCosineD(real_mds ab, real_mds bg, real_mds ag, mds::array3_mds &d_
     denom = ab * bg;
 
     d_cos_array[iag] = numer / denom;
+}
+
+void ThreeBodyCosineAutoD(real_mds ab, real_mds bg, real_mds ag, mds::array3_mds &d_cos_array)
+{
+    auto [d0, dab, dabab] = derivatives(CosTheta3D2, wrt(ab, ab), at(ab, bg, ag));
+    d2_cos_array[iab][iab] = dabab;
+
+    auto [d1, dbg, dbgab] = derivatives(CosTheta3D2, wrt(bg, ab), at(ab, bg, ag));
+    d2_cos_array[iab][ibg] = dbgab;
+    d2_cos_array[ibg][iab] = dbgab;
+
+    auto [d2, dag, dagab] = derivatives(CosTheta3D2, wrt(ag, ab), at(ab, bg, ag));
+    d2_cos_array[iab][iag] = dagab;
+    d2_cos_array[iag][iab] = dagab;
+
+    auto [d3, dbg2, dbgbg] = derivatives(CosTheta3D2, wrt(bg, bg), at(ab, bg, ag));
+    d2_cos_array[ibg][ibg] = dbgbg;
+
+    auto [d4, dag2, dagbg] = derivatives(CosTheta3D2, wrt(ag, bg), at(ab, bg, ag));
+    d2_cos_array[iag][ibg] = dagbg;
+    d2_cos_array[ibg][iag] = dagbg;
+
+    auto [d5, dag3, dagag] = derivatives(CosTheta3D2, wrt(ag, ag), at(ab, bg, ag));
+    d2_cos_array[iag][iag] = dagag;
 }
 
 //Second Derivative of Cosine Function (Creates derivative matrix)

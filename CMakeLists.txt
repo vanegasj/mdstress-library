@@ -35,6 +35,11 @@ set_property(CACHE MDS_PRECISION PROPERTY STRINGS MDS_FLOAT MDS_DOUBLE MDS_LONG_
 list(APPEND CMAKE_PREFIX_PATH "${CMAKE_CURRENT_SOURCE_DIR}/contrib/eigen3")
 find_package(Eigen3 3.4 REQUIRED NO_MODULE)
 
+# get the autodiff library (I think??)
+list(APPEND CMAKE_PREFIX_PATH "${CMAKE_CURRENT_SOURCE_DIR}/contrib/autodiff")
+find_package(autodiff)
+# add_executable(mdstress_test main.cpp)
+
 # Option to build tests
 option(BUILD_MDSTRESS_TESTS "Enable building of mdstress test executables" ON)
 
@@ -96,6 +101,8 @@ include_directories(include/mdstress include/voro++ ${CMAKE_CURRENT_BINARY_DIR})
 add_library(mdstress SHARED ${MDSTRESS_SOURCES} ${VORO_SOURCES})
 #set_target_properties(mdstress PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
 target_link_libraries(mdstress PRIVATE Eigen3::Eigen)
+
+target_link_libraries(mdstress PRIVATE autodiff::autodiff)
 
 install(TARGETS mdstress RUNTIME DESTINATION bin LIBRARY DESTINATION lib ARCHIVE DESTINATION lib/static)
 install(FILES ${MDSTRESS_SOURCES_H} DESTINATION include/mdstress)
