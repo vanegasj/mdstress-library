@@ -4,7 +4,7 @@
   Authors   : A. Torres-Sanchez and J. M. Vanegas
   Modified  : B. Himberg and A. L. Lewis
   Purpose   : Compute the local stress from MD trajectories
-  Date      : Aug-18-2025
+  Dad::ate      : Aug-18-2025
   Version   :
   Changes   :
 
@@ -21,9 +21,9 @@
 #include "mds_support.h"
 #include "mds_basicops.h"
 
-#include "./contrib/autodiff/forward/dual.hpp"
-//#include <contrib/autodiff/forward/dual.hpp>
-using namespace ad = autodiff;
+//#include "./contrib/autodiff/forward/dual.hpp"
+#include <autodiff/forward/dual.hpp>
+namespace ad = autodiff;
 
 #define iab 0
 #define ibg 1
@@ -38,11 +38,14 @@ ad::dual2nd CosTheta3(ad::dual2nd ab, ad::dual2nd bg, ad::dual2nd ag)
 }
 
 //void ThreeBodyCosineAutoD(real_mds ab, real_mds bg, real_mds ag, mds::array3_mds &d_cos_array)
-void ThreeBodyCosineD(real_mds ab, real_mds bg, real_mds ag, mds::array3_mds &d_cos_array)
+void ThreeBodyCosineD(real_mds rab, real_mds rbg, real_mds rag, mds::array3_mds &d_cos_array)
 {
-    d_cos_array[iab] = ad::derivative(CosTheta3D2, wrt(ab), at(ab, bg, ag));
-    d_cos_array[ibg] = ad::derivative(CosTheta3D2, wrt(bg), at(ab, bg, ag));
-    d_cos_array[iag] = ad::derivative(CosTheta3D2, wrt(ag), at(ab, bg, ag));
+    ad::dual2nd ab = rab;
+    ad::dual2nd bg = rbg;
+    ad::dual2nd ag = rag;
+    d_cos_array[iab] = ad::derivative(CosTheta3, ad::wrt(ab), ad::at(ab, bg, ag));
+    d_cos_array[ibg] = ad::derivative(CosTheta3, ad::wrt(bg), ad::at(ab, bg, ag));
+    d_cos_array[iag] = ad::derivative(CosTheta3, ad::wrt(ag), ad::at(ab, bg, ag));
 }
 
 //Derivative of Cosine Function (creates derivative vector)
@@ -69,28 +72,35 @@ void ThreeBodyCosineD(real_mds ab, real_mds bg, real_mds ag, mds::array3_mds &d_
     d_cos_array[iag] = numer / denom;
 }*/
 
-//void ThreeBodyCosineAutoD2(real_mds ab, real_mds bg, real_mds ag, mds::array3_mds &d_cos_array)
-void ThreeBodyCosineD2(real_mds ab, real_mds bg, real_mds ag, mds::array3_mds &d_cos_array)
+//void ThreeBodyCosineAutoD2(real_mds ab, real_mds bg, real_mds ag, mds::array3_mds &d2_cos_array)
+void ThreeBodyCosineD2(real_mds rab, real_mds rbg, real_mds rag, mds::array3_mds &d_cos_array, mds::matrix3_mds &d2_cos_array)
 {
-    auto [d0, dab, dabab] = ad::derivatives(CosTheta3D2, wrt(ab, ab), at(ab, bg, ag));
+    ad::dual2nd ab = rab;
+    ad::dual2nd bg = rbg;
+    ad::dual2nd ag = rag;
+
+    auto [d0, dab, dabab] = ad::derivatives(CosTheta3, ad::wrt(ab, ab), ad::at(ab, bg, ag));
+    d_cos_array[iab] = dab;
     d2_cos_array[iab][iab] = dabab;
 
-    auto [d1, dbg, dbgab] = ad::derivatives(CosTheta3D2, wrt(bg, ab), at(ab, bg, ag));
+    auto [d1, dbg, dbgab] = ad::derivatives(CosTheta3, ad::wrt(bg, ab), ad::at(ab, bg, ag));
+    d_cos_array[ibg] = dbg;
     d2_cos_array[iab][ibg] = dbgab;
     d2_cos_array[ibg][iab] = dbgab;
 
-    auto [d2, dag, dagab] = ad::derivatives(CosTheta3D2, wrt(ag, ab), at(ab, bg, ag));
+    auto [d2, dag, dagab] = ad::derivatives(CosTheta3, ad::wrt(ag, ab), ad::at(ab, bg, ag));
+    d_cos_array[iag] = dag;
     d2_cos_array[iab][iag] = dagab;
     d2_cos_array[iag][iab] = dagab;
 
-    auto [d3, dbg2, dbgbg] = add::derivatives(CosTheta3D2, wrt(bg, bg), at(ab, bg, ag));
+    auto [d3, dbg2, dbgbg] = ad::derivatives(CosTheta3, ad::wrt(bg, bg), ad::at(ab, bg, ag));
     d2_cos_array[ibg][ibg] = dbgbg;
 
-    auto [d4, dag2, dagbg] = ad::derivatives(CosTheta3D2, wrt(ag, bg), at(ab, bg, ag));
+    auto [d4, dag2, dagbg] = ad::derivatives(CosTheta3, ad::wrt(ag, bg), ad::at(ab, bg, ag));
     d2_cos_array[iag][ibg] = dagbg;
     d2_cos_array[ibg][iag] = dagbg;
 
-    auto [d5, dag3, dagag] = ad::derivatives(CosTheta3D2, wrt(ag, ag), at(ab, bg, ag));
+    auto [d5, dag3, dagag] = ad::derivatives(CosTheta3, ad::wrt(ag, ag), ad::at(ab, bg, ag));
     d2_cos_array[iag][iag] = dagag;
 }
 
@@ -296,8 +306,8 @@ void mds::HarmonicAnglePhiKappa(real_ext ab_ext, real_ext bg_ext, real_ext ag_ex
     zeroarray3(d_theta_array);
     matrix3_mds d2_theta_array;
     zeromatrix3(d2_theta_array);
-    ThreeBodyCosineD(ab, bg, ag, d_cos_array);
-    ThreeBodyCosineD2(ab, bg, ag, d2_cos_array);
+    //ThreeBodyCosineD(ab, bg, ag, d_cos_array);
+    ThreeBodyCosineD2(ab, bg, ag, d_cos_array, d2_cos_array);
     ThreeBodyThetaD(costheta, d_cos_array, d_theta_array);
     ThreeBodyThetaD2(costheta, d_cos_array, d2_cos_array, d2_theta_array);
 
@@ -328,8 +338,8 @@ void mds::HarmonicCosPhiKappa(real_ext ab_ext, real_ext bg_ext, real_ext ag_ext,
     zeroarray3(d_cos_array);
     matrix3_mds d2_cos_array;
     zeromatrix3(d2_cos_array);
-    ThreeBodyCosineD(ab, bg, ag, d_cos_array);
-    ThreeBodyCosineD2(ab, bg, ag, d2_cos_array);
+    //ThreeBodyCosineD(ab, bg, ag, d_cos_array);
+    ThreeBodyCosineD2(ab, bg, ag, d_cos_array, d2_cos_array);
 
     //Calculate Phi Vector
     for (int i = 0; i < 3; i++) {
@@ -369,8 +379,8 @@ void mds::UreyBradleyPhiKappa(real_ext ab_ext, real_ext bg_ext, real_ext ag_ext,
     matrix3_mds d2_theta_array;
     zeromatrix3(d2_theta_array);
 
-    ThreeBodyCosineD(ab, bg, ag, d_cos_array);
-    ThreeBodyCosineD2(ab, bg, ag, d2_cos_array);
+    //ThreeBodyCosineD(ab, bg, ag, d_cos_array);
+    ThreeBodyCosineD2(ab, bg, ag, d_cos_array, d2_cos_array);
     ThreeBodyThetaD(costheta, d_cos_array, d_theta_array);
     ThreeBodyThetaD2(costheta, d_cos_array, d2_cos_array, d2_theta_array);
 
@@ -458,8 +468,8 @@ void mds::QuarticAnglePhiKappa(real_ext ab_ext, real_ext bg_ext, real_ext ag_ext
     matrix3_mds d2_theta_array;
     zeromatrix3(d2_theta_array);
 
-    ThreeBodyCosineD(ab, bg, ag, d_cos_array);
-    ThreeBodyCosineD2(ab, bg, ag, d2_cos_array);
+    //ThreeBodyCosineD(ab, bg, ag, d_cos_array);
+    ThreeBodyCosineD2(ab, bg, ag, d_cos_array, d2_cos_array);
     ThreeBodyThetaD(costheta, d_cos_array, d_theta_array);
     ThreeBodyThetaD2(costheta, d_cos_array, d2_cos_array, d2_theta_array);
 

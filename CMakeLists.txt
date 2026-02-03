@@ -37,7 +37,7 @@ find_package(Eigen3 3.4 REQUIRED NO_MODULE)
 
 # get the autodiff library (I think??)
 list(APPEND CMAKE_PREFIX_PATH "${CMAKE_CURRENT_SOURCE_DIR}/contrib/autodiff")
-find_package(autodiff)
+find_package(autodiff REQUIRED)
 # add_executable(mdstress_test main.cpp)
 
 # Option to build tests
