@@ -224,58 +224,122 @@ static inline void distribute_observables_1d(
         matrix3_mds * stress_grid,
         matrix6_mds * elast_grid)
 {
-    // calculate the grid coordinates (no pbc) for the extreme points
-    int i1 = state.gridCells[state.gridDims] * xi[state.gridDims] * state.invbox[state.gridDims][state.gridDims] - (xi[state.gridDims] < 0.0);
-    const int i2 = state.gridCells[state.gridDims] * xj[state.gridDims] * state.invbox[state.gridDims][state.gridDims] - (xj[state.gridDims] < 0.0);
-    const int c = (i2>i1)-(i1>i2);
-    const real_mds t_c1 = xi[state.gridDims] / (xi[state.gridDims]-xj[state.gridDims]);
-    const real_mds t_c2 = state.gridsp[state.gridDims] / (xi[state.gridDims]-xj[state.gridDims]);
-    const real_mds C = realval_mds(0.5)*state.invgridsp*state.invgridsp;
-    real_mds d_cgrid = xi[state.gridDims]-(i1+realval_mds(0.5))*state.gridsp[state.gridDims];
-    int in = i1+(c+1)/2;
+    // Early exit if nothing to do
+    if (stress_grid == nullptr && elast_grid == nullptr) return;
 
-    // track previous time of crossing and check that sum is complete (?)
-    real_mds oldt = 0.0; 
-
-    // fix the number of iterations
-    const int iterations = c*(i2-i1);
+    // Cache the grid dimension index (accessed many times)
+    const int dim = state.gridDims;
+    const int gridSize = state.gridCells[dim];
+    
+    // Precompute frequently used values
+    const real_mds invbox_dim = state.invbox[dim][dim];
+    const real_mds gridsp_dim = state.gridsp[dim];
+    const real_mds xi_dim = xi[dim];
+    const real_mds xj_dim = xj[dim];
+    const real_mds diff_dim = diff[dim];
+    
+    // Precomputed grid spacing terms (5-dim gives the right index for D1 calculation)
+    const real_mds gridsp_5mdim = state.gridsp[5 - dim];
+    const real_mds gridsp_6 = state.gridsp[6];
+    
+    // Calculate the grid coordinates (no pbc) for the extreme points
+    const real_mds xi_scaled = gridSize * xi_dim * invbox_dim;
+    const real_mds xj_scaled = gridSize * xj_dim * invbox_dim;
+    
+    int i1 = int(xi_scaled) - (xi_dim < 0.0);
+    const int i2 = int(xj_scaled) - (xj_dim < 0.0);
+    
+    // Direction of traversal (-1, 0, or +1)
+    const int c = (i2 > i1) - (i1 > i2);
+    
+    // Number of cell crossings
+    const int iterations = c * (i2 - i1);
+    
+    // Single-cell case optimization (common case)
+    if (iterations == 0) {
+        // Particle pair is within a single cell
+        const int idx = ((i1 % gridSize) + gridSize) % gridSize;
+        
+        // For single cell, the full contribution goes to this cell
+        // (sf1 + sf2 = full contribution when integrated over [0,1])
+        if (stress_grid != nullptr) {
+            scalesummatrix3(realval_mds(1.0), *stress, stress_grid[idx]);
+        }
+        if (elast_grid != nullptr) {
+            scalesummatrix6(realval_mds(1.0), *elast, elast_grid[idx]);
+        }
+        return;
+    }
+    
+    // Precompute reciprocal (avoid division in loop)
+    const real_mds diff_inv = realval_mds(1.0) / (xi_dim - xj_dim);
+    const real_mds t_c1 = xi_dim * diff_inv;
+    const real_mds t_c2 = gridsp_dim * diff_inv;
+    
+    // Constant for scaling
+    const real_mds C = realval_mds(0.5) * state.invgridsp * state.invgridsp;
+    
+    // Distance from cell center
+    real_mds d_cgrid = xi_dim - (i1 + realval_mds(0.5)) * gridsp_dim;
+    
+    // Next crossing index
+    int in = i1 + (c + 1) / 2;
+    
+    // Track previous parametric time
+    real_mds oldt = 0.0;
+    
+    // Precompute c * gridsp_dim for loop update
+    const real_mds c_gridsp = c * gridsp_dim;
+    
+    // Main distribution loop
     for (int count = 0; count <= iterations; ++count) {
-        // there is always iterations+1, where the last iteration deals
-        // with any residual
-        real_mds newt = (iterations == count) ? realval_mds(1.0) : t_c1-in*t_c2;
+        // Parametric time at next crossing (or 1.0 for last iteration)
+        const real_mds newt = (iterations == count) ? realval_mds(1.0) : t_c1 - in * t_c2;
 
-        // work out the parametric time constants
-        const real_mds t12 = oldt*oldt;
-        const real_mds t22 = newt*newt;
+        // Parametric time constants
+        const real_mds t12 = oldt * oldt;
+        const real_mds t22 = newt * newt;
         const real_mds dt1 = newt - oldt;
         const real_mds dt2 = t22 - t12;
 
-        const int p1 = ((i1 + 1 + state.gridCells[state.gridDims]) % state.gridCells[state.gridDims]);
-        const int m1 = ((i1 + state.gridCells[state.gridDims]) % state.gridCells[state.gridDims]);
+        // Fast modulo for grid indices
+        // p1 = (i1 + 1) mod gridSize
+        // m1 = i1 mod gridSize  
+        int p1 = i1 + 1;
+        int m1 = i1;
+        
+        // Branchless modulo for values in range [-gridSize, 2*gridSize)
+        p1 = p1 - gridSize * (p1 >= gridSize);
+        p1 = p1 + gridSize * (p1 < 0);
+        m1 = m1 - gridSize * (m1 >= gridSize);
+        m1 = m1 + gridSize * (m1 < 0);
 
-        // the composite constants in terms of i, j, k
-        const real_mds D1 = state.gridsp[5-state.gridDims]*(realval_mds(2.0)*d_cgrid*dt1+diff[state.gridDims]*dt2);
-        const real_mds D2 = state.gridsp[6]*dt1;
+        // Compute D coefficients
+        const real_mds D1 = gridsp_5mdim * (realval_mds(2.0) * d_cgrid * dt1 + diff_dim * dt2);
+        const real_mds D2 = gridsp_6 * dt1;
 
-        const real_mds sf1 = C*( D1 + D2);
-        const real_mds sf2 = C*(-D1 + D2);
+        // Scaling factors
+        const real_mds sf1 = C * (D1 + D2);
+        const real_mds sf2 = C * (-D1 + D2);
 
-        if (nullptr != stress_grid) {
+        // Distribute to grid
+        if (stress_grid != nullptr) {
             scalesummatrix3(sf1, *stress, stress_grid[p1]);
             scalesummatrix3(sf2, *stress, stress_grid[m1]);
         }
-        if (nullptr != elast_grid) {
+        if (elast_grid != nullptr) {
             scalesummatrix6(sf1, *elast, elast_grid[p1]);
             scalesummatrix6(sf2, *elast, elast_grid[m1]);
         }
         
-        d_cgrid -= c * state.gridsp[state.gridDims];
+        // Update for next iteration
+        d_cgrid -= c_gridsp;
         oldt = newt;
-        
         i1 += c;
         in += c;
     }
 }
+ 
 
 static inline void distribute_observables_ptwise_3d(
         const state_t & state,
