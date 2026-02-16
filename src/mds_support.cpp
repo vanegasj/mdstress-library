@@ -28,6 +28,9 @@ namespace ad = autodiff;
 #define iab 0
 #define ibg 1
 #define iag 2
+#define iae 3
+#define ibe 4
+#define ige 5
 
 using namespace mds;
 
@@ -73,7 +76,7 @@ void ThreeBodyCosineD(real_mds ab, real_mds bg, real_mds ag, mds::array3_mds &d_
 }*/
 
 //autodiff First and Second Derivative of Cosine Function (Creates derivative matrix(D2) and vector(D1))
-void ThreeBodyCosineD2(real_mds ab, real_mds bg, real_mds ag, mds::array3_mds &d_cos_array)
+void ThreeBodyCosineD2(real_mds ab, real_mds bg, real_mds ag, mds::array3_mds &d_cos_array, mds::array3_mds &d2_cos_array)
 {
     ad::dual2nd ab = rab;
     ad::dual2nd bg = rbg;
@@ -159,17 +162,21 @@ ad::dual2nd CosTheta4(ad::dual2nd ab, ad::dual2nd ag, ad::dual2nd ae, ad::dual2n
     return D_bg/(sqrt(D_bge * D_bga));
 }
 
-void FourBodyCosineD2(real_mds ab, real_mds ag, real_mds ae, real_mds bg, real_mds be, real_mds ge, mds::array3_mds &d_cos_array)
+void FourBodyCosineD2(real_mds ab, real_mds ag, real_mds ae, real_mds bg, real_mds be, real_mds ge, mds::array3_mds &d_cos_array, mds::array3_mds &d2_cos_array)
 {
-    double dcos_dab = derivative(CosTheta4, wrt(ab), at(ab, ag, ae, bg, be, ge));
-    double dcos_dag = derivative(CosTheta4, wrt(ag), at(ab, ag, ae, bg, be, ge));
-    double dcos_dae = derivative(CosTheta4, wrt(ae), at(ab, ag, ae, bg, be, ge));
-    double dcos_dbg = derivative(CosTheta4, wrt(bg), at(ab, ag, ae, bg, be, ge));
-    double dcos_dbe = derivative(CosTheta4, wrt(be), at(ab, ag, ae, bg, be, ge));
-    double dcos_dge = derivative(CosTheta4, wrt(ge), at(ab, ag, ae, bg, be, ge));
+    real_mds vars[6] = {ab, bg, ag, ae, be, ge};
 
-    auto dagag = derivatives(CosTheta4, wrt(ab, ab), at(ab, ag, ae, bg, be, ge));
-    d_cos_array[]
+    for(int i = 0; i < 6; i++)
+    {
+        for(int j = i; j < 6; j++)
+        {
+            auto derive = derivatives(CosTheta4, wrt(vars[i], vars[j]), at(ab, ag, ae, bg, be, ge));
+            d2_cos_array[i][j] = derive[2];
+            d2_cos_array[j][i] = derive[2];
+            if(i == j)
+                d_cos_array[i] = derive[1];
+        }
+    }
 }
 
 //First Derivative of Theta Function (Creates 1st derivative vector)
