@@ -383,6 +383,17 @@ namespace mds
     }
 
     template<class float_type>
+    static inline void zeroarray6 ( float_type A[6] )
+    {
+        A[0] = (float_type)0.0;
+        A[1] = (float_type)0.0;
+        A[2] = (float_type)0.0;
+        A[3] = (float_type)0.0;
+        A[4] = (float_type)0.0;
+        A[5] = (float_type)0.0;
+    }
+
+    template<class float_type>
     static inline bool iszeromatrix3 ( const float_type A[3][3] )
     {   
         for ( int i = 0; i < mds_ndim; i++ )

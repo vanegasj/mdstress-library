@@ -23,6 +23,7 @@
 
 #include "mds_common.h"
 #include "mds_defines.h"
+#include <vector>
 
 namespace mds {
     void HarmonicPhiKappa(
@@ -122,6 +123,17 @@ namespace mds {
             real_ext (&coeff)[5],
             array3_ext &phi,
             matrix3_ext &kappa);
+
+    void CBTDihPhiKappa(
+            real_ext ab,
+            real_ext bg,
+            real_ext ag,
+            real_ext ae,
+            real_ext be,
+            real_ext ge,
+            std::vector<real_ext>,
+            array6_ext &phi,
+            matrix6_ext &kappa);
 }
 
 #endif//mds_support_h

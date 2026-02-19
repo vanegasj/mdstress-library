@@ -659,6 +659,12 @@ static void decompose_n4(
 
     const array3_mds Fij6 = {lcd * CD[0], lcd * CD[1], lcd * CD[2]};
     distribute_n2(state, Rc, Rd, &Fij6, grid, nullptr, nullptr, nullptr, nullptr, nullptr, false);
+    printf("LS F_ij = %6.6f, %6.6f, %6.6f | ", Fij1[0], Fij1[1], Fij1[2]); //ij, ab
+    printf("F_jk = %6.6f, %6.6f, %6.6f | ", Fij4[0], Fij4[1], Fij4[2]); //jk, bc
+    printf("F_ik = %6.6f, %6.6f, %6.6f | ", Fij2[0], Fij2[1], Fij2[2]); //ik, ac
+    printf("F_il = %6.6f, %6.6f, %6.6f | ", Fij3[0], Fij3[1], Fij3[2]); //il, ad
+    printf("F_jl = %6.6f, %6.6f, %6.6f | ", Fij5[0], Fij5[1], Fij5[2]); //jl, bd
+    printf("F_kl = %6.6f, %6.6f, %6.6f\n", Fij6[0], Fij6[1], Fij6[2]); //kl, cd
 }
 
 // Decompose 5-body potentials (CMAP)

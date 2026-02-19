@@ -20,6 +20,8 @@
 
 #include "mds_support.h"
 #include "mds_basicops.h"
+#include <map>
+#include <functional>
 
 //#include "./contrib/autodiff/forward/dual.hpp"
 #include <autodiff/forward/dual.hpp>
@@ -41,7 +43,7 @@ ad::dual2nd CosTheta3(ad::dual2nd ab, ad::dual2nd bg, ad::dual2nd ag)
 }
 
 //autodiff Derivative of Cosine Function (creates derivative vector)
-void ThreeBodyCosineD(real_mds ab, real_mds bg, real_mds ag, mds::array3_mds &d_cos_array)
+/*void ThreeBodyCosineD(real_mds rab, real_mds rbg, real_mds rag, mds::array3_mds &d_cos_array)
 {
     ad::dual2nd ab = rab;
     ad::dual2nd bg = rbg;
@@ -49,7 +51,7 @@ void ThreeBodyCosineD(real_mds ab, real_mds bg, real_mds ag, mds::array3_mds &d_
     d_cos_array[iab] = ad::derivative(CosTheta3, ad::wrt(ab), ad::at(ab, bg, ag));
     d_cos_array[ibg] = ad::derivative(CosTheta3, ad::wrt(bg), ad::at(ab, bg, ag));
     d_cos_array[iag] = ad::derivative(CosTheta3, ad::wrt(ag), ad::at(ab, bg, ag));
-}
+}*/
 
 //Derivative of Cosine Function (creates derivative vector)
 /*void ThreeBodyCosineD(real_mds ab, real_mds bg, real_mds ag, mds::array3_mds &d_cos_array)
@@ -76,7 +78,7 @@ void ThreeBodyCosineD(real_mds ab, real_mds bg, real_mds ag, mds::array3_mds &d_
 }*/
 
 //autodiff First and Second Derivative of Cosine Function (Creates derivative matrix(D2) and vector(D1))
-void ThreeBodyCosineD2(real_mds ab, real_mds bg, real_mds ag, mds::array3_mds &d_cos_array, mds::array3_mds &d2_cos_array)
+void ThreeBodyCosineD2(real_mds rab, real_mds rbg, real_mds rag, mds::array3_mds &d_cos_array, mds::matrix3_mds &d2_cos_array)
 {
     ad::dual2nd ab = rab;
     ad::dual2nd bg = rbg;
@@ -154,7 +156,7 @@ void ThreeBodyCosineD2(real_mds ab, real_mds bg, real_mds ag, mds::array3_mds &d
     d2_cos_array[iag][iag] = numer / denom;
 }*/
 
-ad::dual2nd CosTheta4(ad::dual2nd ab, ad::dual2nd ag, ad::dual2nd ae, ad::dual2nd bg, ad::dual2nd be, ad::dual2nd ge)
+ad::dual2nd CosTheta4(ad::dual2nd ab, ad::dual2nd bg, ad::dual2nd ag, ad::dual2nd ae, ad::dual2nd be, ad::dual2nd ge)
 {
     ad::dual2nd D_bge = -(bg + be + ge)*(bg + be - ge)*(ge + bg - be)*(be + ge - bg);
     ad::dual2nd D_bga = -(bg + ab + ag)*(bg + ab - ag)*(ag + bg - ab)*(ab + ag - bg);
@@ -162,15 +164,22 @@ ad::dual2nd CosTheta4(ad::dual2nd ab, ad::dual2nd ag, ad::dual2nd ae, ad::dual2n
     return D_bg/(sqrt(D_bge * D_bga));
 }
 
-void FourBodyCosineD2(real_mds ab, real_mds ag, real_mds ae, real_mds bg, real_mds be, real_mds ge, mds::array3_mds &d_cos_array, mds::array3_mds &d2_cos_array)
+void FourBodyCosineD2(real_mds rab, real_mds rbg, real_mds rag, real_mds rae, real_mds rbe, real_mds rge, mds::array6_mds &d_cos_array, mds::matrix6_mds &d2_cos_array)
 {
-    real_mds vars[6] = {ab, bg, ag, ae, be, ge};
+    ad::dual2nd ab = rab;
+    ad::dual2nd bg = rbg;
+    ad::dual2nd ag = rag;
+    ad::dual2nd ae = rae;
+    ad::dual2nd be = rbe;
+    ad::dual2nd ge = rge;
+
+    ad::dual2nd vars[6] = {ab, bg, ag, ae, be, ge};
 
     for(int i = 0; i < 6; i++)
     {
         for(int j = i; j < 6; j++)
         {
-            auto derive = derivatives(CosTheta4, wrt(vars[i], vars[j]), at(ab, ag, ae, bg, be, ge));
+            auto derive = derivatives(CosTheta4, ad::wrt(vars[i], vars[j]), ad::at(ab, ag, ae, bg, be, ge));
             d2_cos_array[i][j] = derive[2];
             d2_cos_array[j][i] = derive[2];
             if(i == j)
@@ -211,17 +220,17 @@ void ThreeBodyThetaD2(real_mds costheta, array3_mds d_cos_array, matrix3_mds &d2
     }
 }
 
-void FourBodyThetaD(real_mds costheta, array6_mds &d_cos_di_array, array6_mds &d_theta_di_array) {
+void FourBodyThetaD(real_mds costheta, array6_mds &d_cos_array, array6_mds &d_theta_array) {
     real_mds scalefactor;
 
     scalefactor = realval_mds(-1.0) / sqrt(realval_mds(1.0) - (costheta * costheta));
 
     for (int i = 0; i < 6; i++) {
-        d_theta_di_array[i] = scalefactor * d_cos_di_array[i];
+        d_theta_array[i] = scalefactor * d_cos_array[i];
     }
 }
 
-void FourBodyThetaD2(real_mds costheta, array6_mds &d_cos_di_array, matrix6_mds &d2_cos_di_array, matrix6_mds &d2_theta_di_array) {
+void FourBodyThetaD2(real_mds costheta, array6_mds &d_cos_array, matrix6_mds &d2_cos_array, matrix6_mds &d2_theta_array) {
     real_mds scalefactor;
     real_mds sinthetasq;
 
@@ -230,14 +239,14 @@ void FourBodyThetaD2(real_mds costheta, array6_mds &d_cos_di_array, matrix6_mds 
 
     for (int i = 0; i < 6; i++) {
         for (int j = 0; j < 6; j++) {
-            d2_theta_di_array[i][j] = scalefactor * ((-sinthetasq) * d2_cos_di_array[i][j] - costheta * d_cos_di_array[i] * d_cos_di_array[j]);
+            d2_theta_array[i][j] = scalefactor * ((-sinthetasq) * d2_cos_array[i][j] - costheta * d_cos_array[i] * d_cos_array[j]);
         }
     }
 }
 
 //Auxiliary Methods to Calculate the Phi and Kappa Terms for the Born Term
 // For cosine derivative functions must be called before the theta derivatives. 
-// derivative identifier dertype ab = 0, bg = 1, ag = 3
+// derivative identifier dertype ab = 0, bg = 1, ag = 2
 
 // ab|bg|ag = 0 | 1 | 2
 
@@ -522,36 +531,115 @@ void mds::QuarticAnglePhiKappa(real_ext ab_ext, real_ext bg_ext, real_ext ag_ext
     }
 }
 
-/*Tetrahedron Calculations, use tetrahedron vector and tetrahedron matrix
- *Keep in mind all calculations find the dihedral angle between bonds ab and ge.
- *This dihedral angle is called thetabg as it is the twisting between beta and gamma.
- *
- *First Derivative: Define Tetrahedron Derivative Vector
- *
- * ab | ag | ae | bg | be | ge | = 0 | 1 | 2 | 3 | 4 | 5 |
- *
- * Second Derivative: Define Tetrahedron Derivative Matrix
- * abab | agab | aeab | bgab | beab | geab | = 00 | 01 | 02 | 03 | 04 | 05 |
- * abag | agag | aeag | bgag | beag | geag | = 10 | 11 | 12 | 13 | 14 | 15 |
- * abae | agae | aeae | bgae | beae | geae | = 20 | 21 | 22 | 23 | 24 | 25 |
- * abbg | agbg | aebg | bgbg | bebg | gebg | = 30 | 31 | 32 | 33 | 34 | 35 |
- * abbe | agbe | aebe | bgbe | bebe | gebe | = 40 | 41 | 42 | 43 | 44 | 45 |
- * abge | agge | aege | bgge | bege | gege | = 50 | 51 | 52 | 53 | 54 | 55 |
- *
-*/
+void FourBodyPhiKappa(real_ext rab, real_ext rbg, real_ext rag, real_ext rae, real_ext rbe, real_ext rge, std::vector<real_ext> par, array6_ext &phi, matrix6_ext &kappa,
+                      std::function<ad::dual2nd(ad::dual2nd, ad::dual2nd, ad::dual2nd, ad::dual2nd, ad::dual2nd, ad::dual2nd, std::vector<real_ext>)> func)
+{
+    ad::dual2nd ab = rab;
+    ad::dual2nd bg = rbg;
+    ad::dual2nd ag = rag;
+    ad::dual2nd ae = rae;
+    ad::dual2nd be = rbe;
+    ad::dual2nd ge = rge;
 
-//List of 4-body Potential Auxilery Functions
-//Unimplimented, Will Be implimented Later
-/*
-*void impdihed_harmonic_phi_kappa(){
-*
-*}
-*
-*void propdihed_periodic_phi_kappa(){
-*
-*}
-*
-*void propdihed_fourier_phi_kappa(){
-*
-*}
-*/
+    auto [ad0, ad1, ad2] = derivatives(func, ad::wrt(ab, ab), ad::at(ab, bg, ag, ae, be, ge, par));
+    phi[iab] = ad1;
+    kappa[iab][iab] = ad2;
+    auto [bd0, bd1, bd2] = derivatives(func, ad::wrt(ab, ag), ad::at(ab, bg, ag, ae, be, ge, par));
+    kappa[iab][iag] = bd2;
+    kappa[iag][iab] = bd2;
+    auto [cd0, cd1, cd2] = derivatives(func, ad::wrt(ab, ae), ad::at(ab, bg, ag, ae, be, ge, par));
+    kappa[iab][iae] = cd2;
+    kappa[iae][iab] = cd2;
+    auto [dd0, dd1, dd2] = derivatives(func, ad::wrt(ab, bg), ad::at(ab, bg, ag, ae, be, ge, par));
+    kappa[iab][ibg] = dd2;
+    kappa[ibg][iab] = dd2;
+    auto [ed0, ed1, ed2] = derivatives(func, ad::wrt(ab, be), ad::at(ab, bg, ag, ae, be, ge, par));
+    kappa[iab][ibe] = ed2;
+    kappa[ibe][iab] = ed2;
+    auto [fd0, fd1, fd2] = derivatives(func, ad::wrt(ab, ge), ad::at(ab, bg, ag, ae, be, ge, par));
+    kappa[iab][ige] = fd2;
+    kappa[ige][iab] = fd2;
+
+    auto [gd0, gd1, gd2] = derivatives(func, ad::wrt(ag, ag), ad::at(ab, bg, ag, ae, be, ge, par));
+    phi[iag] = gd1;
+    kappa[iag][iag] = gd2;
+    auto [hd0, hd1, hd2] = derivatives(func, ad::wrt(ag, ae), ad::at(ab, bg, ag, ae, be, ge, par));
+    kappa[iag][iae] = hd2;
+    kappa[iae][iag] = hd2;
+    auto [id0, id1, id2] = derivatives(func, ad::wrt(ag, bg), ad::at(ab, bg, ag, ae, be, ge, par));
+    kappa[iag][ibg] = id2;
+    kappa[ibg][iag] = id2;
+    auto [jd0, jd1, jd2] = derivatives(func, ad::wrt(ag, be), ad::at(ab, bg, ag, ae, be, ge, par));
+    kappa[iag][ibe] = jd2;
+    kappa[ibe][iag] = jd2;
+    auto [kd0, kd1, kd2] = derivatives(func, ad::wrt(ag, ge), ad::at(ab, bg, ag, ae, be, ge, par));
+    kappa[iag][ige] = kd2;
+    kappa[ige][iag] = kd2;
+
+    auto [ld0, ld1, ld2] = derivatives(func, ad::wrt(ae, ae), ad::at(ab, bg, ag, ae, be, ge, par));
+    phi[iae] = ld1;
+    kappa[iae][iae] = ld2;
+    auto [md0, md1, md2] = derivatives(func, ad::wrt(ae, bg), ad::at(ab, bg, ag, ae, be, ge, par));
+    kappa[iae][ibg] = md2;
+    kappa[ibg][iae] = md2;
+    auto [nd0, nd1, nd2] = derivatives(func, ad::wrt(ae, be), ad::at(ab, bg, ag, ae, be, ge, par));
+    kappa[iae][ibe] = nd2;
+    kappa[ibe][iae] = nd2;
+    auto [od0, od1, od2] = derivatives(func, ad::wrt(ae, ge), ad::at(ab, bg, ag, ae, be, ge, par));
+    kappa[iae][ige] = od2;
+    kappa[ige][iae] = od2;
+
+    auto [pd0, pd1, pd2] = derivatives(func, ad::wrt(bg, bg), ad::at(ab, bg, ag, ae, be, ge, par));
+    phi[ibg] = pd1;
+    kappa[ibg][ibg] = pd2;
+    auto [qd0, qd1, qd2] = derivatives(func, ad::wrt(bg, be), ad::at(ab, bg, ag, ae, be, ge, par));
+    kappa[ibg][ibe] = qd2;
+    kappa[ibe][ibg] = qd2;
+    auto [rd0, rd1, rd2] = derivatives(func, ad::wrt(bg, ge), ad::at(ab, bg, ag, ae, be, ge, par));
+    kappa[ibg][ige] = rd2;
+    kappa[ige][ibg] = rd2;
+
+    auto [sd0, sd1, sd2] = derivatives(func, ad::wrt(be, be), ad::at(ab, bg, ag, ae, be, ge, par));
+    phi[ibe] = sd1;
+    kappa[ibe][ibe] = sd2;
+    auto [td0, td1, td2] = derivatives(func, ad::wrt(be, ge), ad::at(ab, bg, ag, ae, be, ge, par));
+    kappa[ibe][ige] = td2;
+    kappa[ige][ibe] = td2;
+
+    auto [ud0, ud1, ud2] = derivatives(func, ad::wrt(ge, ge), ad::at(ab, bg, ag, ae, be, ge, par));
+    phi[ige] = ud1;
+    kappa[ige][ige] = ud2;
+}
+
+ad::dual2nd CBTDihPot(ad::dual2nd ab, ad::dual2nd bg, ad::dual2nd ag, ad::dual2nd ae, ad::dual2nd be, ad::dual2nd ge, std::vector<real_ext> par)
+{
+    //variable testing
+    /*
+    auto [cosine_theta_ante, d1, b1] = derivatives(CosTheta3, ad::wrt(ab, ab), ad::at(ab, bg, ag));
+    auto [cosine_theta_post, d2, b2] = derivatives(CosTheta3, ad::wrt(bg, bg), ad::at(bg, ge, be));
+    auto [cosine_phi, d3, b3] = derivatives(CosTheta4, ad::wrt(ab, ab), ad::at(ab, bg, ag, ae, be, ge));
+    double sine_theta_ante = sqrt(1 - cosine_theta_ante*cosine_theta_ante);
+    double sine_theta_post = sqrt(1 - cosine_theta_post*cosine_theta_post);
+    printf("AD sin_i-1 = %6.6f, cos_i-1 = %6.6f, sin_i = %6.6f, cos_i = %6.6f, cos_phi = %6.6f\n",
+            sine_theta_ante, cosine_theta_ante, sine_theta_post, cosine_theta_post, cosine_phi);
+    */
+
+    ad::dual2nd k  = par[0];
+    ad::dual2nd a0 = par[1];
+    ad::dual2nd a1 = par[2];
+    ad::dual2nd a2 = par[3];
+    ad::dual2nd a3 = par[4];
+    ad::dual2nd a4 = par[5];
+    return k*pow(sqrt(1 - CosTheta3(ab, bg, ag)*CosTheta3(ab, bg, ag)), 3)*
+                 pow(sqrt(1 - CosTheta3(bg, ge, be)*CosTheta3(bg, ge, be)), 3)*
+                (a0 + a1*CosTheta4(ab, bg, ag, ae, be, ge) +
+                          a2*pow(CosTheta4(ab, bg, ag, ae, be, ge),2) +
+                          a3*pow(CosTheta4(ab, bg, ag, ae, be, ge),3) +
+                          a4*pow(CosTheta4(ab, bg, ag, ae, be, ge),4));
+}
+
+//Calculate the Phi and Kappa for CBT - Combined Bending Torsion Dihedral
+void mds::CBTDihPhiKappa(real_ext rab, real_ext rbg, real_ext rag, real_ext rae, real_ext rbe, real_ext rge, std::vector<real_ext> par, array6_ext &phi, matrix6_ext &kappa)
+{
+    FourBodyPhiKappa(rab, rbg, rag, rae, rbe, rge, par, phi, kappa, CBTDihPot);
+}
