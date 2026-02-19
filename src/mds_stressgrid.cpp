@@ -52,6 +52,18 @@ bool printed_dispersion = false;
 
 
 
+static inline int fast_grid_mod(int val, int gridSize)
+{
+    val = val + (val < 0) * gridSize;
+    val = val - (val >= gridSize) * gridSize;
+    return val;
+}
+
+static inline int fast_grid_mod_positive(int val, int gridSize)
+{
+    return (val >= gridSize) ? (val - gridSize) : val;
+}
+
 static inline void distribute_observables_3d(
         const state_t  & state,
         const array3_mds & xi,
@@ -62,101 +74,60 @@ static inline void distribute_observables_3d(
         matrix3_mds * stress_grid,
         matrix6_mds * elast_grid)
 {
-    // -----------------------------------------------------------------------
-    // OPT-1  EARLY EXIT
-    // The original has no guard; it computes every loop-setup value even
-    // when both output grids are null.  One correctly-predicted branch
-    // avoids all of the work below in that case.
-    // -----------------------------------------------------------------------
+    // OPT-1: early exit
     if (stress_grid == nullptr && elast_grid == nullptr) return;
 
-    // -----------------------------------------------------------------------
-    // OPT-2  CACHE GRID DIMENSIONS AND STRIDES IN LOCALS
-    // state.gridCells[] and state.invbox[][] are struct members accessed
-    // through a reference; hoisting them into named scalars guarantees
-    // register-residence and allows the compiler to see them as constants,
-    // enabling further CSE/strength-reduction passes.
-    // -----------------------------------------------------------------------
-    const int   nx    = state.gridCells[0];
-    const int   ny    = state.gridCells[1];
-    const int   nz    = state.gridCells[2];
-    const int   nynz  = ny * nz;                 // x-stride in flat grid index
+    // OPT-2: cache grid dimensions
+    const int nx   = state.gridCells[0];
+    const int ny   = state.gridCells[1];
+    const int nz   = state.gridCells[2];
+    const int nynz = ny * nz;
 
-    // -----------------------------------------------------------------------
-    // OPT-3  FUSED COORDINATE → CELL-INDEX SCALE FACTORS
-    // Original: state.gridCells[d] * x[d] * state.invbox[d][d]
-    //   = 2 multiplications per coordinate per particle (12 total for i1,i2)
-    // Here: precompute  scale[d] = gridCells[d] * invbox[d][d]  once (3 muls)
-    //   then  x[d] * scale[d]  (1 mul each, 6 total) → saves 3 multiplications.
-    // -----------------------------------------------------------------------
-    const real_mds scaleX = static_cast<real_mds>(nx) * state.invbox[0][0];
-    const real_mds scaleY = static_cast<real_mds>(ny) * state.invbox[1][1];
-    const real_mds scaleZ = static_cast<real_mds>(nz) * state.invbox[2][2];
+    // OPT-3: fused scale factors
+    const real_mds sx = state.invbox[0][0] * static_cast<real_mds>(nx);
+    const real_mds sy = state.invbox[1][1] * static_cast<real_mds>(ny);
+    const real_mds sz = state.invbox[2][2] * static_cast<real_mds>(nz);
 
-    // Cell indices for xi (mutable — advanced each loop iteration)
     iarray i1 = {
-        static_cast<int>(xi[0] * scaleX) - (xi[0] < realval_mds(0.0)),
-        static_cast<int>(xi[1] * scaleY) - (xi[1] < realval_mds(0.0)),
-        static_cast<int>(xi[2] * scaleZ) - (xi[2] < realval_mds(0.0))
+        static_cast<int>(xi[0] * sx) - (xi[0] < realval_mds(0.0)),
+        static_cast<int>(xi[1] * sy) - (xi[1] < realval_mds(0.0)),
+        static_cast<int>(xi[2] * sz) - (xi[2] < realval_mds(0.0))
     };
-    // Cell indices for xj (constant)
     const iarray i2 = {
-        static_cast<int>(xj[0] * scaleX) - (xj[0] < realval_mds(0.0)),
-        static_cast<int>(xj[1] * scaleY) - (xj[1] < realval_mds(0.0)),
-        static_cast<int>(xj[2] * scaleZ) - (xj[2] < realval_mds(0.0))
+        static_cast<int>(xj[0] * sx) - (xj[0] < realval_mds(0.0)),
+        static_cast<int>(xj[1] * sy) - (xj[1] < realval_mds(0.0)),
+        static_cast<int>(xj[2] * sz) - (xj[2] < realval_mds(0.0))
     };
 
-    // Direction of cell traversal: -1, 0, or +1 per dimension
     const iarray c = {
         (i2[0] > i1[0]) - (i1[0] > i2[0]),
         (i2[1] > i1[1]) - (i1[1] > i2[1]),
         (i2[2] > i1[2]) - (i1[2] > i2[2])
     };
 
-    // Total number of cell-boundary crossings along the segment
     const int iterations = c[0]*(i2[0]-i1[0])
                          + c[1]*(i2[1]-i1[1])
                          + c[2]*(i2[2]-i1[2]);
 
-    // -----------------------------------------------------------------------
-    // OPT-4  SINGLE-CELL FAST PATH
-    // When both endpoints are in the same cell (iterations == 0) the segment
-    // contributes its full weight to exactly one voxel neighbourhood.
-    // The integral over [0,1] of all 8 shape-function weights sums to 1, so
-    // scalesummatrix(1.0, ...) is the correct accumulated result and we can
-    // skip all D-coefficient arithmetic entirely.
-    //
-    // In a typical MD simulation with fine grid spacing a large fraction of
-    // short-range pair interactions fall in this category, so the fast path
-    // can eliminate the inner loop for those calls entirely.
-    // -----------------------------------------------------------------------
+    // OPT-4: single-cell fast path
     if (iterations == 0) {
-        const int ii  = fast_grid_mod(i1[0], nx) * nynz;
-        const int jj  = fast_grid_mod(i1[1], ny) * nz;
-        const int kk  = fast_grid_mod(i1[2], nz);
-        const int idx = ii + jj + kk;
+        const int idx = fast_grid_mod(i1[0], nx) * nynz
+                      + fast_grid_mod(i1[1], ny) * nz
+                      + fast_grid_mod(i1[2], nz);
         if (stress_grid != nullptr)
             scalesummatrix3(realval_mds(1.0), *stress, stress_grid[idx]);
-        if (elast_grid != nullptr)
+        if (elast_grid  != nullptr)
             scalesummatrix6(realval_mds(1.0), *elast,  elast_grid[idx]);
         return;
     }
 
-    // -----------------------------------------------------------------------
-    // OPT-5  REPLACE DIVISIONS WITH RECIPROCALS
-    // The original computes  xi[d]/(xi[d]-xj[d])  and
-    // gridsp[d]/(xi[d]-xj[d])  — two divisions sharing the same denominator.
-    // Precomputing the reciprocal once and multiplying is ~4x cheaper than
-    // each hardware division instruction (fdiv latency ~14-20 cycles on
-    // modern x86 vs fmul latency ~4-5 cycles).
-    //
-    // Guard against zero denominator: if xi[d]==xj[d] for a dimension
-    // where c[d]==0, the t[] entry for that dimension is set to 1.1
-    // (sentinel value > 1.0) by the original; we preserve that behaviour.
-    // -----------------------------------------------------------------------
-    const real_mds inv_dX = (c[0] != 0) ? realval_mds(1.0)/(xi[0]-xj[0]) : realval_mds(0.0);
-    const real_mds inv_dY = (c[1] != 0) ? realval_mds(1.0)/(xi[1]-xj[1]) : realval_mds(0.0);
-    const real_mds inv_dZ = (c[2] != 0) ? realval_mds(1.0)/(xi[2]-xj[2]) : realval_mds(0.0);
+    // OPT-5: reciprocal multiplication instead of division
+    const real_mds dX = xi[0] - xj[0];
+    const real_mds dY = xi[1] - xj[1];
+    const real_mds dZ = xi[2] - xj[2];
+    const real_mds inv_dX = (c[0] != 0) ? (realval_mds(1.0) / dX) : realval_mds(0.0);
+    const real_mds inv_dY = (c[1] != 0) ? (realval_mds(1.0) / dY) : realval_mds(0.0);
+    const real_mds inv_dZ = (c[2] != 0) ? (realval_mds(1.0) / dZ) : realval_mds(0.0);
 
     const array3_mds t_c1 = {
         xi[0] * inv_dX,
@@ -169,314 +140,143 @@ static inline void distribute_observables_3d(
         state.gridsp[2] * inv_dZ
     };
 
-    // Next boundary index along each dimension
     iarray in = {
         i1[0] + (c[0]+1)/2,
         i1[1] + (c[1]+1)/2,
         i1[2] + (c[2]+1)/2
     };
 
-    // Distance from midpoint of current voxel to xi
     array3_mds d_cgrid = {
         xi[0] - (i1[0] + realval_mds(0.5)) * state.gridsp[0],
         xi[1] - (i1[1] + realval_mds(0.5)) * state.gridsp[1],
         xi[2] - (i1[2] + realval_mds(0.5)) * state.gridsp[2]
     };
 
-    // Parametric crossing times (1.1 = sentinel for inactive dimensions)
     array3_mds t = {
         (c[0] == 0) ? realval_mds(1.1) : t_c1[0] - in[0]*t_c2[0],
         (c[1] == 0) ? realval_mds(1.1) : t_c1[1] - in[1]*t_c2[1],
         (c[2] == 0) ? realval_mds(1.1) : t_c1[2] - in[2]*t_c2[2]
     };
 
-    // -----------------------------------------------------------------------
-    // OPT-6  HOIST ALL LOOP-INVARIANT CONSTANTS BEFORE THE LOOP
-    //
-    // The original computes the following inside the loop even though they
-    // never change:  C, axy, axz, ayz, axyz, and all seven gsp* scalars.
-    // Hoisting them here guarantees they live in registers for every iteration.
-    //
-    // Additionally we precompute c[d]*gridsp[d] (used in d_cgrid update) and
-    // the per-dimension index stride multipliers so the loop body only sees
-    // simple scalar arithmetic.
-    // -----------------------------------------------------------------------
-    const real_mds C     = realval_mds(0.125) * state.invgridsp * state.invgridsp;
-    const real_mds axy   = diff[0] * diff[1];
-    const real_mds axz   = diff[0] * diff[2];
-    const real_mds ayz   = diff[1] * diff[2];
-    const real_mds axyz  = diff[0] * ayz;
+    // OPT-6: hoist loop-invariant constants
+    const real_mds C    = realval_mds(0.125) * state.invgridsp * state.invgridsp;
+    const real_mds axy  = diff[0] * diff[1];
+    const real_mds axz  = diff[0] * diff[2];
+    const real_mds ayz  = diff[1] * diff[2];
+    const real_mds axyz = diff[0] * ayz;
 
-    // Cached gridsp scalars (state.gridsp[] accessed via pointer each time in original)
     const real_mds gsp0 = state.gridsp[0];
     const real_mds gsp1 = state.gridsp[1];
     const real_mds gsp2 = state.gridsp[2];
-    const real_mds gsp3 = state.gridsp[3];   // gridsp[0]*gridsp[1]
-    const real_mds gsp4 = state.gridsp[4];   // gridsp[0]*gridsp[2]
-    const real_mds gsp5 = state.gridsp[5];   // gridsp[1]*gridsp[2]
-    const real_mds gsp6 = state.gridsp[6];   // gridsp[0]*gridsp[1]*gridsp[2]
+    const real_mds gsp3 = state.gridsp[3];
+    const real_mds gsp4 = state.gridsp[4];
+    const real_mds gsp5 = state.gridsp[5];
+    const real_mds gsp6 = state.gridsp[6];
 
-    // Per-dimension d_cgrid step amounts (loop-invariant)
     const real_mds dc_step0 = static_cast<real_mds>(c[0]) * gsp0;
     const real_mds dc_step1 = static_cast<real_mds>(c[1]) * gsp1;
     const real_mds dc_step2 = static_cast<real_mds>(c[2]) * gsp2;
 
-    // -----------------------------------------------------------------------
-    // OPT-7  SEPARATE THE NULL-CHECK FROM THE HOT LOOP
-    //
-    // The original checks  (stress_grid != nullptr)  and
-    // (elast_grid != nullptr) inside every loop iteration.  These are loop-
-    // invariant conditions: the pointer values cannot change during the loop.
-    // Moving the branch outside the loop avoids 2 * (iterations+1) redundant
-    // conditional evaluations per call.
-    //
-    // We handle the four possible combinations (both, stress-only, elast-only,
-    // neither) with four separate loop instances.  The neither case is already
-    // handled by OPT-1 above.  The compiler may merge the code paths but making
-    // it explicit ensures no overhead in the common stress-only or both cases.
-    // -----------------------------------------------------------------------
-
     real_mds oldt = realval_mds(0.0);
 
-    // Shared lambda-like macro for the D-coefficient and index computation
-    // that is identical across all three loop variants.  Using a macro rather
-    // than an inline function avoids any function-call overhead while keeping
-    // the code maintainable.
-    //
-    // NOTE: This block deliberately uses the local variables declared above
-    //       (d_cgrid, i1, t, oldt, etc.) — it is NOT self-contained.
+    for (int count = 0; count <= iterations; ++count) {
 
-#define MDS_COMPUTE_ITERATION()                                                 \
-    /* --- OPT-8: iX selection                                              */ \
-    /* The original uses integer arithmetic:                                */ \
-    /*   cmp0x = ((t[0]<t[1]+eps)+(t[0]<t[2]+eps))/2                       */ \
-    /* which compiles to 4 comparisons, 1 add, 1 integer divide, and       */ \
-    /* 3 multiplications.  A simple three-way if-chain is cheaper because  */ \
-    /* it short-circuits after at most two comparisons in the common case   */ \
-    /* and the branch predictor learns the dominant crossing dimension      */ \
-    /* quickly (the same dimension often dominates for many iterations      */ \
-    /* when the trajectory is roughly axis-aligned).                        */ \
-    const int iX = (t[0] <= t[1]+mds_eps && t[0] <= t[2]+mds_eps) ? 0         \
-                 static inline void distribute_observables_3d(
-        const state_t  & state,
-        const array3_mds & xi,
-        const array3_mds & xj,
-        const array3_mds & diff,
-        const matrix3_mds * stress,
-        const matrix6_mds * elast,
-        matrix3_mds * stress_grid,
-        matrix6_mds * elast_grid)
-{
-    // -----------------------------------------------------------------------
-    // OPT-1  EARLY EXIT
-    // The original has no guard; it computes every loop-setup value even
-    // when both output grids are null.  One correctly-predicted branch
-    // avoids all of the work below in that case.
-    // -----------------------------------------------------------------------
-    if (stress_grid == nullptr && elast_grid == nullptr) return;
+        // OPT-8: iX selection
+        int iX;
+        if      (t[0] <= t[1]+mds_eps && t[0] <= t[2]+mds_eps) iX = 0;
+        else if (t[1] <= t[2]+mds_eps)                          iX = 1;
+        else                                                     iX = 2;
 
-    // -----------------------------------------------------------------------
-    // OPT-2  CACHE GRID DIMENSIONS AND STRIDES IN LOCALS
-    // state.gridCells[] and state.invbox[][] are struct members accessed
-    // through a reference; hoisting them into named scalars guarantees
-    // register-residence and allows the compiler to see them as constants,
-    // enabling further CSE/strength-reduction passes.
-    // -----------------------------------------------------------------------
-    const int   nx    = state.gridCells[0];
-    const int   ny    = state.gridCells[1];
-    const int   nz    = state.gridCells[2];
-    const int   nynz  = ny * nz;                 // x-stride in flat grid index
+        const real_mds newt = (count == iterations) ? realval_mds(1.0) : t[iX];
 
-    // -----------------------------------------------------------------------
-    // OPT-3  FUSED COORDINATE → CELL-INDEX SCALE FACTORS
-    // Original: state.gridCells[d] * x[d] * state.invbox[d][d]
-    //   = 2 multiplications per coordinate per particle (12 total for i1,i2)
-    // Here: precompute  scale[d] = gridCells[d] * invbox[d][d]  once (3 muls)
-    //   then  x[d] * scale[d]  (1 mul each, 6 total) → saves 3 multiplications.
-    // -----------------------------------------------------------------------
-    const real_mds scaleX = static_cast<real_mds>(nx) * state.invbox[0][0];
-    const real_mds scaleY = static_cast<real_mds>(ny) * state.invbox[1][1];
-    const real_mds scaleZ = static_cast<real_mds>(nz) * state.invbox[2][2];
+        const real_mds t12 = oldt * oldt;
+        const real_mds t22 = newt * newt;
+        const real_mds dt1 = newt - oldt;
+        const real_mds dt2 = t22  - t12;
+        // OPT-9: replace /3.0 with *(4.0/3.0)
+        const real_mds dt3 = (realval_mds(4.0)/realval_mds(3.0)) * (t22*newt - t12*oldt);
+        const real_mds dt4 = t22*t22 - t12*t12;
 
-    // Cell indices for xi (mutable — advanced each loop iteration)
-    iarray i1 = {
-        static_cast<int>(xi[0] * scaleX) - (xi[0] < realval_mds(0.0)),
-        static_cast<int>(xi[1] * scaleY) - (xi[1] < realval_mds(0.0)),
-        static_cast<int>(xi[2] * scaleZ) - (xi[2] < realval_mds(0.0))
-    };
-    // Cell indices for xj (constant)
-    const iarray i2 = {
-        static_cast<int>(xj[0] * scaleX) - (xj[0] < realval_mds(0.0)),
-        static_cast<int>(xj[1] * scaleY) - (xj[1] < realval_mds(0.0)),
-        static_cast<int>(xj[2] * scaleZ) - (xj[2] < realval_mds(0.0))
-    };
+        const real_mds bxy  = d_cgrid[0] * d_cgrid[1];
+        const real_mds bxz  = d_cgrid[0] * d_cgrid[2];
+        const real_mds byz  = d_cgrid[1] * d_cgrid[2];
+        const real_mds bxyz = d_cgrid[0] * byz;
 
-    // Direction of cell traversal: -1, 0, or +1 per dimension
-    const iarray c = {
-        (i2[0] > i1[0]) - (i1[0] > i2[0]),
-        (i2[1] > i1[1]) - (i1[1] > i2[1]),
-        (i2[2] > i1[2]) - (i1[2] > i2[2])
-    };
+        // OPT-11: fast modulo instead of %
+        const int iip1 = fast_grid_mod_positive(i1[0]+1, nx) * nynz;
+        const int jjp1 = fast_grid_mod_positive(i1[1]+1, ny) * nz;
+        const int kkp1 = fast_grid_mod_positive(i1[2]+1, nz);
+        const int iim1 = fast_grid_mod(i1[0], nx) * nynz;
+        const int jjm1 = fast_grid_mod(i1[1], ny) * nz;
+        const int kkm1 = fast_grid_mod(i1[2], nz);
 
-    // Total number of cell-boundary crossings along the segment
-    const int iterations = c[0]*(i2[0]-i1[0])
-                         + c[1]*(i2[1]-i1[1])
-                         + c[2]*(i2[2]-i1[2]);
+        const real_mds D0 = realval_mds(8.0)*bxyz*dt1
+                          + realval_mds(4.0)*(diff[0]*byz + diff[1]*bxz + diff[2]*bxy)*dt2
+                          + realval_mds(2.0)*(d_cgrid[0]*ayz + d_cgrid[1]*axz + d_cgrid[2]*axy)*dt3
+                          + realval_mds(2.0)*axyz*dt4;
+        const real_mds D1 = gsp0*(realval_mds(4.0)*byz*dt1 + realval_mds(2.0)*(diff[1]*d_cgrid[2]+diff[2]*d_cgrid[1])*dt2 + ayz*dt3);
+        const real_mds D2 = gsp1*(realval_mds(4.0)*bxz*dt1 + realval_mds(2.0)*(diff[0]*d_cgrid[2]+diff[2]*d_cgrid[0])*dt2 + axz*dt3);
+        const real_mds D3 = gsp2*(realval_mds(4.0)*bxy*dt1 + realval_mds(2.0)*(diff[0]*d_cgrid[1]+diff[1]*d_cgrid[0])*dt2 + axy*dt3);
+        const real_mds D4 = gsp3*(realval_mds(2.0)*d_cgrid[2]*dt1 + diff[2]*dt2);
+        const real_mds D5 = gsp4*(realval_mds(2.0)*d_cgrid[1]*dt1 + diff[1]*dt2);
+        const real_mds D6 = gsp5*(realval_mds(2.0)*d_cgrid[0]*dt1 + diff[0]*dt2);
+        const real_mds D7 = gsp6*dt1;
 
-    // -----------------------------------------------------------------------
-    // OPT-4  SINGLE-CELL FAST PATH
-    // When both endpoints are in the same cell (iterations == 0) the segment
-    // contributes its full weight to exactly one voxel neighbourhood.
-    // The integral over [0,1] of all 8 shape-function weights sums to 1, so
-    // scalesummatrix(1.0, ...) is the correct accumulated result and we can
-    // skip all D-coefficient arithmetic entirely.
-    //
-    // In a typical MD simulation with fine grid spacing a large fraction of
-    // short-range pair interactions fall in this category, so the fast path
-    // can eliminate the inner loop for those calls entirely.
-    // -----------------------------------------------------------------------
-    if (iterations == 0) {
-        const int ii  = fast_grid_mod(i1[0], nx) * nynz;
-        const int jj  = fast_grid_mod(i1[1], ny) * nz;
-        const int kk  = fast_grid_mod(i1[2], nz);
-        const int idx = ii + jj + kk;
-        if (stress_grid != nullptr)
-            scalesummatrix3(realval_mds(1.0), *stress, stress_grid[idx]);
-        if (elast_grid != nullptr)
-            scalesummatrix6(realval_mds(1.0), *elast,  elast_grid[idx]);
-        return;
+        // OPT-12: partial-sum tree
+        const real_mds D67   = D6  + D7;
+        const real_mds D567  = D5  + D67;
+        const real_mds D4567 = D4  + D567;
+
+        const real_mds sf1 = C*( D0 + D1 + D2 + D3 + D4567);
+        const real_mds sf2 = C*(-D0 - D1 - D2 + D3 - D4  + D567);
+        const real_mds sf3 = C*(-D0 - D1 + D2 - D3 + D4  - D5  + D67);
+        const real_mds sf4 = C*( D0 + D1 - D2 - D3 - D4  - D5  + D67);
+        const real_mds sf5 = C*(-D0 + D1 - D2 - D3 + D4  + D5  - D6  + D7);
+        const real_mds sf6 = C*( D0 - D1 + D2 - D3 - D4  + D5  - D67);
+        const real_mds sf7 = C*( D0 - D1 - D2 + D3 + D4  - D5  - D67);
+        const real_mds sf8 = C*(-D0 + D1 + D2 + D3 - D4567);
+
+        const int ind1 = iip1 + jjp1 + kkp1;
+        const int ind2 = iip1 + jjp1 + kkm1;
+        const int ind3 = iip1 + jjm1 + kkp1;
+        const int ind4 = iip1 + jjm1 + kkm1;
+        const int ind5 = iim1 + jjp1 + kkp1;
+        const int ind6 = iim1 + jjp1 + kkm1;
+        const int ind7 = iim1 + jjm1 + kkp1;
+        const int ind8 = iim1 + jjm1 + kkm1;
+
+        if (stress_grid != nullptr) {
+            scalesummatrix3(sf1, *stress, stress_grid[ind1]);
+            scalesummatrix3(sf2, *stress, stress_grid[ind2]);
+            scalesummatrix3(sf3, *stress, stress_grid[ind3]);
+            scalesummatrix3(sf4, *stress, stress_grid[ind4]);
+            scalesummatrix3(sf5, *stress, stress_grid[ind5]);
+            scalesummatrix3(sf6, *stress, stress_grid[ind6]);
+            scalesummatrix3(sf7, *stress, stress_grid[ind7]);
+            scalesummatrix3(sf8, *stress, stress_grid[ind8]);
+        }
+        if (elast_grid != nullptr) {
+            scalesummatrix6(sf1, *elast, elast_grid[ind1]);
+            scalesummatrix6(sf2, *elast, elast_grid[ind2]);
+            scalesummatrix6(sf3, *elast, elast_grid[ind3]);
+            scalesummatrix6(sf4, *elast, elast_grid[ind4]);
+            scalesummatrix6(sf5, *elast, elast_grid[ind5]);
+            scalesummatrix6(sf6, *elast, elast_grid[ind6]);
+            scalesummatrix6(sf7, *elast, elast_grid[ind7]);
+            scalesummatrix6(sf8, *elast, elast_grid[ind8]);
+        }
+
+        // OPT-13: precomputed d_cgrid update steps
+        if      (iX == 0) d_cgrid[0] -= dc_step0;
+        else if (iX == 1) d_cgrid[1] -= dc_step1;
+        else              d_cgrid[2] -= dc_step2;
+
+        oldt    = t[iX];
+        i1[iX] += c[iX];
+        in[iX] += c[iX];
+        t[iX]   = t_c1[iX] - in[iX]*t_c2[iX];
     }
-
-    // -----------------------------------------------------------------------
-    // OPT-5  REPLACE DIVISIONS WITH RECIPROCALS
-    // The original computes  xi[d]/(xi[d]-xj[d])  and
-    // gridsp[d]/(xi[d]-xj[d])  — two divisions sharing the same denominator.
-    // Precomputing the reciprocal once and multiplying is ~4x cheaper than
-    // each hardware division instruction (fdiv latency ~14-20 cycles on
-    // modern x86 vs fmul latency ~4-5 cycles).
-    //
-    // Guard against zero denominator: if xi[d]==xj[d] for a dimension
-    // where c[d]==0, the t[] entry for that dimension is set to 1.1
-    // (sentinel value > 1.0) by the original; we preserve that behaviour.
-    // -----------------------------------------------------------------------
-    const real_mds inv_dX = (c[0] != 0) ? realval_mds(1.0)/(xi[0]-xj[0]) : realval_mds(0.0);
-    const real_mds inv_dY = (c[1] != 0) ? realval_mds(1.0)/(xi[1]-xj[1]) : realval_mds(0.0);
-    const real_mds inv_dZ = (c[2] != 0) ? realval_mds(1.0)/(xi[2]-xj[2]) : realval_mds(0.0);
-
-    const array3_mds t_c1 = {
-        xi[0] * inv_dX,
-        xi[1] * inv_dY,
-        xi[2] * inv_dZ
-    };
-    const array3_mds t_c2 = {
-        state.gridsp[0] * inv_dX,
-        state.gridsp[1] * inv_dY,
-        state.gridsp[2] * inv_dZ
-    };
-
-    // Next boundary index along each dimension
-    iarray in = {
-        i1[0] + (c[0]+1)/2,
-        i1[1] + (c[1]+1)/2,
-        i1[2] + (c[2]+1)/2
-    };
-
-    // Distance from midpoint of current voxel to xi
-    array3_mds d_cgrid = {
-        xi[0] - (i1[0] + realval_mds(0.5)) * state.gridsp[0],
-        xi[1] - (i1[1] + realval_mds(0.5)) * state.gridsp[1],
-        xi[2] - (i1[2] + realval_mds(0.5)) * state.gridsp[2]
-    };
-
-    // Parametric crossing times (1.1 = sentinel for inactive dimensions)
-    array3_mds t = {
-        (c[0] == 0) ? realval_mds(1.1) : t_c1[0] - in[0]*t_c2[0],
-        (c[1] == 0) ? realval_mds(1.1) : t_c1[1] - in[1]*t_c2[1],
-        (c[2] == 0) ? realval_mds(1.1) : t_c1[2] - in[2]*t_c2[2]
-    };
-
-    // -----------------------------------------------------------------------
-    // OPT-6  HOIST ALL LOOP-INVARIANT CONSTANTS BEFORE THE LOOP
-    //
-    // The original computes the following inside the loop even though they
-    // never change:  C, axy, axz, ayz, axyz, and all seven gsp* scalars.
-    // Hoisting them here guarantees they live in registers for every iteration.
-    //
-    // Additionally we precompute c[d]*gridsp[d] (used in d_cgrid update) and
-    // the per-dimension index stride multipliers so the loop body only sees
-    // simple scalar arithmetic.
-    // -----------------------------------------------------------------------
-    const real_mds C     = realval_mds(0.125) * state.invgridsp * state.invgridsp;
-    const real_mds axy   = diff[0] * diff[1];
-    const real_mds axz   = diff[0] * diff[2];
-    const real_mds ayz   = diff[1] * diff[2];
-    const real_mds axyz  = diff[0] * ayz;
-
-    // Cached gridsp scalars (state.gridsp[] accessed via pointer each time in original)
-    const real_mds gsp0 = state.gridsp[0];
-    const real_mds gsp1 = state.gridsp[1];
-    const real_mds gsp2 = state.gridsp[2];
-    const real_mds gsp3 = state.gridsp[3];   // gridsp[0]*gridsp[1]
-    const real_mds gsp4 = state.gridsp[4];   // gridsp[0]*gridsp[2]
-    const real_mds gsp5 = state.gridsp[5];   // gridsp[1]*gridsp[2]
-    const real_mds gsp6 = state.gridsp[6];   // gridsp[0]*gridsp[1]*gridsp[2]
-
-    // Per-dimension d_cgrid step amounts (loop-invariant)
-    const real_mds dc_step0 = static_cast<real_mds>(c[0]) * gsp0;
-    const real_mds dc_step1 = static_cast<real_mds>(c[1]) * gsp1;
-    const real_mds dc_step2 = static_cast<real_mds>(c[2]) * gsp2;
-
-    // -----------------------------------------------------------------------
-    // OPT-7  SEPARATE THE NULL-CHECK FROM THE HOT LOOP
-    //
-    // The original checks  (stress_grid != nullptr)  and
-    // (elast_grid != nullptr) inside every loop iteration.  These are loop-
-    // invariant conditions: the pointer values cannot change during the loop.
-    // Moving the branch outside the loop avoids 2 * (iterations+1) redundant
-    // conditional evaluations per call.
-    //
-    // We handle the four possible combinations (both, stress-only, elast-only,
-    // neither) with four separate loop instances.  The neither case is already
-    // handled by OPT-1 above.  The compiler may merge the code paths but making
-    // it explicit ensures no overhead in the common stress-only or both cases.
-    // -----------------------------------------------------------------------
-
-    real_mds oldt = realval_mds(0.0);
-
-    // Shared lambda-like macro for the D-coefficient and index computation
-    // that is identical across all three loop variants.  Using a macro rather
-    // than an inline function avoids any function-call overhead while keeping
-    // the code maintainable.
-    //
-    // NOTE: This block deliberately uses the local variables declared above
-    //       (d_cgrid, i1, t, oldt, etc.) — it is NOT self-contained.
-
-#define MDS_COMPUTE_ITERATION()                                                 \
-    /* --- OPT-8: iX selection                                              */ \
-    /* The original uses integer arithmetic:                                */ \
-    /*   cmp0x = ((t[0]<t[1]+eps)+(t[0]<t[2]+eps))/2                       */ \
-    /* which compiles to 4 comparisons, 1 add, 1 integer divide, and       */ \
-    /* 3 multiplications.  A simple three-way if-chain is cheaper because  */ \
-    /* it short-circuits after at most two comparisons in the common case   */ \
-    /* and the branch predictor learns the dominant crossing dimension      */ \
-    /* quickly (the same dimension often dominates for many iterations      */ \
-    /* when the trajectory is roughly axis-aligned).                        */ \
-    const int iX = (t[0] <= t[1]+mds_eps && t[0] <= t[2]+mds_eps) ? 0         \
-                 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+}
 
 static inline void distribute_observables_1d(
         const state_t & state,
