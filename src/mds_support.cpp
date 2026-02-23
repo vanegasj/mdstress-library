@@ -643,3 +643,50 @@ void mds::CBTDihPhiKappa(real_ext rab, real_ext rbg, real_ext rag, real_ext rae,
 {
     FourBodyPhiKappa(rab, rbg, rag, rae, rbe, rge, par, phi, kappa, CBTDihPot);
 }
+
+ad::dual2nd ImpDihHarmonic(ad::dual2nd ab, ad::dual2nd bg, ad::dual2nd ag, ad::dual2nd ae, ad::dual2nd be, ad::dual2nd ge, std::vector<real_ext> par)
+{
+    ad::dual2nd k  = par[0];
+    // are the xi values computable?
+    ad::dual2nd xi = par[1];
+    ad::dual2nd xi0 = par[2];
+
+    return 0.5*k*pow((xi - xi0), 2);
+}
+
+ad::dual2nd ProperDihedral(ad::dual2nd ab, ad::dual2nd bg, ad::dual2nd ag, ad::dual2nd ae, ad::dual2nd be, ad::dual2nd ge, std::vector<real_ext> par)
+{
+    ad::dual2nd phi = arccos(CosTheta4(ab, bg, ag, ae, be, ge));
+    ad::dual2nd k = par[0];
+    // is phis a specific value or can we compute it?
+    ad::dual2nd phis = par[1];
+    
+    return k*(1 + cos(n*phi - phis));
+}
+
+ad::dual2nd RyckBelleDih(ad::dual2nd ab, ad::dual2nd bg, ad::dual2nd ag, ad::dual2nd ae, ad::dual2nd be, ad::dual2nd ge, std::vector<real_ext> par)
+{
+    ad::dual2nd psi = CosTheta4(ab, bg, ag, ae, be, ge);
+    ad::dual2nd c0 = par[0];
+    ad::dual2nd c1 = par[1];
+    ad::dual2nd c2 = par[2];
+    ad::dual2nd c3 = par[3];
+    ad::dual2nd c4 = par[4];
+
+    //conversions can be done by multiplying cn by -1^n
+    return  -c0*psi +
+            c1*pow(psi, 2) +
+            -c2*pow(psi, 3) +
+            c3*pow(psi, 4) +
+            -c4*pow(psi, 5);
+}
+
+ad::dual2nd RestrictTorPotential(ad::dual2nd ab, ad::dual2nd bg, ad::dual2nd ag, ad::dual2nd ae, ad::dual2nd be, ad::dual2nd ge, std::vector<real_ext> par)
+{
+    ad::dual2nd psi = CosTheta4(ab, bg, ag, ae, be, ge);
+    ad::dual2nd k = par[0];
+    // is psi0 a specific value or can we compute it?
+    ad::dual2nd psi0 = par[1];
+
+    return 0.5*k*((pow(psi - psi0), 2) / pow(psi, 2));
+}
