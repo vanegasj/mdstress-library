@@ -1,3 +1,4 @@
+
 /*=========================================================================
 
   Module    : MDStress
@@ -480,131 +481,164 @@ static inline void distribute_n2(
         matrix6_mds * elast_grid,
         const bool bPointWise = false)
 {
-    // Calculate the stress tensor
+    // Calculate the difference vector with periodic boundary handling
     array3_mds xij;
-    diffarray3( xj, xi, xij, state.box, state.periodic);
+    diffarray3(xj, xi, xij, state.box, state.periodic);
 
 #ifdef CUSTRESS_ENABLE
-    if (settings.cuda && custress_distribute_pair_interaction(xi,xj,F,batch_id))
+    if (settings.cuda && custress_distribute_pair_interaction(xi, xj, F, batch_id))
         return;
 #endif
 
-    // stress is relatively inexpensive so just do it here to reduce cases later
+    // Determine what we need to compute
+    const bool compute_stress = (F != nullptr);
+    const bool compute_elast = (phi != nullptr) && 
+                               (realval_ext(0.0) != phi[0] || realval_ext(0.0) != kappa[1]);
+    
+    // Early exit if nothing to compute
+    if (!compute_stress && !compute_elast) {
+        return;
+    }
+
+    // Compute stress tensor (outer product of F and xij)
     matrix3_mds stress;
-    if (nullptr != F) {
-        stress[0][0] = F[0][0]*xij[0];
-        stress[0][1] = F[0][0]*xij[1];
-        stress[0][2] = F[0][0]*xij[2];
-        stress[1][0] = F[0][1]*xij[0];
-        stress[1][1] = F[0][1]*xij[1];
-        stress[1][2] = F[0][1]*xij[2];
-        stress[2][0] = F[0][2]*xij[0];
-        stress[2][1] = F[0][2]*xij[1];
-        stress[2][2] = F[0][2]*xij[2];
+    if (compute_stress) {
+        // Cache force components
+        const real_mds Fx = (*F)[0];
+        const real_mds Fy = (*F)[1];
+        const real_mds Fz = (*F)[2];
+        
+        // Stress tensor: sigma_ij = F_i * r_j
+        // This is a rank-1 outer product, can be computed efficiently
+        stress[0][0] = Fx * xij[0];
+        stress[0][1] = Fx * xij[1];
+        stress[0][2] = Fx * xij[2];
+        stress[1][0] = Fy * xij[0];
+        stress[1][1] = Fy * xij[1];
+        stress[1][2] = Fy * xij[2];
+        stress[2][0] = Fz * xij[0];
+        stress[2][1] = Fz * xij[1];
+        stress[2][2] = Fz * xij[2];
     } else {
         stress_grid = nullptr;
     }
     
+    // Compute elasticity tensor
     matrix6_mds elast;
-    if (nullptr != phi &&
-            (realval_ext(0.0) != phi[0] || realval_ext(0.0) != kappa[1])) {
-        // Construct the stiffness matrix in Voigt notation
-        // 0 = xx; 1 = yy; 2 = zz; 3 = yz or zy; 4 = xz or zx; 5 = xy or yx
-        // All indices                         Voigt indices           Stress indices
-        // ( xxxx xxyy xxzz xxyz xxxz xxxy ) = ( 00 01 02 03 04 05 ) = [ 0000 0011 0022 0012 0002 0001 ]
-        // (      yyyy yyzz yyyz yyxz yyxy ) = (    11 12 13 14 15 ) = [      1111 1122 1112 1102 1101 ]
-        // (           zzzz zzyz zzxz zzxy ) = (       22 23 24 25 ) = [           2222 2212 2202 2201 ]
-        // (                yzyz yzxz yzxy ) = (          33 34 35 ) = [                1212 1202 1201 ]
-        // (                     xzxz xzxy ) = (             44 45 ) = [                     0202 0201 ]
-        // (                          xyxy ) = (                55 ) = [                          0101 ]
-
+    if (compute_elast) {
+        // Compute xkl difference vector
         array3_mds xkl;
-        diffarray3( *xl, *xk, xkl, state.box, state.periodic);
+        diffarray3(*xl, *xk, xkl, state.box, state.periodic);
 
-        const real_mds xij_norm = normarray3(xij);
-        const real_mds xkl_norm = normarray3(xkl);
-
-        const real_mds rinv = realval_mds(1.0)/xij_norm;
-        const real_mds rinv2 = real_mds(kappa[0])*rinv/xkl_norm;
-        const real_mds rinv3 = real_mds(phi[0])*rinv*rinv*rinv;
-
-        const real_mds xij00 = xij[0]*xij[0];
-        const real_mds xij11 = xij[1]*xij[1];
-        const real_mds xij22 = xij[2]*xij[2];
-        const real_mds xij01 = xij[0]*xij[1];
-        const real_mds xij02 = xij[0]*xij[2];
-        const real_mds xij12 = xij[1]*xij[2];
+        // Compute squared norms first (avoid sqrt if possible)
+        const real_mds xij_norm_sq = xij[0]*xij[0] + xij[1]*xij[1] + xij[2]*xij[2];
+        const real_mds xkl_norm_sq = xkl[0]*xkl[0] + xkl[1]*xkl[1] + xkl[2]*xkl[2];
         
-        const real_mds xij00r = xij00*rinv3;
-        const real_mds xij11r = xij11*rinv3;
-        const real_mds xij22r = xij22*rinv3;
-        const real_mds xij01r = xij01*rinv3;
-        const real_mds xij02r = xij02*rinv3;
-        const real_mds xij12r = xij12*rinv3;
+        // Now compute norms (single sqrt each)
+        const real_mds xij_norm = std::sqrt(xij_norm_sq);
+        const real_mds xkl_norm = std::sqrt(xkl_norm_sq);
 
-        const real_mds xkl00r = xkl[0]*xkl[0]*rinv2;
-        const real_mds xkl11r = xkl[1]*xkl[1]*rinv2;
-        const real_mds xkl22r = xkl[2]*xkl[2]*rinv2;
-        const real_mds xkl01r = xkl[0]*xkl[1]*rinv2;
-        const real_mds xkl02r = xkl[0]*xkl[2]*rinv2;
-        const real_mds xkl12r = xkl[1]*xkl[2]*rinv2;
+        // Precompute reciprocals
+        const real_mds rinv = realval_mds(1.0) / xij_norm;
+        const real_mds rinv2 = real_mds(kappa[0]) * rinv / xkl_norm;
+        const real_mds rinv3 = real_mds(phi[0]) * rinv * rinv * rinv;
 
-        elast[0][0] = xij00*(xkl00r - xij00r);
-        elast[0][1] = xij00*(xkl11r - xij11r);
-        elast[0][2] = xij00*(xkl22r - xij22r);
-        elast[0][3] = xij00*(xkl12r - xij12r);
-        elast[0][4] = xij00*(xkl02r - xij02r);
-        elast[0][5] = xij00*(xkl01r - xij01r);
+        // Precompute xij products (6 unique values for symmetric tensor)
+        const real_mds xij00 = xij[0] * xij[0];
+        const real_mds xij11 = xij[1] * xij[1];
+        const real_mds xij22 = xij[2] * xij[2];
+        const real_mds xij01 = xij[0] * xij[1];
+        const real_mds xij02 = xij[0] * xij[2];
+        const real_mds xij12 = xij[1] * xij[2];
+        
+        // Precompute xij products scaled by rinv3
+        const real_mds xij00r = xij00 * rinv3;
+        const real_mds xij11r = xij11 * rinv3;
+        const real_mds xij22r = xij22 * rinv3;
+        const real_mds xij01r = xij01 * rinv3;
+        const real_mds xij02r = xij02 * rinv3;
+        const real_mds xij12r = xij12 * rinv3;
 
-        elast[1][0] = xij11*(xkl00r - xij00r); // Added for Symm
-        elast[1][1] = xij11*(xkl11r - xij11r);
-        elast[1][2] = xij11*(xkl22r - xij22r);
-        elast[1][3] = xij11*(xkl12r - xij12r);
-        elast[1][4] = xij11*(xkl02r - xij02r);
-        elast[1][5] = xij11*(xkl01r - xij01r);
+        // Precompute xkl products scaled by rinv2
+        const real_mds xkl00r = xkl[0] * xkl[0] * rinv2;
+        const real_mds xkl11r = xkl[1] * xkl[1] * rinv2;
+        const real_mds xkl22r = xkl[2] * xkl[2] * rinv2;
+        const real_mds xkl01r = xkl[0] * xkl[1] * rinv2;
+        const real_mds xkl02r = xkl[0] * xkl[2] * rinv2;
+        const real_mds xkl12r = xkl[1] * xkl[2] * rinv2;
 
-        elast[2][0] = xij22*(xkl00r - xij00r); //Added for Symm
-        elast[2][1] = xij22*(xkl11r - xij11r); //Added for Symm
-        elast[2][2] = xij22*(xkl22r - xij22r);
-        elast[2][3] = xij22*(xkl12r - xij12r);
-        elast[2][4] = xij22*(xkl02r - xij02r);
-        elast[2][5] = xij22*(xkl01r - xij01r);
+        // Precompute the difference terms (used 6 times each)
+        const real_mds d00 = xkl00r - xij00r;
+        const real_mds d11 = xkl11r - xij11r;
+        const real_mds d22 = xkl22r - xij22r;
+        const real_mds d01 = xkl01r - xij01r;
+        const real_mds d02 = xkl02r - xij02r;
+        const real_mds d12 = xkl12r - xij12r;
 
-        elast[3][0] = xij12*(xkl00r - xij00r); //Added for Symm
-        elast[3][1] = xij12*(xkl11r - xij11r); //Added for Symm
-        elast[3][2] = xij12*(xkl22r - xij22r); //Added for Symm
-        elast[3][3] = xij12*(xkl12r - xij12r);
-        elast[3][4] = xij12*(xkl02r - xij02r);
-        elast[3][5] = xij12*(xkl01r - xij01r);
+        // Construct elasticity tensor using precomputed differences
+        // Row 0: multiply by xij00
+        elast[0][0] = xij00 * d00;
+        elast[0][1] = xij00 * d11;
+        elast[0][2] = xij00 * d22;
+        elast[0][3] = xij00 * d12;
+        elast[0][4] = xij00 * d02;
+        elast[0][5] = xij00 * d01;
 
-        elast[4][0] = xij02*(xkl00r - xij00r); // Added for Symm
-        elast[4][1] = xij02*(xkl11r - xij11r); // Added for Symm
-        elast[4][2] = xij02*(xkl22r - xij22r); // Added for Symm
-        elast[4][3] = xij02*(xkl12r - xij12r); // Added for Symm
-        elast[4][4] = xij02*(xkl02r - xij02r);
-        elast[4][5] = xij02*(xkl01r - xij01r);
+        // Row 1: multiply by xij11
+        elast[1][0] = xij11 * d00;
+        elast[1][1] = xij11 * d11;
+        elast[1][2] = xij11 * d22;
+        elast[1][3] = xij11 * d12;
+        elast[1][4] = xij11 * d02;
+        elast[1][5] = xij11 * d01;
 
-        elast[5][0] = xij01*(xkl00r - xij00r); // Added for Symm
-        elast[5][1] = xij01*(xkl11r - xij11r); // Added for Symm
-        elast[5][2] = xij01*(xkl22r - xij22r); // Added for Symm
-        elast[5][3] = xij01*(xkl12r - xij12r); // Added for Symm
-        elast[5][4] = xij01*(xkl02r - xij02r); // Added for Symm
-        elast[5][5] = xij01*(xkl01r - xij01r);
+        // Row 2: multiply by xij22
+        elast[2][0] = xij22 * d00;
+        elast[2][1] = xij22 * d11;
+        elast[2][2] = xij22 * d22;
+        elast[2][3] = xij22 * d12;
+        elast[2][4] = xij22 * d02;
+        elast[2][5] = xij22 * d01;
+
+        // Row 3: multiply by xij12
+        elast[3][0] = xij12 * d00;
+        elast[3][1] = xij12 * d11;
+        elast[3][2] = xij12 * d22;
+        elast[3][3] = xij12 * d12;
+        elast[3][4] = xij12 * d02;
+        elast[3][5] = xij12 * d01;
+
+        // Row 4: multiply by xij02
+        elast[4][0] = xij02 * d00;
+        elast[4][1] = xij02 * d11;
+        elast[4][2] = xij02 * d22;
+        elast[4][3] = xij02 * d12;
+        elast[4][4] = xij02 * d02;
+        elast[4][5] = xij02 * d01;
+
+        // Row 5: multiply by xij01
+        elast[5][0] = xij01 * d00;
+        elast[5][1] = xij01 * d11;
+        elast[5][2] = xij01 * d22;
+        elast[5][3] = xij01 * d12;
+        elast[5][4] = xij01 * d02;
+        elast[5][5] = xij01 * d01;
     } else {
         elast_grid = nullptr;
     }
 
-    if (nullptr != stress_grid || nullptr != elast_grid) {
-        if (bPointWise == true){
-            // Distribute impulsive correction in a pointwise way only on the positions at xi and xj
+    // Distribute to grid
+    if (stress_grid != nullptr || elast_grid != nullptr) {
+        if (bPointWise) {
+            // Distribute impulsive correction pointwise
             distribute_observables_ptwise_3d(state, xi, &stress, &elast, stress_grid, elast_grid);
             distribute_observables_ptwise_3d(state, xj, &stress, &elast, stress_grid, elast_grid);
-
         } else {
-
-            if (state.gridDims == mds_griddim_xyz){
+            if (state.gridDims == mds_griddim_xyz) {
+                // Use optimized 3D distribution
                 distribute_observables_3d(state, xi, xj, xij, &stress, &elast, stress_grid, elast_grid);
             } else {
+                // Use optimized 1D distribution
                 distribute_observables_1d(state, xi, xj, xij, &stress, &elast, stress_grid, elast_grid);
             }
         }
@@ -2108,3 +2142,4 @@ void StressGrid::Clear() {
         custress_clear();
 #endif//CUSTRESS_ENABLE
 }
+
