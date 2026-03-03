@@ -134,6 +134,59 @@ namespace mds {
             std::vector<real_ext>,
             array6_ext &phi,
             matrix6_ext &kappa);
+
+     void ProperDihPhiKappa(
+            real_ext ab,
+            real_ext bg,
+            real_ext ag,
+            real_ext ae,
+            real_ext be,
+            real_ext ge,
+            std::vector<real_ext>,
+            array6_ext &phi,
+            matrix6_ext &kappa);
+
+     void ImproperDihPhiKappa(
+            real_ext ab,
+            real_ext bg,
+            real_ext ag,
+            real_ext ae,
+            real_ext be,
+            real_ext ge,
+            std::vector<real_ext>,
+            array6_ext &phi,
+            matrix6_ext &kappa);
+
+     void RyckBelleDihPhiKappa(
+            real_ext ab,
+            real_ext bg,
+            real_ext ag,
+            real_ext ae,
+            real_ext be,
+            real_ext ge,
+            std::vector<real_ext>,
+            array6_ext &phi,
+            matrix6_ext &kappa);
+
+     void RestrTorsDihPhiKappa(
+            real_ext ab,
+            real_ext bg,
+            real_ext ag,
+            real_ext ae,
+            real_ext be,
+            real_ext ge,
+            std::vector<real_ext>,
+            array6_ext &phi,
+            matrix6_ext &kappa);
+
+     void RestrBendAnglePhiKappa(
+            real_ext ab,
+            real_ext bg,
+            real_ext ag,
+            std::vector<real_ext>,
+            array3_ext &phi,
+            matrix3_ext &kappa);
+
 }
 
 #endif//mds_support_h

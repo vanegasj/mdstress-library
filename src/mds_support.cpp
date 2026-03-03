@@ -4,7 +4,7 @@
   Authors   : A. Torres-Sanchez and J. M. Vanegas
   Modified  : B. Himberg and A. L. Lewis
   Purpose   : Compute the local stress from MD trajectories
-  Dad::ate      : Aug-18-2025
+  Date      : 3-3-2026
   Version   :
   Changes   :
 
@@ -261,14 +261,14 @@ void FourBodyThetaD2(real_mds costheta, array6_mds &d_cos_array, matrix6_mds &d2
  */
 
 //List of 2-body Potential Auxilery Functions
-//Calculate The Phi and Kappa for Harmonic Potential -> Implimented
+//Calculate The Phi and Kappa for Harmonic Potential -> Implemented
 void mds::HarmonicPhiKappa(real_ext deltaR, real_ext k, real_ext &phi, real_ext &kappa)
 {
     phi = k * deltaR;
     kappa = k;
 }
 
-//Calculate the Phi and Kappa for Buckingham Potential -> Not Implimented, Nonbonded?
+//Calculate the Phi and Kappa for Buckingham Potential -> Not Implemented, Nonbonded?
 void mds::BuckinghamPhiKappa(real_ext r, real_ext a, real_ext b, real_ext c, real_ext &phi, real_ext &kappa)
 {
     double exponent = -b * r;
@@ -280,14 +280,14 @@ void mds::BuckinghamPhiKappa(real_ext r, real_ext a, real_ext b, real_ext c, rea
     kappa = a * b * b * exp(exponent) - (42 * c) * rinvsix * rinvsq;
 }
 
-//Calculate the Phi and Kappa for the Fourth Power Potential -> Implimented g96bond
+//Calculate the Phi and Kappa for the Fourth Power Potential -> Implemented g96bond
 void mds::FourthPowerPhiKappa(real_ext k4, real_ext dist, real_ext dist0, real_ext &phi, real_ext &kappa)
 {
     phi = k4 * dist * (dist * dist - dist0 * dist0);
     kappa = k4 * (3 * dist * dist - dist0 * dist0);
 }
 
-//Calculate the Phi and  Kappa for the Morse Potential -> Implimented
+//Calculate the Phi and  Kappa for the Morse Potential -> Implemented
 void mds::MorsePhiKappa(real_ext expadeltaR, real_ext a, real_ext d, real_ext &phi, real_ext &kappa)
 {
     //expadeltaR = e^(-a*(r-r0))
@@ -297,14 +297,14 @@ void mds::MorsePhiKappa(real_ext expadeltaR, real_ext a, real_ext d, real_ext &p
     kappa = coeffexp * a * (2 * expadeltaR - 1);
 }
 
-//Calculate the Phi and Kappa for the Cubic Bond Potential -> Implimented
+//Calculate the Phi and Kappa for the Cubic Bond Potential -> Implemented
 void mds::CubicBondPhiKappa(real_ext deltaR, real_ext k, real_ext kcubic, real_ext &phi, real_ext &kappa)
 {
     phi = 2 * k * deltaR + 3 * k * kcubic * deltaR * deltaR;
     kappa = 2 * k + 6 * k * kcubic * deltaR;
 }
 
-//Calculate the Phi and Kappa for the FENE Potential -> Implimented
+//Calculate the Phi and Kappa for the FENE Potential -> Implemented
 void mds::FENEPhiKappa(real_ext r, real_ext k, real_ext diffratio, real_ext& phi, real_ext& kappa)
 {
     //diffratio = 1 - (r/r0)^2
@@ -324,7 +324,7 @@ void mds::FENEPhiKappa(real_ext r, real_ext k, real_ext diffratio, real_ext& phi
  * abag | bgag | agag    = 20 | 21 | 22
  */
 
-//Calculate the Phi and Kappa for the Harmonic Angle Potential -> Implimented
+//Calculate the Phi and Kappa for the Harmonic Angle Potential -> Implemented
 void mds::HarmonicAnglePhiKappa(real_ext ab_ext, real_ext bg_ext, real_ext ag_ext, real_ext costheta_ext, real_ext deltatheta_ext, real_ext k_ext, array3_ext &phi, matrix3_ext &kappa) 
 {
     // convert to internal precision
@@ -361,7 +361,7 @@ void mds::HarmonicAnglePhiKappa(real_ext ab_ext, real_ext bg_ext, real_ext ag_ex
     }
 }
 
-//Calculate the Phi and Kappa for the Harmonic Cosine Potential -> Implimented Gromos96
+//Calculate the Phi and Kappa for the Harmonic Cosine Potential -> Implemented Gromos96
 void mds::HarmonicCosPhiKappa(real_ext ab_ext, real_ext bg_ext, real_ext ag_ext, real_ext deltacos_ext, real_ext k_ext, array3_ext &phi, matrix3_ext &kappa)
 {
     // convert to internal precision
@@ -391,7 +391,7 @@ void mds::HarmonicCosPhiKappa(real_ext ab_ext, real_ext bg_ext, real_ext ag_ext,
     }
 }
 
-//Calculate the Phi and Kappa for the Urey-Bradley Potential -> Not Implimented needs an overhaul
+//Calculate the Phi and Kappa for the Urey-Bradley Potential -> Not Implemented needs an overhaul
 void mds::UreyBradleyPhiKappa(real_ext ab_ext, real_ext bg_ext, real_ext ag_ext, real_ext costheta_ext, real_ext deltaRag_ext, real_ext deltatheta_ext, real_ext ktheta_ext, real_ext kUB_ext, array3_ext &phi, matrix3_ext &kappa)
 {
     // convert to internal precision
@@ -437,7 +437,7 @@ void mds::UreyBradleyPhiKappa(real_ext ab_ext, real_ext bg_ext, real_ext ag_ext,
     kappa[iag][iag] = (real_ext)(kappa[iag][iag] + kUB);
 }
 
-//Calculate the Phi and Kappa due to the Bond Bond Cross Potential -> Implimented Gromos96
+//Calculate the Phi and Kappa due to the Bond Bond Cross Potential -> Implemented Gromos96
 void mds::BondBondCrossPhiKappa(real_ext k, real_ext deltarab, real_ext deltarbg, array3_ext &phi, matrix3_ext &kappa)
 {
     //Calculate Phi
@@ -460,7 +460,7 @@ void mds::BondBondCrossPhiKappa(real_ext k, real_ext deltarab, real_ext deltarbg
     kappa[1][0] = k;
 }
 
-//Calculate the Phi and Kappa for the Bond Angle Cross Potential -> Implimented Gromos96
+//Calculate the Phi and Kappa for the Bond Angle Cross Potential -> Implemented Gromos96
 void mds::BondAngleCrossPhiKappa(real_ext k, real_ext deltarab, real_ext deltarbg, real_ext deltarag, array3_ext &phi, matrix3_ext &kappa)
 {
     //Calculate Phi
@@ -483,7 +483,7 @@ void mds::BondAngleCrossPhiKappa(real_ext k, real_ext deltarab, real_ext deltarb
     kappa[2][1] = k;
 }
 
-//Calculate the Phi and Kappa for Quartic Angle Potential -> Implimented
+//Calculate the Phi and Kappa for Quartic Angle Potential -> Implemented
 void mds::QuarticAnglePhiKappa(real_ext ab_ext, real_ext bg_ext, real_ext ag_ext, real_ext costheta_ext, real_ext deltatheta_ext, real_ext (&coeff)[5], array3_ext &phi, matrix3_ext &kappa)
 {
     // convert to internal precision
@@ -543,6 +543,7 @@ void FourBodyPhiKappa(real_ext rab, real_ext rbg, real_ext rag, real_ext rae, re
 
     auto [ad0, ad1, ad2] = derivatives(func, ad::wrt(ab, ab), ad::at(ab, bg, ag, ae, be, ge, par));
     phi[iab] = ad1;
+    //printf("ad0 = %8.6f, ad1 = %8.6f, ad2 = %8.6f\n", ad0, ad1, ad2);
     kappa[iab][iab] = ad2;
     auto [bd0, bd1, bd2] = derivatives(func, ad::wrt(ab, ag), ad::at(ab, bg, ag, ae, be, ge, par));
     kappa[iab][iag] = bd2;
@@ -647,29 +648,29 @@ void mds::CBTDihPhiKappa(real_ext rab, real_ext rbg, real_ext rag, real_ext rae,
 // Equations derived from: https://manual.gromacs.org/documentation/current/reference-manual/functions/bonded-interactions.html
 
 // Improper dihedrals: Harmonic type (Eq. 197)
-ad::dual2nd ImpDihHarmPot(ad::dual2nd ab, ad::dual2nd bg, ad::dual2nd ag, ad::dual2nd ae, ad::dual2nd be, ad::dual2nd ge, std::vector<real_ext> par)
+ad::dual2nd ImproperDihPot(ad::dual2nd ab, ad::dual2nd bg, ad::dual2nd ag, ad::dual2nd ae, ad::dual2nd be, ad::dual2nd ge, std::vector<real_ext> par)
 {
     ad::dual2nd k  = par[0];
     ad::dual2nd xi0 = par[1];
 
-    ad::dual2nd xi = arccos(CosTheta4(ab, bg, ag, ae, be, ge));
+    ad::dual2nd xi = acos(CosTheta4(ab, bg, ag, ae, be, ge));
 
-    return 0.5*k*pow((xi - xi0), 2);
+    return 0.5*k*pow(xi - xi0, 2);
 }
 
 //Calculate the Phi and Kappa for Improper dihedrals: Harmonic type
-void mds::ImpDihHarmPhiKappa(real_ext rab, real_ext rbg, real_ext rag, real_ext rae, real_ext rbe, real_ext rge, std::vector<real_ext> par, array6_ext &phi, matrix6_ext &kappa)
+void mds::ImproperDihPhiKappa(real_ext rab, real_ext rbg, real_ext rag, real_ext rae, real_ext rbe, real_ext rge, std::vector<real_ext> par, array6_ext &phi, matrix6_ext &kappa)
 {
-    FourBodyPhiKappa(rab, rbg, rag, rae, rbe, rge, par, phi, kappa, ImpDihHarmPot);
+    FourBodyPhiKappa(rab, rbg, rag, rae, rbe, rge, par, phi, kappa, ImproperDihPot);
 }
 
 
 // Proper dihedrals: Periodic type (Eq. 198)
 ad::dual2nd ProperDihPot(ad::dual2nd ab, ad::dual2nd bg, ad::dual2nd ag, ad::dual2nd ae, ad::dual2nd be, ad::dual2nd ge, std::vector<real_ext> par)
 {
-    ad::dual2nd phi = arccos(CosTheta4(ab, bg, ag, ae, be, ge));
+    ad::dual2nd phi = acos(CosTheta4(ab, bg, ag, ae, be, ge));
     ad::dual2nd k = par[0];
-    ad::dual2nd n = par[1];
+    ad::dual2nd n = int(par[1]);
     ad::dual2nd phis = par[2];
     
     return k*(1 + cos(n*phi - phis));
@@ -709,19 +710,60 @@ void mds::RyckBelleDihPhiKappa(real_ext rab, real_ext rbg, real_ext rag, real_ex
     FourBodyPhiKappa(rab, rbg, rag, rae, rbe, rge, par, phi, kappa, RyckBelleDihPot);
 }
 
-
 // Proper dihedrals: Restricted torsion potential (Eq. 203)
-ad::dual2nd RestrictTorPot(ad::dual2nd ab, ad::dual2nd bg, ad::dual2nd ag, ad::dual2nd ae, ad::dual2nd be, ad::dual2nd ge, std::vector<real_ext> par)
+ad::dual2nd RestrTorsDihPot(ad::dual2nd ab, ad::dual2nd bg, ad::dual2nd ag, ad::dual2nd ae, ad::dual2nd be, ad::dual2nd ge, std::vector<real_ext> par)
 {
     ad::dual2nd cosphi = CosTheta4(ab, bg, ag, ae, be, ge);
     ad::dual2nd k = par[0];
     ad::dual2nd cosphi0 = par[1];
 
-    return 0.5*k*((pow(cosphi - cosphi0), 2) / (1 - pow(cosphi, 2)));
+    return 0.5*k*(pow(cosphi - cosphi0, 2) / (1 - pow(cosphi, 2)));
 }
 
 //Calculate the Phi and Kappa for Proper dihedrals: Periodic type
-void mds::RestrictTorPhiKappa(real_ext rab, real_ext rbg, real_ext rag, real_ext rae, real_ext rbe, real_ext rge, std::vector<real_ext> par, array6_ext &phi, matrix6_ext &kappa)
+void mds::RestrTorsDihPhiKappa(real_ext rab, real_ext rbg, real_ext rag, real_ext rae, real_ext rbe, real_ext rge, std::vector<real_ext> par, array6_ext &phi, matrix6_ext &kappa)
 {
-    FourBodyPhiKappa(rab, rbg, rag, rae, rbe, rge, par, phi, kappa, RestrictTorPot);
+    FourBodyPhiKappa(rab, rbg, rag, rae, rbe, rge, par, phi, kappa, RestrTorsDihPot);
+}
+
+// Proper dihedrals: Restricted torsion potential (Eq. 203)
+ad::dual2nd RestrBendAnglePot(ad::dual2nd ab, ad::dual2nd bg, ad::dual2nd ag, std::vector<real_ext> par)
+{
+    ad::dual2nd cosphi = CosTheta3(ab, bg, ag);
+    ad::dual2nd k = par[0];
+    ad::dual2nd cosphi0 = par[1];
+
+    return 0.5*k*(pow(cosphi - cosphi0, 2) / (1 - pow(cosphi, 2)));
+}
+
+//Calculate the Phi and Kappa for Proper dihedrals: Periodic type
+void mds::RestrBendAnglePhiKappa(real_ext rab, real_ext rbg, real_ext rag, std::vector<real_ext> par, array3_ext &phi, matrix3_ext &kappa)
+{
+    ad::dual2nd ab = rab;
+    ad::dual2nd bg = rbg;
+    ad::dual2nd ag = rag;
+
+    auto [d0, dab, dabab] = ad::derivatives(RestrBendAnglePot, ad::wrt(ab, ab), ad::at(ab, bg, ag, par));
+    phi[iab] = dab;
+    kappa[iab][iab] = dabab;
+
+    auto [d1, dbg, dbgab] = ad::derivatives(RestrBendAnglePot, ad::wrt(bg, ab), ad::at(ab, bg, ag, par));
+    phi[ibg] = dbg;
+    kappa[iab][ibg] = dbgab;
+    kappa[ibg][iab] = dbgab;
+
+    auto [d2, dag, dagab] = ad::derivatives(RestrBendAnglePot, ad::wrt(ag, ab), ad::at(ab, bg, ag, par));
+    phi[iag] = dag;
+    kappa[iab][iag] = dagab;
+    kappa[iag][iab] = dagab;
+
+    auto [d3, dbg2, dbgbg] = ad::derivatives(RestrBendAnglePot, ad::wrt(bg, bg), ad::at(ab, bg, ag, par));
+    kappa[ibg][ibg] = dbgbg;
+
+    auto [d4, dag2, dagbg] = ad::derivatives(RestrBendAnglePot, ad::wrt(ag, bg), ad::at(ab, bg, ag, par));
+    kappa[iag][ibg] = dagbg;
+    kappa[ibg][iag] = dagbg;
+
+    auto [d5, dag3, dagag] = ad::derivatives(RestrBendAnglePot, ad::wrt(ag, ag), ad::at(ab, bg, ag, par));
+    kappa[iag][iag] = dagag;
 }
