@@ -682,6 +682,26 @@ namespace mds
         summatrix3(a, c, c);
         zeromatrix3(a);
 #endif
+=======
+    template<class float_type>
+    static inline void zeroarray6 ( float_type A[6] )
+    {
+        A[0] = (float_type)0.0;
+        A[1] = (float_type)0.0;
+        A[2] = (float_type)0.0;
+        A[3] = (float_type)0.0;
+        A[4] = (float_type)0.0;
+        A[5] = (float_type)0.0;
+    }
+
+    template<class float_type>
+    static inline bool iszeromatrix3 ( const float_type A[3][3] )
+    {   
+        for ( int i = 0; i < mds_ndim; i++ )
+            for ( int j = 0; j < mds_ndim; j++ )
+                if (A[i][j] > (float_type)mds_eps) return false;
+                
+        return true;
     }
 
     static inline void summatrix6_and_zero(real_mds a[6][6], real_mds c[6][6])
