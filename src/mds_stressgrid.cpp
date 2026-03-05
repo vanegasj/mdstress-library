@@ -1,3 +1,4 @@
+
 /*=========================================================================
 
   Module    : MDStress
@@ -47,9 +48,25 @@ bool printed_dispersion = false;
 
 /**
  * STATIC INLINE FUNCTIONS
+ *
  */
+
+
+
+static inline int fast_grid_mod(int val, int gridSize)
+{
+    val = val + (val < 0) * gridSize;
+    val = val - (val >= gridSize) * gridSize;
+    return val;
+}
+
+static inline int fast_grid_mod_positive(int val, int gridSize)
+{
+    return (val >= gridSize) ? (val - gridSize) : val;
+}
+
 static inline void distribute_observables_3d(
-        const state_t & state,
+        const state_t  & state,
         const array3_mds & xi,
         const array3_mds & xj,
         const array3_mds & diff,
@@ -58,119 +75,167 @@ static inline void distribute_observables_3d(
         matrix3_mds * stress_grid,
         matrix6_mds * elast_grid)
 {
-    //------------------------------------------------------------------------------------
-    // calculate the grid coordinates (no pbc) for the extreme points
-    iarray i1 = {
-        int(state.gridCells[0] * xi[0] * state.invbox[0][0] - (xi[0] < 0.0) ),
-        int(state.gridCells[1] * xi[1] * state.invbox[1][1] - (xi[1] < 0.0) ),
-        int(state.gridCells[2] * xi[2] * state.invbox[2][2] - (xi[2] < 0.0) )
-    };
+    // OPT-1: early exit
+    if (stress_grid == nullptr && elast_grid == nullptr) return;
 
+    // OPT-2: cache grid dimensions
+    const int nx   = state.gridCells[0];
+    const int ny   = state.gridCells[1];
+    const int nz   = state.gridCells[2];
+    const int nynz = ny * nz;
+
+    // OPT-3: fused scale factors
+    const real_mds sx = state.invbox[0][0] * static_cast<real_mds>(nx);
+    const real_mds sy = state.invbox[1][1] * static_cast<real_mds>(ny);
+    const real_mds sz = state.invbox[2][2] * static_cast<real_mds>(nz);
+
+    iarray i1 = {
+        static_cast<int>(xi[0] * sx) - (xi[0] < realval_mds(0.0)),
+        static_cast<int>(xi[1] * sy) - (xi[1] < realval_mds(0.0)),
+        static_cast<int>(xi[2] * sz) - (xi[2] < realval_mds(0.0))
+    };
     const iarray i2 = {
-        int(state.gridCells[0] * xj[0] * state.invbox[0][0] - (xj[0] < 0.0) ),
-        int(state.gridCells[1] * xj[1] * state.invbox[1][1] - (xj[1] < 0.0) ),
-        int(state.gridCells[2] * xj[2] * state.invbox[2][2] - (xj[2] < 0.0) ),
-    };
-    const array3_mds t_c1 = {
-        xi[0] / (xi[0]-xj[0]),
-        xi[1] / (xi[1]-xj[1]),
-        xi[2] / (xi[2]-xj[2])
-    };
-    const array3_mds t_c2 = {
-        state.gridsp[0] / (xi[0]-xj[0]),
-        state.gridsp[1] / (xi[1]-xj[1]),
-        state.gridsp[2] / (xi[2]-xj[2])
+        static_cast<int>(xj[0] * sx) - (xj[0] < realval_mds(0.0)),
+        static_cast<int>(xj[1] * sy) - (xj[1] < realval_mds(0.0)),
+        static_cast<int>(xj[2] * sz) - (xj[2] < realval_mds(0.0))
     };
 
     const iarray c = {
-        int((i2[0]>i1[0])-(i1[0]>i2[0]) ),
-        int((i2[1]>i1[1])-(i1[1]>i2[1]) ),
-        int((i2[2]>i1[2])-(i1[2]>i2[2]) )
+        (i2[0] > i1[0]) - (i1[0] > i2[0]),
+        (i2[1] > i1[1]) - (i1[1] > i2[1]),
+        (i2[2] > i1[2]) - (i1[2] > i2[2])
+    };
+
+    const int iterations = c[0]*(i2[0]-i1[0])
+                         + c[1]*(i2[1]-i1[1])
+                         + c[2]*(i2[2]-i1[2]);
+
+    // OPT-4: single-cell fast path
+    if (iterations == 0) {
+        const int idx = fast_grid_mod(i1[0], nx) * nynz
+                      + fast_grid_mod(i1[1], ny) * nz
+                      + fast_grid_mod(i1[2], nz);
+        if (stress_grid != nullptr)
+            scalesummatrix3(realval_mds(1.0), *stress, stress_grid[idx]);
+        if (elast_grid  != nullptr)
+            scalesummatrix6(realval_mds(1.0), *elast,  elast_grid[idx]);
+        return;
+    }
+
+    // OPT-5: reciprocal multiplication instead of division
+    const real_mds dX = xi[0] - xj[0];
+    const real_mds dY = xi[1] - xj[1];
+    const real_mds dZ = xi[2] - xj[2];
+    const real_mds inv_dX = (c[0] != 0) ? (realval_mds(1.0) / dX) : realval_mds(0.0);
+    const real_mds inv_dY = (c[1] != 0) ? (realval_mds(1.0) / dY) : realval_mds(0.0);
+    const real_mds inv_dZ = (c[2] != 0) ? (realval_mds(1.0) / dZ) : realval_mds(0.0);
+
+    const array3_mds t_c1 = {
+        xi[0] * inv_dX,
+        xi[1] * inv_dY,
+        xi[2] * inv_dZ
+    };
+    const array3_mds t_c2 = {
+        state.gridsp[0] * inv_dX,
+        state.gridsp[1] * inv_dY,
+        state.gridsp[2] * inv_dZ
     };
 
     iarray in = {
-        int(i1[0]+(c[0]+1)/2 ),
-        int(i1[1]+(c[1]+1)/2 ),
-        int(i1[2]+(c[2]+1)/2 )
+        i1[0] + (c[0]+1)/2,
+        i1[1] + (c[1]+1)/2,
+        i1[2] + (c[2]+1)/2
     };
 
     array3_mds d_cgrid = {
-        xi[0]-(i1[0]+0.5)*state.gridsp[0],
-        xi[1]-(i1[1]+0.5)*state.gridsp[1],
-        xi[2]-(i1[2]+0.5)*state.gridsp[2]
+        xi[0] - (i1[0] + realval_mds(0.5)) * state.gridsp[0],
+        xi[1] - (i1[1] + realval_mds(0.5)) * state.gridsp[1],
+        xi[2] - (i1[2] + realval_mds(0.5)) * state.gridsp[2]
     };
 
-    // calculate parametric time in each dimension, and related constants
     array3_mds t = {
-        (c[0] == 0) ? realval_mds(1.1) : t_c1[0]-in[0]*t_c2[0],
-        (c[1] == 0) ? realval_mds(1.1) : t_c1[1]-in[1]*t_c2[1],
-        (c[2] == 0) ? realval_mds(1.1) : t_c1[2]-in[2]*t_c2[2]
+        (c[0] == 0) ? realval_mds(1.1) : t_c1[0] - in[0]*t_c2[0],
+        (c[1] == 0) ? realval_mds(1.1) : t_c1[1] - in[1]*t_c2[1],
+        (c[2] == 0) ? realval_mds(1.1) : t_c1[2] - in[2]*t_c2[2]
     };
 
-    //------------------------------------------------------------------------------------
-    // Distribute the stress
+    // OPT-6: hoist loop-invariant constants
+    const real_mds C    = realval_mds(0.125) * state.invgridsp * state.invgridsp;
+    const real_mds axy  = diff[0] * diff[1];
+    const real_mds axz  = diff[0] * diff[2];
+    const real_mds ayz  = diff[1] * diff[2];
+    const real_mds axyz = diff[0] * ayz;
 
-    // now the position/spatial constants
-    const real_mds C = realval_mds(0.125)*state.invgridsp*state.invgridsp;
-    const real_mds axy = diff[0]*diff[1];
-    const real_mds axz = diff[0]*diff[2];
-    const real_mds ayz = diff[1]*diff[2];
-    const real_mds axyz = diff[0]*ayz; 
-    
-    // track previous time of crossing
-    real_mds oldt = 0.0; 
-    
-    const int iterations = c[0]*(i2[0]-i1[0]) + c[1]*(i2[1]-i1[1]) + c[2]*(i2[2]-i1[2]);
+    const real_mds gsp0 = state.gridsp[0];
+    const real_mds gsp1 = state.gridsp[1];
+    const real_mds gsp2 = state.gridsp[2];
+    const real_mds gsp3 = state.gridsp[3];
+    const real_mds gsp4 = state.gridsp[4];
+    const real_mds gsp5 = state.gridsp[5];
+    const real_mds gsp6 = state.gridsp[6];
+
+    const real_mds dc_step0 = static_cast<real_mds>(c[0]) * gsp0;
+    const real_mds dc_step1 = static_cast<real_mds>(c[1]) * gsp1;
+    const real_mds dc_step2 = static_cast<real_mds>(c[2]) * gsp2;
+
+    real_mds oldt = realval_mds(0.0);
+
     for (int count = 0; count <= iterations; ++count) {
-        // figure out index
-        const int cmp0x = ((t[0]<t[1]+mds_eps) + (t[0]<t[2]+mds_eps))/2;
-        const int cmp1x = ((t[1]<t[0]+mds_eps) + (t[1]<t[2]+mds_eps))/2;
-        const int cmp2x = ((t[2]<t[0]+mds_eps) + (t[2]<t[1]+mds_eps))/2;
-        const int iX = (1-cmp0x)*(cmp1x+2*(1-cmp1x)*cmp2x);
-        const real_mds newt = (iterations == count) ? 1.0 : t[iX];
 
-        // work out the parametric time constants
-        const real_mds t12 = oldt*oldt;
-        const real_mds t22 = newt*newt;
+        // OPT-8: iX selection
+        int iX;
+        if      (t[0] <= t[1]+mds_eps && t[0] <= t[2]+mds_eps) iX = 0;
+        else if (t[1] <= t[2]+mds_eps)                          iX = 1;
+        else                                                     iX = 2;
+
+        const real_mds newt = (count == iterations) ? realval_mds(1.0) : t[iX];
+
+        const real_mds t12 = oldt * oldt;
+        const real_mds t22 = newt * newt;
         const real_mds dt1 = newt - oldt;
-        const real_mds dt2 = t22 - t12;
-        const real_mds dt3 = realval_mds(4.0)*(t22*newt - t12*oldt)/realval_mds(3.0);
+        const real_mds dt2 = t22  - t12;
+        // OPT-9: replace /3.0 with *(4.0/3.0)
+        const real_mds dt3 = (realval_mds(4.0)/realval_mds(3.0)) * (t22*newt - t12*oldt);
         const real_mds dt4 = t22*t22 - t12*t12;
 
-        // additional constants
-        const real_mds bxy = d_cgrid[0]*d_cgrid[1];
-        const real_mds bxz = d_cgrid[0]*d_cgrid[2];
-        const real_mds byz = d_cgrid[1]*d_cgrid[2];
-        const real_mds bxyz = d_cgrid[0]*byz;
-    
-        const int iip1 = ((i1[0] + 1 + state.gridCells[0]) % state.gridCells[0])*state.gridCells[1]*state.gridCells[2];
-        const int jjp1 = ((i1[1] + 1 + state.gridCells[1]) % state.gridCells[1])*state.gridCells[2];
-        const int kkp1 = ((i1[2] + 1 + state.gridCells[2]) % state.gridCells[2]);
-        const int iim1 = ((i1[0] + state.gridCells[0]) % state.gridCells[0])*state.gridCells[1]*state.gridCells[2];
-        const int jjm1 = ((i1[1] + state.gridCells[1]) % state.gridCells[1])*state.gridCells[2];
-        const int kkm1 = ((i1[2] + state.gridCells[2]) % state.gridCells[2]);
+        const real_mds bxy  = d_cgrid[0] * d_cgrid[1];
+        const real_mds bxz  = d_cgrid[0] * d_cgrid[2];
+        const real_mds byz  = d_cgrid[1] * d_cgrid[2];
+        const real_mds bxyz = d_cgrid[0] * byz;
 
-        // the composite constants in terms of i, j, k
-        const real_mds D[8] = {
-            realval_mds(8.0)*bxyz*dt1 + realval_mds(4.0)*(diff[0]*byz+diff[1]*bxz+diff[2]*bxy)*dt2
-                + realval_mds(2.0)*(d_cgrid[0]*ayz+d_cgrid[1]*axz+d_cgrid[2]*axy)*dt3 + realval_mds(2.0)*axyz*dt4,
-            state.gridsp[0]*(realval_mds(4.0)*byz*dt1 + realval_mds(2.0)*(diff[1]*d_cgrid[2]+diff[2]*d_cgrid[1])*dt2 + ayz*dt3),
-            state.gridsp[1]*(realval_mds(4.0)*bxz*dt1 + realval_mds(2.0)*(diff[0]*d_cgrid[2]+diff[2]*d_cgrid[0])*dt2 + axz*dt3),
-            state.gridsp[2]*(realval_mds(4.0)*bxy*dt1 + realval_mds(2.0)*(diff[0]*d_cgrid[1]+diff[1]*d_cgrid[0])*dt2 + axy*dt3),
-            state.gridsp[3]*(realval_mds(2.0)*d_cgrid[2]*dt1+diff[2]*dt2),
-            state.gridsp[4]*(realval_mds(2.0)*d_cgrid[1]*dt1+diff[1]*dt2),
-            state.gridsp[5]*(realval_mds(2.0)*d_cgrid[0]*dt1+diff[0]*dt2),
-            state.gridsp[6]*dt1,
-        };
+        // OPT-11: fast modulo instead of %
+        const int iip1 = fast_grid_mod_positive(i1[0]+1, nx) * nynz;
+        const int jjp1 = fast_grid_mod_positive(i1[1]+1, ny) * nz;
+        const int kkp1 = fast_grid_mod_positive(i1[2]+1, nz);
+        const int iim1 = fast_grid_mod(i1[0], nx) * nynz;
+        const int jjm1 = fast_grid_mod(i1[1], ny) * nz;
+        const int kkm1 = fast_grid_mod(i1[2], nz);
 
-        const real_mds sf1 = C*( D[0] + D[1] + D[2] + D[3] + D[4] + D[5] + D[6] + D[7]);
-        const real_mds sf2 = C*(-D[0] - D[1] - D[2] + D[3] - D[4] + D[5] + D[6] + D[7]);
-        const real_mds sf3 = C*(-D[0] - D[1] + D[2] - D[3] + D[4] - D[5] + D[6] + D[7]);
-        const real_mds sf4 = C*( D[0] + D[1] - D[2] - D[3] - D[4] - D[5] + D[6] + D[7]);
-        const real_mds sf5 = C*(-D[0] + D[1] - D[2] - D[3] + D[4] + D[5] - D[6] + D[7]);
-        const real_mds sf6 = C*( D[0] - D[1] + D[2] - D[3] - D[4] + D[5] - D[6] + D[7]);
-        const real_mds sf7 = C*( D[0] - D[1] - D[2] + D[3] + D[4] - D[5] - D[6] + D[7]);
-        const real_mds sf8 = C*(-D[0] + D[1] + D[2] + D[3] - D[4] - D[5] - D[6] + D[7]);
+        const real_mds D0 = realval_mds(8.0)*bxyz*dt1
+                          + realval_mds(4.0)*(diff[0]*byz + diff[1]*bxz + diff[2]*bxy)*dt2
+                          + realval_mds(2.0)*(d_cgrid[0]*ayz + d_cgrid[1]*axz + d_cgrid[2]*axy)*dt3
+                          + realval_mds(2.0)*axyz*dt4;
+        const real_mds D1 = gsp0*(realval_mds(4.0)*byz*dt1 + realval_mds(2.0)*(diff[1]*d_cgrid[2]+diff[2]*d_cgrid[1])*dt2 + ayz*dt3);
+        const real_mds D2 = gsp1*(realval_mds(4.0)*bxz*dt1 + realval_mds(2.0)*(diff[0]*d_cgrid[2]+diff[2]*d_cgrid[0])*dt2 + axz*dt3);
+        const real_mds D3 = gsp2*(realval_mds(4.0)*bxy*dt1 + realval_mds(2.0)*(diff[0]*d_cgrid[1]+diff[1]*d_cgrid[0])*dt2 + axy*dt3);
+        const real_mds D4 = gsp3*(realval_mds(2.0)*d_cgrid[2]*dt1 + diff[2]*dt2);
+        const real_mds D5 = gsp4*(realval_mds(2.0)*d_cgrid[1]*dt1 + diff[1]*dt2);
+        const real_mds D6 = gsp5*(realval_mds(2.0)*d_cgrid[0]*dt1 + diff[0]*dt2);
+        const real_mds D7 = gsp6*dt1;
+
+        // OPT-12: partial-sum tree
+        const real_mds D67   = D6  + D7;
+        const real_mds D567  = D5  + D67;
+        const real_mds D4567 = D4  + D567;
+
+        const real_mds sf1 = C*( D0 + D1 + D2 + D3 + D4567);
+        const real_mds sf2 = C*(-D0 - D1 - D2 + D3 - D4  + D567);
+        const real_mds sf3 = C*(-D0 - D1 + D2 - D3 + D4  - D5  + D67);
+        const real_mds sf4 = C*( D0 + D1 - D2 - D3 - D4  - D5  + D67);
+        const real_mds sf5 = C*(-D0 + D1 - D2 - D3 + D4  + D5  - D6  + D7);
+        const real_mds sf6 = C*( D0 - D1 + D2 - D3 - D4  + D5  - D67);
+        const real_mds sf7 = C*( D0 - D1 - D2 + D3 + D4  - D5  - D67);
+        const real_mds sf8 = C*(-D0 + D1 + D2 + D3 - D4567);
 
         const int ind1 = iip1 + jjp1 + kkp1;
         const int ind2 = iip1 + jjp1 + kkm1;
@@ -181,8 +246,7 @@ static inline void distribute_observables_3d(
         const int ind7 = iim1 + jjm1 + kkp1;
         const int ind8 = iim1 + jjm1 + kkm1;
 
-        // perform the sums into the grid
-        if (nullptr != stress_grid) {
+        if (stress_grid != nullptr) {
             scalesummatrix3(sf1, *stress, stress_grid[ind1]);
             scalesummatrix3(sf2, *stress, stress_grid[ind2]);
             scalesummatrix3(sf3, *stress, stress_grid[ind3]);
@@ -192,7 +256,7 @@ static inline void distribute_observables_3d(
             scalesummatrix3(sf7, *stress, stress_grid[ind7]);
             scalesummatrix3(sf8, *stress, stress_grid[ind8]);
         }
-        if (nullptr != elast_grid) {
+        if (elast_grid != nullptr) {
             scalesummatrix6(sf1, *elast, elast_grid[ind1]);
             scalesummatrix6(sf2, *elast, elast_grid[ind2]);
             scalesummatrix6(sf3, *elast, elast_grid[ind3]);
@@ -203,14 +267,15 @@ static inline void distribute_observables_3d(
             scalesummatrix6(sf8, *elast, elast_grid[ind8]);
         }
 
-        d_cgrid[iX] -= c[iX] * state.gridsp[iX];
-        oldt = t[iX];
-        
+        // OPT-13: precomputed d_cgrid update steps
+        if      (iX == 0) d_cgrid[0] -= dc_step0;
+        else if (iX == 1) d_cgrid[1] -= dc_step1;
+        else              d_cgrid[2] -= dc_step2;
+
+        oldt    = t[iX];
         i1[iX] += c[iX];
         in[iX] += c[iX];
-
-        // Next cross point:
-        t[iX] = t_c1[iX]-in[iX]*t_c2[iX];
+        t[iX]   = t_c1[iX] - in[iX]*t_c2[iX];
     }
 }
 
@@ -224,58 +289,122 @@ static inline void distribute_observables_1d(
         matrix3_mds * stress_grid,
         matrix6_mds * elast_grid)
 {
-    // calculate the grid coordinates (no pbc) for the extreme points
-    int i1 = state.gridCells[state.gridDims] * xi[state.gridDims] * state.invbox[state.gridDims][state.gridDims] - (xi[state.gridDims] < 0.0);
-    const int i2 = state.gridCells[state.gridDims] * xj[state.gridDims] * state.invbox[state.gridDims][state.gridDims] - (xj[state.gridDims] < 0.0);
-    const int c = (i2>i1)-(i1>i2);
-    const real_mds t_c1 = xi[state.gridDims] / (xi[state.gridDims]-xj[state.gridDims]);
-    const real_mds t_c2 = state.gridsp[state.gridDims] / (xi[state.gridDims]-xj[state.gridDims]);
-    const real_mds C = realval_mds(0.5)*state.invgridsp*state.invgridsp;
-    real_mds d_cgrid = xi[state.gridDims]-(i1+realval_mds(0.5))*state.gridsp[state.gridDims];
-    int in = i1+(c+1)/2;
+    // Early exit if nothing to do
+    if (stress_grid == nullptr && elast_grid == nullptr) return;
 
-    // track previous time of crossing and check that sum is complete (?)
-    real_mds oldt = 0.0; 
-
-    // fix the number of iterations
-    const int iterations = c*(i2-i1);
+    // Cache the grid dimension index (accessed many times)
+    const int dim = state.gridDims;
+    const int gridSize = state.gridCells[dim];
+    
+    // Precompute frequently used values
+    const real_mds invbox_dim = state.invbox[dim][dim];
+    const real_mds gridsp_dim = state.gridsp[dim];
+    const real_mds xi_dim = xi[dim];
+    const real_mds xj_dim = xj[dim];
+    const real_mds diff_dim = diff[dim];
+    
+    // Precomputed grid spacing terms (5-dim gives the right index for D1 calculation)
+    const real_mds gridsp_5mdim = state.gridsp[5 - dim];
+    const real_mds gridsp_6 = state.gridsp[6];
+    
+    // Calculate the grid coordinates (no pbc) for the extreme points
+    const real_mds xi_scaled = gridSize * xi_dim * invbox_dim;
+    const real_mds xj_scaled = gridSize * xj_dim * invbox_dim;
+    
+    int i1 = int(xi_scaled) - (xi_dim < 0.0);
+    const int i2 = int(xj_scaled) - (xj_dim < 0.0);
+    
+    // Direction of traversal (-1, 0, or +1)
+    const int c = (i2 > i1) - (i1 > i2);
+    
+    // Number of cell crossings
+    const int iterations = c * (i2 - i1);
+    
+    // Single-cell case optimization (common case)
+    if (iterations == 0) {
+        // Particle pair is within a single cell
+        const int idx = ((i1 % gridSize) + gridSize) % gridSize;
+        
+        // For single cell, the full contribution goes to this cell
+        // (sf1 + sf2 = full contribution when integrated over [0,1])
+        if (stress_grid != nullptr) {
+            scalesummatrix3(realval_mds(1.0), *stress, stress_grid[idx]);
+        }
+        if (elast_grid != nullptr) {
+            scalesummatrix6(realval_mds(1.0), *elast, elast_grid[idx]);
+        }
+        return;
+    }
+    
+    // Precompute reciprocal (avoid division in loop)
+    const real_mds diff_inv = realval_mds(1.0) / (xi_dim - xj_dim);
+    const real_mds t_c1 = xi_dim * diff_inv;
+    const real_mds t_c2 = gridsp_dim * diff_inv;
+    
+    // Constant for scaling
+    const real_mds C = realval_mds(0.5) * state.invgridsp * state.invgridsp;
+    
+    // Distance from cell center
+    real_mds d_cgrid = xi_dim - (i1 + realval_mds(0.5)) * gridsp_dim;
+    
+    // Next crossing index
+    int in = i1 + (c + 1) / 2;
+    
+    // Track previous parametric time
+    real_mds oldt = 0.0;
+    
+    // Precompute c * gridsp_dim for loop update
+    const real_mds c_gridsp = c * gridsp_dim;
+    
+    // Main distribution loop
     for (int count = 0; count <= iterations; ++count) {
-        // there is always iterations+1, where the last iteration deals
-        // with any residual
-        real_mds newt = (iterations == count) ? realval_mds(1.0) : t_c1-in*t_c2;
+        // Parametric time at next crossing (or 1.0 for last iteration)
+        const real_mds newt = (iterations == count) ? realval_mds(1.0) : t_c1 - in * t_c2;
 
-        // work out the parametric time constants
-        const real_mds t12 = oldt*oldt;
-        const real_mds t22 = newt*newt;
+        // Parametric time constants
+        const real_mds t12 = oldt * oldt;
+        const real_mds t22 = newt * newt;
         const real_mds dt1 = newt - oldt;
         const real_mds dt2 = t22 - t12;
 
-        const int p1 = ((i1 + 1 + state.gridCells[state.gridDims]) % state.gridCells[state.gridDims]);
-        const int m1 = ((i1 + state.gridCells[state.gridDims]) % state.gridCells[state.gridDims]);
+        // Fast modulo for grid indices
+        // p1 = (i1 + 1) mod gridSize
+        // m1 = i1 mod gridSize  
+        int p1 = i1 + 1;
+        int m1 = i1;
+        
+        // Branchless modulo for values in range [-gridSize, 2*gridSize)
+        p1 = p1 - gridSize * (p1 >= gridSize);
+        p1 = p1 + gridSize * (p1 < 0);
+        m1 = m1 - gridSize * (m1 >= gridSize);
+        m1 = m1 + gridSize * (m1 < 0);
 
-        // the composite constants in terms of i, j, k
-        const real_mds D1 = state.gridsp[5-state.gridDims]*(realval_mds(2.0)*d_cgrid*dt1+diff[state.gridDims]*dt2);
-        const real_mds D2 = state.gridsp[6]*dt1;
+        // Compute D coefficients
+        const real_mds D1 = gridsp_5mdim * (realval_mds(2.0) * d_cgrid * dt1 + diff_dim * dt2);
+        const real_mds D2 = gridsp_6 * dt1;
 
-        const real_mds sf1 = C*( D1 + D2);
-        const real_mds sf2 = C*(-D1 + D2);
+        // Scaling factors
+        const real_mds sf1 = C * (D1 + D2);
+        const real_mds sf2 = C * (-D1 + D2);
 
-        if (nullptr != stress_grid) {
+        // Distribute to grid
+        if (stress_grid != nullptr) {
             scalesummatrix3(sf1, *stress, stress_grid[p1]);
             scalesummatrix3(sf2, *stress, stress_grid[m1]);
         }
-        if (nullptr != elast_grid) {
+        if (elast_grid != nullptr) {
             scalesummatrix6(sf1, *elast, elast_grid[p1]);
             scalesummatrix6(sf2, *elast, elast_grid[m1]);
         }
         
-        d_cgrid -= c * state.gridsp[state.gridDims];
+        // Update for next iteration
+        d_cgrid -= c_gridsp;
         oldt = newt;
-        
         i1 += c;
         in += c;
     }
 }
+ 
 
 static inline void distribute_observables_ptwise_3d(
         const state_t & state,
@@ -352,131 +481,164 @@ static inline void distribute_n2(
         matrix6_mds * elast_grid,
         const bool bPointWise = false)
 {
-    // Calculate the stress tensor
+    // Calculate the difference vector with periodic boundary handling
     array3_mds xij;
-    diffarray3( xj, xi, xij, state.box, state.periodic);
+    diffarray3(xj, xi, xij, state.box, state.periodic);
 
 #ifdef CUSTRESS_ENABLE
-    if (settings.cuda && custress_distribute_pair_interaction(xi,xj,F,batch_id))
+    if (settings.cuda && custress_distribute_pair_interaction(xi, xj, F, batch_id))
         return;
 #endif
 
-    // stress is relatively inexpensive so just do it here to reduce cases later
+    // Determine what we need to compute
+    const bool compute_stress = (F != nullptr);
+    const bool compute_elast = (phi != nullptr) && 
+                               (realval_ext(0.0) != phi[0] || realval_ext(0.0) != kappa[1]);
+    
+    // Early exit if nothing to compute
+    if (!compute_stress && !compute_elast) {
+        return;
+    }
+
+    // Compute stress tensor (outer product of F and xij)
     matrix3_mds stress;
-    if (nullptr != F) {
-        stress[0][0] = F[0][0]*xij[0];
-        stress[0][1] = F[0][0]*xij[1];
-        stress[0][2] = F[0][0]*xij[2];
-        stress[1][0] = F[0][1]*xij[0];
-        stress[1][1] = F[0][1]*xij[1];
-        stress[1][2] = F[0][1]*xij[2];
-        stress[2][0] = F[0][2]*xij[0];
-        stress[2][1] = F[0][2]*xij[1];
-        stress[2][2] = F[0][2]*xij[2];
+    if (compute_stress) {
+        // Cache force components
+        const real_mds Fx = (*F)[0];
+        const real_mds Fy = (*F)[1];
+        const real_mds Fz = (*F)[2];
+        
+        // Stress tensor: sigma_ij = F_i * r_j
+        // This is a rank-1 outer product, can be computed efficiently
+        stress[0][0] = Fx * xij[0];
+        stress[0][1] = Fx * xij[1];
+        stress[0][2] = Fx * xij[2];
+        stress[1][0] = Fy * xij[0];
+        stress[1][1] = Fy * xij[1];
+        stress[1][2] = Fy * xij[2];
+        stress[2][0] = Fz * xij[0];
+        stress[2][1] = Fz * xij[1];
+        stress[2][2] = Fz * xij[2];
     } else {
         stress_grid = nullptr;
     }
     
+    // Compute elasticity tensor
     matrix6_mds elast;
-    if (nullptr != phi &&
-            (realval_ext(0.0) != phi[0] || realval_ext(0.0) != kappa[1])) {
-        // Construct the stiffness matrix in Voigt notation
-        // 0 = xx; 1 = yy; 2 = zz; 3 = yz or zy; 4 = xz or zx; 5 = xy or yx
-        // All indices                         Voigt indices           Stress indices
-        // ( xxxx xxyy xxzz xxyz xxxz xxxy ) = ( 00 01 02 03 04 05 ) = [ 0000 0011 0022 0012 0002 0001 ]
-        // (      yyyy yyzz yyyz yyxz yyxy ) = (    11 12 13 14 15 ) = [      1111 1122 1112 1102 1101 ]
-        // (           zzzz zzyz zzxz zzxy ) = (       22 23 24 25 ) = [           2222 2212 2202 2201 ]
-        // (                yzyz yzxz yzxy ) = (          33 34 35 ) = [                1212 1202 1201 ]
-        // (                     xzxz xzxy ) = (             44 45 ) = [                     0202 0201 ]
-        // (                          xyxy ) = (                55 ) = [                          0101 ]
-
+    if (compute_elast) {
+        // Compute xkl difference vector
         array3_mds xkl;
-        diffarray3( *xl, *xk, xkl, state.box, state.periodic);
+        diffarray3(*xl, *xk, xkl, state.box, state.periodic);
 
-        const real_mds xij_norm = normarray3(xij);
-        const real_mds xkl_norm = normarray3(xkl);
-
-        const real_mds rinv = realval_mds(1.0)/xij_norm;
-        const real_mds rinv2 = real_mds(kappa[0])*rinv/xkl_norm;
-        const real_mds rinv3 = real_mds(phi[0])*rinv*rinv*rinv;
-
-        const real_mds xij00 = xij[0]*xij[0];
-        const real_mds xij11 = xij[1]*xij[1];
-        const real_mds xij22 = xij[2]*xij[2];
-        const real_mds xij01 = xij[0]*xij[1];
-        const real_mds xij02 = xij[0]*xij[2];
-        const real_mds xij12 = xij[1]*xij[2];
+        // Compute squared norms first (avoid sqrt if possible)
+        const real_mds xij_norm_sq = xij[0]*xij[0] + xij[1]*xij[1] + xij[2]*xij[2];
+        const real_mds xkl_norm_sq = xkl[0]*xkl[0] + xkl[1]*xkl[1] + xkl[2]*xkl[2];
         
-        const real_mds xij00r = xij00*rinv3;
-        const real_mds xij11r = xij11*rinv3;
-        const real_mds xij22r = xij22*rinv3;
-        const real_mds xij01r = xij01*rinv3;
-        const real_mds xij02r = xij02*rinv3;
-        const real_mds xij12r = xij12*rinv3;
+        // Now compute norms (single sqrt each)
+        const real_mds xij_norm = std::sqrt(xij_norm_sq);
+        const real_mds xkl_norm = std::sqrt(xkl_norm_sq);
 
-        const real_mds xkl00r = xkl[0]*xkl[0]*rinv2;
-        const real_mds xkl11r = xkl[1]*xkl[1]*rinv2;
-        const real_mds xkl22r = xkl[2]*xkl[2]*rinv2;
-        const real_mds xkl01r = xkl[0]*xkl[1]*rinv2;
-        const real_mds xkl02r = xkl[0]*xkl[2]*rinv2;
-        const real_mds xkl12r = xkl[1]*xkl[2]*rinv2;
+        // Precompute reciprocals
+        const real_mds rinv = realval_mds(1.0) / xij_norm;
+        const real_mds rinv2 = real_mds(kappa[0]) * rinv / xkl_norm;
+        const real_mds rinv3 = real_mds(phi[0]) * rinv * rinv * rinv;
 
-        elast[0][0] = xij00*(xkl00r - xij00r);
-        elast[0][1] = xij00*(xkl11r - xij11r);
-        elast[0][2] = xij00*(xkl22r - xij22r);
-        elast[0][3] = xij00*(xkl12r - xij12r);
-        elast[0][4] = xij00*(xkl02r - xij02r);
-        elast[0][5] = xij00*(xkl01r - xij01r);
+        // Precompute xij products (6 unique values for symmetric tensor)
+        const real_mds xij00 = xij[0] * xij[0];
+        const real_mds xij11 = xij[1] * xij[1];
+        const real_mds xij22 = xij[2] * xij[2];
+        const real_mds xij01 = xij[0] * xij[1];
+        const real_mds xij02 = xij[0] * xij[2];
+        const real_mds xij12 = xij[1] * xij[2];
+        
+        // Precompute xij products scaled by rinv3
+        const real_mds xij00r = xij00 * rinv3;
+        const real_mds xij11r = xij11 * rinv3;
+        const real_mds xij22r = xij22 * rinv3;
+        const real_mds xij01r = xij01 * rinv3;
+        const real_mds xij02r = xij02 * rinv3;
+        const real_mds xij12r = xij12 * rinv3;
 
-        elast[1][0] = xij11*(xkl00r - xij00r); // Added for Symm
-        elast[1][1] = xij11*(xkl11r - xij11r);
-        elast[1][2] = xij11*(xkl22r - xij22r);
-        elast[1][3] = xij11*(xkl12r - xij12r);
-        elast[1][4] = xij11*(xkl02r - xij02r);
-        elast[1][5] = xij11*(xkl01r - xij01r);
+        // Precompute xkl products scaled by rinv2
+        const real_mds xkl00r = xkl[0] * xkl[0] * rinv2;
+        const real_mds xkl11r = xkl[1] * xkl[1] * rinv2;
+        const real_mds xkl22r = xkl[2] * xkl[2] * rinv2;
+        const real_mds xkl01r = xkl[0] * xkl[1] * rinv2;
+        const real_mds xkl02r = xkl[0] * xkl[2] * rinv2;
+        const real_mds xkl12r = xkl[1] * xkl[2] * rinv2;
 
-        elast[2][0] = xij22*(xkl00r - xij00r); //Added for Symm
-        elast[2][1] = xij22*(xkl11r - xij11r); //Added for Symm
-        elast[2][2] = xij22*(xkl22r - xij22r);
-        elast[2][3] = xij22*(xkl12r - xij12r);
-        elast[2][4] = xij22*(xkl02r - xij02r);
-        elast[2][5] = xij22*(xkl01r - xij01r);
+        // Precompute the difference terms (used 6 times each)
+        const real_mds d00 = xkl00r - xij00r;
+        const real_mds d11 = xkl11r - xij11r;
+        const real_mds d22 = xkl22r - xij22r;
+        const real_mds d01 = xkl01r - xij01r;
+        const real_mds d02 = xkl02r - xij02r;
+        const real_mds d12 = xkl12r - xij12r;
 
-        elast[3][0] = xij12*(xkl00r - xij00r); //Added for Symm
-        elast[3][1] = xij12*(xkl11r - xij11r); //Added for Symm
-        elast[3][2] = xij12*(xkl22r - xij22r); //Added for Symm
-        elast[3][3] = xij12*(xkl12r - xij12r);
-        elast[3][4] = xij12*(xkl02r - xij02r);
-        elast[3][5] = xij12*(xkl01r - xij01r);
+        // Construct elasticity tensor using precomputed differences
+        // Row 0: multiply by xij00
+        elast[0][0] = xij00 * d00;
+        elast[0][1] = xij00 * d11;
+        elast[0][2] = xij00 * d22;
+        elast[0][3] = xij00 * d12;
+        elast[0][4] = xij00 * d02;
+        elast[0][5] = xij00 * d01;
 
-        elast[4][0] = xij02*(xkl00r - xij00r); // Added for Symm
-        elast[4][1] = xij02*(xkl11r - xij11r); // Added for Symm
-        elast[4][2] = xij02*(xkl22r - xij22r); // Added for Symm
-        elast[4][3] = xij02*(xkl12r - xij12r); // Added for Symm
-        elast[4][4] = xij02*(xkl02r - xij02r);
-        elast[4][5] = xij02*(xkl01r - xij01r);
+        // Row 1: multiply by xij11
+        elast[1][0] = xij11 * d00;
+        elast[1][1] = xij11 * d11;
+        elast[1][2] = xij11 * d22;
+        elast[1][3] = xij11 * d12;
+        elast[1][4] = xij11 * d02;
+        elast[1][5] = xij11 * d01;
 
-        elast[5][0] = xij01*(xkl00r - xij00r); // Added for Symm
-        elast[5][1] = xij01*(xkl11r - xij11r); // Added for Symm
-        elast[5][2] = xij01*(xkl22r - xij22r); // Added for Symm
-        elast[5][3] = xij01*(xkl12r - xij12r); // Added for Symm
-        elast[5][4] = xij01*(xkl02r - xij02r); // Added for Symm
-        elast[5][5] = xij01*(xkl01r - xij01r);
+        // Row 2: multiply by xij22
+        elast[2][0] = xij22 * d00;
+        elast[2][1] = xij22 * d11;
+        elast[2][2] = xij22 * d22;
+        elast[2][3] = xij22 * d12;
+        elast[2][4] = xij22 * d02;
+        elast[2][5] = xij22 * d01;
+
+        // Row 3: multiply by xij12
+        elast[3][0] = xij12 * d00;
+        elast[3][1] = xij12 * d11;
+        elast[3][2] = xij12 * d22;
+        elast[3][3] = xij12 * d12;
+        elast[3][4] = xij12 * d02;
+        elast[3][5] = xij12 * d01;
+
+        // Row 4: multiply by xij02
+        elast[4][0] = xij02 * d00;
+        elast[4][1] = xij02 * d11;
+        elast[4][2] = xij02 * d22;
+        elast[4][3] = xij02 * d12;
+        elast[4][4] = xij02 * d02;
+        elast[4][5] = xij02 * d01;
+
+        // Row 5: multiply by xij01
+        elast[5][0] = xij01 * d00;
+        elast[5][1] = xij01 * d11;
+        elast[5][2] = xij01 * d22;
+        elast[5][3] = xij01 * d12;
+        elast[5][4] = xij01 * d02;
+        elast[5][5] = xij01 * d01;
     } else {
         elast_grid = nullptr;
     }
 
-    if (nullptr != stress_grid || nullptr != elast_grid) {
-        if (bPointWise == true){
-            // Distribute impulsive correction in a pointwise way only on the positions at xi and xj
+    // Distribute to grid
+    if (stress_grid != nullptr || elast_grid != nullptr) {
+        if (bPointWise) {
+            // Distribute impulsive correction pointwise
             distribute_observables_ptwise_3d(state, xi, &stress, &elast, stress_grid, elast_grid);
             distribute_observables_ptwise_3d(state, xj, &stress, &elast, stress_grid, elast_grid);
-
         } else {
-
-            if (state.gridDims == mds_griddim_xyz){
+            if (state.gridDims == mds_griddim_xyz) {
+                // Use optimized 3D distribution
                 distribute_observables_3d(state, xi, xj, xij, &stress, &elast, stress_grid, elast_grid);
             } else {
+                // Use optimized 1D distribution
                 distribute_observables_1d(state, xi, xj, xij, &stress, &elast, stress_grid, elast_grid);
             }
         }
@@ -1980,3 +2142,4 @@ void StressGrid::Clear() {
         custress_clear();
 #endif//CUSTRESS_ENABLE
 }
+
